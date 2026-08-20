@@ -1621,11 +1621,25 @@ export const createAppStore = async (
 					const existingCard = collections.cards.get(RECO_CARD_ID);
 					let highest = digestOrdinal;
 					for (const card of collections.cards.values()) highest = Math.max(highest, card.ordinal);
+					/*
+					 * An ANSWERED recommendation stays answered when the same one
+					 * comes back. The digest re-reads on every foreground (the
+					 * cross-tab identity re-read calls loadFirstRunReco), and this
+					 * assignment used to reset the card to "active" — so leaving the
+					 * window and returning made an accepted recommendation
+					 * answerable again, with its accept/edit/dismiss controls back.
+					 * A DIFFERENT recommendation is a new question and is active.
+					 */
+					const sameRecommendation =
+						existingCard?.kind === "reco" &&
+						existingCard.payload.recommendation !== null &&
+						transition.recommendation !== null &&
+						existingCard.payload.recommendation.id === transition.recommendation.id;
 					const card: Card = {
 						id: RECO_CARD_ID,
 						kind: "reco",
 						title: "What I found",
-						status: "active",
+						status: existingCard?.status === "acted" && sameRecommendation ? "acted" : "active",
 						createdAt: existingCard?.createdAt ?? createdAt,
 						ordinal:
 							existingCard !== undefined && !transition.bump

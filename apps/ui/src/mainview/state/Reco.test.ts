@@ -279,6 +279,52 @@ describe("the reco seam's first-run answer", () => {
 		).toBe(true);
 	});
 
+	/*
+	 * The digest re-reads whenever the window comes back to the foreground (the
+	 * cross-tab identity re-read chains loadFirstRunReco), and the card reducer
+	 * used to write status: "active" unconditionally — so leaving Smithers and
+	 * returning handed an ANSWERED recommendation its accept/edit/dismiss
+	 * controls back.
+	 */
+	test("an answered recommendation stays answered when the same digest comes back", async () => {
+		const store = await webStore();
+		const controller = createAppController(store, unavailableRepositories, silentAgent(), {
+			...backend({
+				"/api/reco/first-run": json(200, GROUNDED),
+				"/api/reco/feedback": json(201, { recorded: true, action: "accept", recommendationId: "x" }),
+			}),
+		});
+		await controller.loadFirstRunReco();
+		await controller.acceptRecommendation();
+		expect(store.collections.cards.get("reco-current")?.status).toBe("acted");
+
+		await controller.loadFirstRunReco();
+		expect(store.collections.cards.get("reco-current")?.status).toBe("acted");
+		await controller.loadFirstRunReco(true);
+		expect(store.collections.cards.get("reco-current")?.status).toBe("acted");
+	});
+
+	test("a DIFFERENT recommendation is a new question, and is answerable", async () => {
+		const store = await webStore();
+		const later = {
+			...GROUNDED,
+			recommendation: { ...GROUNDED.recommendation, id: "review-pr:will/flows#13" },
+		};
+		let answer = GROUNDED as typeof later;
+		const controller = createAppController(store, unavailableRepositories, silentAgent(), {
+			...backend({
+				"/api/reco/first-run": () => json(200, answer),
+				"/api/reco/feedback": json(201, { recorded: true, action: "accept", recommendationId: "x" }),
+			}),
+		});
+		await controller.loadFirstRunReco();
+		await controller.acceptRecommendation();
+		expect(store.collections.cards.get("reco-current")?.status).toBe("acted");
+		answer = later;
+		await controller.loadFirstRunReco();
+		expect(store.collections.cards.get("reco-current")?.status).toBe("active");
+	});
+
 	test("edit posts feedback and opens the composer prefilled with the proposal", async () => {
 		const store = await webStore();
 		const posts: Array<{ path: string; body: unknown }> = [];
