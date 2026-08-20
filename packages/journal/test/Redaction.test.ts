@@ -221,6 +221,12 @@ describe("Redaction", () => {
           meta: executable
         }, { lineageId: "redaction-fold/root", token: "raw-meta" })
       )
+      yield* journal.emitDurable(
+        input(run, sourceId("transition-fold"), "flows.run.transitioned", {
+          status: "running",
+          token: "raw-token"
+        })
+      )
       const page = yield* journal.entries({ runId: run, limit: 10 })
       expect(page.entries.map((entry) => entry.payload)).toEqual([
         {
@@ -235,11 +241,16 @@ describe("Redaction", () => {
           startedAtMs: 1,
           checkpoint: executable,
           meta: executable
+        },
+        {
+          status: "running",
+          token: "raw-token"
         }
       ])
       expect(page.entries.map((entry) => entry.meta)).toEqual([
         { lineageId: "redaction-fold/root", token: "raw-meta" },
-        { lineageId: "redaction-fold/root", token: "raw-meta" }
+        { lineageId: "redaction-fold/root", token: "raw-meta" },
+        null
       ])
     }).pipe(Effect.provide(journalLayer()), Effect.scoped))
 

@@ -159,6 +159,28 @@ describe("SqlJournal durable emission", () => {
       })
     ))
 
+  effect("lists durable runs in stable order", () =>
+    withJournal(
+      Effect.gen(function*() {
+        const journal = yield* Journal
+        yield* journal.emitDurable(input(runId("z-run"), sourceId("s"), "created", 1))
+        yield* journal.emitDurable(input(runId("a-run"), sourceId("s"), "created", 2))
+        yield* journal.emitDurable(input(runId("z-run"), sourceId("s"), "updated", 3))
+        expect(yield* journal.runs).toEqual([runId("a-run"), runId("z-run")])
+      })
+    ))
+
+  effect("reports a failed run list read", () =>
+    withJournal(
+      Effect.gen(function*() {
+        const journal = yield* Journal
+        const sql = yield* Effect.service(SqlClient.SqlClient)
+        yield* sql`DROP TABLE flows_journal_events`
+        const failure = yield* Effect.flip(journal.runs)
+        expect(failure.code).toBe("unknown")
+      })
+    ))
+
   effect("emitDurable validates its input", () =>
     withJournal(
       Effect.gen(function*() {
