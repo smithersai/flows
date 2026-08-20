@@ -9,13 +9,13 @@ describe("Grep", () => {
   it("searches regexes and literal text with 1-based line numbers", async () => {
     const files = { "/src/a.ts": "one\nfoo.bar\nthree", "/src/b.js": "fooXbar" }
     const regex = await execute(
-      Effect.provide(Grep.run({ pattern: "foo.bar", root: "/src", include: "*.ts" }), layer({ files }))
+      Effect.provide(Grep.run({ pattern: "foo.bar", root: "/src", globs: ["*.ts"] }), layer({ files }))
     )
     const literal = await execute(
-      Effect.provide(Grep.run({ pattern: "foo.bar", literal: true, root: "/src" }), layer({ files }))
+      Effect.provide(Grep.run({ pattern: "foo.bar", fixedStrings: true, root: "/src" }), layer({ files }))
     )
-    expect(regex.matches).toEqual([{ file: "/src/a.ts", line: 2, text: "foo.bar" }])
-    expect(literal.matches).toEqual([{ file: "/src/a.ts", line: 2, text: "foo.bar" }])
+    expect(regex.matches).toEqual([{ file: "/src/a.ts", line: 2, text: "foo.bar", kind: "match" }])
+    expect(literal.matches).toEqual([{ file: "/src/a.ts", line: 2, text: "foo.bar", kind: "match" }])
     expect(regex.filesSearched).toBe(1)
   })
 
@@ -53,7 +53,10 @@ describe("Grep", () => {
         files: { "/src/a.txt": "hit\nhit" }
       })
     ))
-    expect(result).toMatchObject({ truncated: true, matches: [{ file: "/src/a.txt", line: 1, text: "hit" }] })
+    expect(result).toMatchObject({
+      truncated: true,
+      matches: [{ file: "/src/a.txt", line: 1, text: "hit", kind: "match" }]
+    })
     expect(result.notice).toBeDefined()
   })
 
@@ -67,18 +70,18 @@ describe("Grep", () => {
       "/repo/.venv/site.py": "needle"
     }
     const broad = await execute(
-      Effect.provide(Grep.run({ pattern: "needle", root: "/repo", include: "*.py" }), layer({ files }))
+      Effect.provide(Grep.run({ pattern: "needle", root: "/repo", globs: ["*.py"] }), layer({ files }))
     )
     const explicit = await execute(
-      Effect.provide(Grep.run({ pattern: "needle", root: "/repo/.git", include: "*.py" }), layer({ files }))
+      Effect.provide(Grep.run({ pattern: "needle", root: "/repo/.git", globs: ["*.py"] }), layer({ files }))
     )
 
     expect(broad).toMatchObject({
-      matches: [{ file: "/repo/source.py", line: 1, text: "needle" }],
+      matches: [{ file: "/repo/source.py", line: 1, text: "needle", kind: "match" }],
       filesSearched: 1
     })
     expect(explicit).toMatchObject({
-      matches: [{ file: "/repo/.git/objects/object.py", line: 1, text: "needle" }],
+      matches: [{ file: "/repo/.git/objects/object.py", line: 1, text: "needle", kind: "match" }],
       filesSearched: 1
     })
   })

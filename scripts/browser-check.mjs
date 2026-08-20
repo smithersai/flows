@@ -50,7 +50,11 @@ const BROWSER_SAFE = [
   { name: "@smthrs/flows", entry: "packages/flows/src/index.ts" },
   { name: "@smthrs/observability", entry: "packages/observability/src/index.ts" },
   { name: "@smthrs/sync", entry: "packages/sync/src/index.ts" },
-  { name: "@smthrs/time-travel", entry: "packages/time-travel/src/index.ts" }
+  { name: "@smthrs/time-travel", entry: "packages/time-travel/src/index.ts" },
+  { name: "@smthrs/std/Grep", entry: "packages/std/src/Grep.ts" },
+  { name: "@smthrs/std/Glob", entry: "packages/std/src/Glob.ts" },
+  { name: "@smthrs/std/Search", entry: "packages/std/src/Search.ts" },
+  { name: "@smthrs/std/PortableSearch", entry: "packages/std/src/PortableSearch.ts" }
 ]
 
 /**
