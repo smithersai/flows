@@ -30,8 +30,8 @@ import {
 	ADMIN_GRANT_PATH,
 	BILLING_BALANCE_PATH,
 	BILLING_USAGE_PATH,
+	MODEL_STREAM_PATH,
 	RECO_WATCHED_PATH,
-	TURN_PATH,
 	WORKFLOW_PROVISION_PATH,
 } from "smithers-shared/AgentApiRoutes";
 import { STUB_ADMIN_TOKEN, STUB_PRODUCT_TOKEN } from "../../scripts/stub-backends.ts";
@@ -330,8 +330,10 @@ export default defineSuite({
 		const turnCalls = client
 			.calls()
 			.slice(chatMark)
-			.filter((call) => call.method === "POST" && call.path === TURN_PATH);
-		report.equals(turnCalls.length, 1, "the number of turn POSTs the $0 chat made");
+			.filter((call) => call.method === "POST" && call.path === MODEL_STREAM_PATH);
+		// A chain turn authors one link per POST; at least one proves the chat
+		// really ran rather than being short-circuited like the paid work above.
+		report.check(turnCalls.length >= 1, "the $0 chat made no turn POST at all");
 		report.equals(turnCalls[0]?.status, 200, "the $0 chat turn's HTTP status");
 		report.equals(refusals(), refusalsBeforeChat, "the $0 chat appended a workflow-pause refusal of its own");
 		report.equals(
@@ -457,15 +459,21 @@ export default defineSuite({
 			headers: { "content-type": "application/json", cookie },
 			body: JSON.stringify({ plan: "pro" }),
 		});
-		report.equals(checkout.status, 404, "the signed-in checkout call");
+		/*
+		 * The closed alpha refuses checkout AT THE WORKER (BILLING_CHECKOUT_ENABLED
+		 * unset): an honest 501 naming the comped balance, spent before any
+		 * upstream token — so neither the billing worker nor the platform seam
+		 * hears a payment call at all.
+		 */
+		report.equals(checkout.status, 501, "the signed-in checkout call");
 		const checkoutType = checkout.headers.get("content-type") ?? "";
 		report.includes(checkoutType, "application/json", "the checkout answer's content type");
 		report.excludes(checkoutType, "text/html", "the checkout answer's content type");
 		const checkoutBody = (await checkout.json()) as { message?: string };
-		report.equals(
-			checkoutBody.message,
-			"gateway stub: no route /api/billing/checkout",
-			"the upstream that answered the checkout call",
+		report.includes(
+			checkoutBody.message ?? "",
+			"There is nothing to buy during the closed alpha",
+			"the checkout refusal's own words",
 		);
 		const billingSaw = stack.fronts.billing
 			.requests()
@@ -476,9 +484,9 @@ export default defineSuite({
 			.requests()
 			.slice(gatewayMark)
 			.filter((request) => request.path === "/api/billing/checkout");
-		report.equals(gatewaySaw.length, 1, "the checkout call did not reach the platform seam exactly once");
+		report.equals(gatewaySaw.length, 0, "the refused checkout still reached the platform seam");
 		report.ok(
-			"no top-up, checkout or card-collection surface is exposed — no checkout-shaped command name, both billing commands user-only and refused to the agent, no card copy or card-shaped input in the served document or module, and the payment routes session-gated and proxied to the platform rather than to the billing worker (E6.5).",
+			"no top-up, checkout or card-collection surface is exposed — no checkout-shaped command name, no checkout registered for an MVP session, no card copy or card-shaped input in the served document or module, and the payment route refuses honestly before any upstream is spent (E6.5).",
 		);
 
 		/* ---------------------------------------------------------------- */

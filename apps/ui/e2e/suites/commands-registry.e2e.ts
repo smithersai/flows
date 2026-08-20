@@ -563,16 +563,16 @@ const SMOKE_TABLE: Readonly<Record<string, SmokeEntry>> = {
 		 */
 		klass: "admin-only",
 		effect: ["refusal"],
-		refusal: "gateway stub: no route /api/billing/checkout",
+		refusal: "There is nothing to buy during the closed alpha",
 		fixture: "an admin session (checkout registers in the admin plugin alone)",
-		reason: "Opens a Stripe checkout session; there is no window in a headless run, so only the seam call happens.",
+		reason: "The closed alpha comps every balance, so the Worker refuses checkout honestly before any upstream.",
 	},
 	"billing.portal": {
 		klass: "admin-only",
 		effect: ["refusal"],
-		refusal: "gateway stub: no route /api/billing/portal",
+		refusal: "There is nothing to buy during the closed alpha",
 		fixture: "an admin session (same rule as billing.upgrade)",
-		reason: "Same seam, the portal half.",
+		reason: "Same refusal, the portal half.",
 	},
 	"reco.refresh": {
 		klass: "needs-fixture",
@@ -696,16 +696,18 @@ const SMOKE_TABLE: Readonly<Record<string, SmokeEntry>> = {
 	},
 	"keys.list": {
 		klass: "needs-fixture",
-		effect: ["card"],
+		effect: ["refusal"],
+		refusal: "Bring-your-own provider keys aren't part of this preview.",
 		fixture: "a signed-in session",
-		reason: "Lists the masked BYOK keys.",
+		reason: "BYOK is a platform family the Worker refuses honestly (PLATFORM_UNIMPLEMENTED).",
 	},
 	"keys.remove": {
 		klass: "needs-fixture",
-		effect: ["card"],
+		effect: ["refusal"],
+		refusal: "Bring-your-own provider keys aren't part of this preview.",
 		args: "anthropic",
-		fixture: "the anthropic key the platform double ships with",
-		reason: "MUTATES the platform double by removing a key.",
+		fixture: "a signed-in session",
+		reason: "BYOK is a platform family the Worker refuses honestly (PLATFORM_UNIMPLEMENTED).",
 	},
 	"notifications.list": {
 		klass: "needs-fixture",
@@ -786,7 +788,8 @@ const SMOKE_TABLE: Readonly<Record<string, SmokeEntry>> = {
 				client.transcript().includes("hello from the command smoke"),
 				"/send did not put the submitted text into the transcript",
 			);
-			report.check(client.countCalls("POST", "/api/agent/turn") > 0, "/send opened no turn against the Worker");
+			// One backend: a turn spends its model through the sealed relay.
+			report.check(client.countCalls("POST", "/api/model/stream") > 0, "/send opened no turn against the Worker");
 		},
 	},
 	clear: {
@@ -1331,7 +1334,8 @@ export default defineSuite({
 		for (const entry of Object.values(SMOKE_TABLE)) counts[entry.klass] = (counts[entry.klass] ?? 0) + 1;
 		report.equals(
 			`${counts["safe-to-smoke"]}/${counts["needs-fixture"]}/${counts["destructive-skip"]}/${counts["admin-only"]}`,
-			"19/56/5/16",
+			// §17.4 moved billing.upgrade/portal from needs-fixture to admin-only.
+			"19/54/5/18",
 			"the smoke classification counts changed",
 		);
 
@@ -1619,6 +1623,9 @@ export default defineSuite({
 		report.check(beforeClear.length > 0, "the sweep client never built a transcript to clear");
 
 		stack.chat.script({
+			// The sweep is a PLAIN model call on the relay, not a chain turn: its
+			// reader parses these delta frames directly, so no translation.
+			raw: true,
 			frames: [
 				{
 					type: "delta",
