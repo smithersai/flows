@@ -8,6 +8,7 @@
 import * as DatabaseMigrations from "@smthrs/database/Migrations"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import * as JournalMigrations from "@smthrs/journal/Migrations"
+import * as SqlJournal from "@smthrs/journal/SqlJournal"
 import * as Layer from "effect/Layer"
 import * as AttemptStore from "../AttemptStore.ts"
 import * as Migrations from "../Migrations.ts"
@@ -21,6 +22,7 @@ import * as RunStore from "../RunStore.ts"
  * @since 0.1.0
  */
 export const layer = Layer.mergeAll(RunStore.layer, AttemptStore.layer).pipe(
+  Layer.provideMerge(SqlJournal.layer({ capacity: 1024, overflow: "reject" })),
   Layer.provide(
     Layer.provideMerge(
       Layer.effectDiscard(DatabaseMigrations.run([JournalMigrations.set, Migrations.set])),

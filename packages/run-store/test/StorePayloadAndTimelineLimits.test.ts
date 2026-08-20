@@ -2,6 +2,7 @@ import { describe, expect, it } from "@effect/vitest"
 import * as DatabaseMigrations from "@smthrs/database/Migrations"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import * as JournalMigrations from "@smthrs/journal/Migrations"
+import * as SqlJournal from "@smthrs/journal/SqlJournal"
 import { Effect, Layer, Option } from "effect"
 import * as AttemptStore from "../src/AttemptStore.ts"
 import * as Migrations from "../src/Migrations.ts"
@@ -12,6 +13,7 @@ const migrationsLayer = Layer.effectDiscard(DatabaseMigrations.run([JournalMigra
 
 const owner: OwnerId = { hostId: "payload-host", pid: 1, nonce: "payload-owner" }
 const layer = Layer.mergeAll(RunStore.layer, AttemptStore.layer).pipe(
+  Layer.provideMerge(SqlJournal.layer({ capacity: 1024, overflow: "reject" })),
   Layer.provide(Layer.provideMerge(migrationsLayer, TestDatabase.layer))
 )
 

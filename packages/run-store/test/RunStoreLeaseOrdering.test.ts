@@ -3,6 +3,7 @@ import type { DurableWriter } from "@smthrs/database"
 import * as DatabaseMigrations from "@smthrs/database/Migrations"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import * as JournalMigrations from "@smthrs/journal/Migrations"
+import * as SqlJournal from "@smthrs/journal/SqlJournal"
 import { Effect, Exit, Layer } from "effect"
 import type * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as Migrations from "../src/Migrations.ts"
@@ -11,6 +12,11 @@ import { RunStore } from "../src/RunStore.ts"
 import * as RunStoreLive from "../src/RunStore.ts"
 
 const migrationsLayer = Layer.effectDiscard(DatabaseMigrations.run([JournalMigrations.set, Migrations.set]))
+const databaseLayer = Layer.provideMerge(migrationsLayer, TestDatabase.layer)
+const storeLayer = RunStoreLive.layer.pipe(
+  Layer.provideMerge(SqlJournal.layer({ capacity: 1024, overflow: "reject" })),
+  Layer.provideMerge(databaseLayer)
+)
 
 const owner: OwnerId = { hostId: "lease-host", pid: 17, nonce: "lease-owner" }
 
@@ -18,9 +24,7 @@ const migrated = <A, E>(
   effect: Effect.Effect<A, E, DurableWriter.DurableWriter | SqlClient.SqlClient | RunStore>
 ) =>
   effect.pipe(
-    Effect.provide(RunStoreLive.layer),
-    Effect.provide(migrationsLayer),
-    Effect.provide(TestDatabase.layer)
+    Effect.provide(storeLayer)
   )
 
 const activate = (store: RunStoreLive.Service, runId: string) =>

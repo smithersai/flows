@@ -7,6 +7,7 @@ import { DurableWriter } from "@smthrs/database"
 import * as DatabaseMigrations from "@smthrs/database/Migrations"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import * as JournalMigrations from "@smthrs/journal/Migrations"
+import * as SqlJournal from "@smthrs/journal/SqlJournal"
 import { Effect, Fiber, Layer, Metric, Tracer } from "effect"
 import { TestClock } from "effect/testing"
 import type * as SqlClient from "effect/unstable/sql/SqlClient"
@@ -16,13 +17,16 @@ import { RunStore } from "../src/RunStore.ts"
 import * as RunStoreLive from "../src/RunStore.ts"
 
 const migrationsLayer = Layer.effectDiscard(DatabaseMigrations.run([JournalMigrations.set, Migrations.set]))
+const databaseLayer = Layer.provideMerge(migrationsLayer, TestDatabase.layer)
+const storeLayer = RunStoreLive.layer.pipe(
+  Layer.provideMerge(SqlJournal.layer({ capacity: 1024, overflow: "reject" })),
+  Layer.provideMerge(databaseLayer)
+)
 
 const migrated = <A, E>(effect: Effect.Effect<A, E, DurableWriter.DurableWriter | SqlClient.SqlClient | RunStore>) =>
   Effect.runPromise(
     effect.pipe(
-      Effect.provide(RunStoreLive.layer),
-      Effect.provide(migrationsLayer),
-      Effect.provide(TestDatabase.layer),
+      Effect.provide(storeLayer),
       Effect.provide(TestClock.layer()),
       Effect.provideService(Metric.MetricRegistry, new Map())
     )
@@ -112,9 +116,12 @@ describe("SpanAnnotations", () => {
         yield* Fiber.interrupt(fiber)
       }).pipe(
         Effect.provideService(Tracer.Tracer, tracer),
-        Effect.provide(RunStoreLive.layer.pipe(Layer.provide(hangingWriter))),
-        Effect.provide(migrationsLayer),
-        Effect.provide(TestDatabase.layer),
+        Effect.provide(
+          RunStoreLive.layer.pipe(
+            Layer.provideMerge(SqlJournal.layer({ capacity: 1024, overflow: "reject" })),
+            Layer.provideMerge(hangingWriter.pipe(Layer.provideMerge(databaseLayer)))
+          )
+        ),
         Effect.provide(TestClock.layer()),
         Effect.provideService(Metric.MetricRegistry, new Map())
       )
