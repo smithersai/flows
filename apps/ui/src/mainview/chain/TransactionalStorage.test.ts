@@ -80,6 +80,45 @@ describe("the write-ahead commit protocol", () => {
 		expect(liveEntries(host)).toEqual({ keep: "before" });
 	});
 
+	test("a failed commit leaves the live store reading the last committed envelope", async () => {
+		/*
+		 * The mirror the session reads from must never run ahead of the host.
+		 * When the commit write throws (a quota rejection, a revoked host) the
+		 * facade used to keep the uncommitted value in memory: the session read
+		 * a projection the host never took, and the NEXT successful commit
+		 * wrote it out — exactly the half-applied transition this facade exists
+		 * to prevent.
+		 */
+		const host = scriptableHost();
+		const store = await open(host);
+		store.storage.setItem("keep", "before");
+		host.crashOnSet = ENVELOPE_STORAGE_KEY;
+		expect(() => store.storage.setItem("keep", "after")).toThrow();
+		host.crashOnSet = undefined;
+		expect(store.storage.getItem("keep")).toBe("before");
+		// A later, unrelated commit must not smuggle the failed write out.
+		store.storage.setItem("other", "x");
+		expect(liveEntries(host)).toEqual({ keep: "before", other: "x" });
+	});
+
+	test("an aborted batch leaves neither the host nor the live store holding its writes", async () => {
+		const host = scriptableHost();
+		const store = await open(host);
+		store.storage.setItem("keep", "before");
+		host.crashOnSet = ENVELOPE_STORAGE_KEY;
+		await expect(
+			store.batch(async () => {
+				store.storage.setItem("keep", "after");
+				store.storage.setItem("extra", "1");
+			}),
+		).rejects.toThrow("crash writing smithers-mvp.store");
+		host.crashOnSet = undefined;
+		expect(store.storage.getItem("keep")).toBe("before");
+		expect(store.storage.getItem("extra")).toBe(null);
+		store.storage.setItem("other", "x");
+		expect(liveEntries(host)).toEqual({ keep: "before", other: "x" });
+	});
+
 	test("a crash during the stage write rolls back: the old envelope stays authoritative", async () => {
 		const host = scriptableHost();
 		const store = await open(host);

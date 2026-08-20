@@ -1846,37 +1846,37 @@ export const createAppStore = async (
 				}
 			}
 
-		collections.transitions.insert({
-			id: `transition-${revision}`,
-			revision,
-			actor: transition.actor,
-			type: transition.type,
-			payload: transitionPayload(transition),
-			createdAt,
-		});
-		/*
-		 * Retention (docs/persistence.md): the log collections compact inside
-		 * the appending transaction, so the bound is part of the atomic commit
-		 * and a crash can never leave a half-swept log.
-		 */
-		const staleTransitions = staleLogKeys(
-			[...collections.transitions.values()],
-			MAX_TRANSITION_RECORDS,
-			(record) => record.revision,
-		);
-		if (staleTransitions.length > 0) collections.transitions.delete(staleTransitions);
-		const staleToolCalls = staleLogKeys(
-			[...collections.toolCalls.values()],
-			MAX_TOOL_CALL_RECORDS,
-			(record) => record.createdAt,
-		);
-		if (staleToolCalls.length > 0) collections.toolCalls.delete(staleToolCalls);
-		const staleChainEvents = staleLogKeys(
-			[...collections.chainEvents.values()],
-			MAX_CHAIN_EVENT_RECORDS,
-			(record) => record.createdAt,
-		);
-		if (staleChainEvents.length > 0) collections.chainEvents.delete(staleChainEvents);
+			collections.transitions.insert({
+				id: `transition-${revision}`,
+				revision,
+				actor: transition.actor,
+				type: transition.type,
+				payload: transitionPayload(transition),
+				createdAt,
+			});
+			/*
+			 * Retention (docs/persistence.md): the log collections compact inside
+			 * the appending transaction, so the bound is part of the atomic commit
+			 * and a crash can never leave a half-swept log.
+			 */
+			const staleTransitions = staleLogKeys(
+				[...collections.transitions.values()],
+				MAX_TRANSITION_RECORDS,
+				(record) => record.revision,
+			);
+			if (staleTransitions.length > 0) collections.transitions.delete(staleTransitions);
+			const staleToolCalls = staleLogKeys(
+				[...collections.toolCalls.values()],
+				MAX_TOOL_CALL_RECORDS,
+				(record) => record.createdAt,
+			);
+			if (staleToolCalls.length > 0) collections.toolCalls.delete(staleToolCalls);
+			const staleChainEvents = staleLogKeys(
+				[...collections.chainEvents.values()],
+				MAX_CHAIN_EVENT_RECORDS,
+				(record) => record.createdAt,
+			);
+			if (staleChainEvents.length > 0) collections.chainEvents.delete(staleChainEvents);
 		});
 
 		return transaction;
