@@ -487,9 +487,11 @@ const recordModelStep = (
     Schedule.tap(({ input }) =>
       Effect.sync(() => {
         attempt++
-        if (input instanceof ModelError.ModelError) {
-          retries.push(ModelEvent.ModelEvent.Retry({ type: "retry", attempt, code: input.code }))
-        }
+        // The retry predicate admits only ModelError transport classes before
+        // the schedule advances, so every scheduled input is the typed error
+        // being retried.
+        const error = input as ModelError.ModelError
+        retries.push(ModelEvent.ModelEvent.Retry({ type: "retry", attempt, code: error.code }))
       })
     )
   )
