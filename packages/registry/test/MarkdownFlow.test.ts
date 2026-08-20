@@ -173,6 +173,336 @@ describe("MarkdownFlow", () => {
     expect(Option.getOrThrow(shell.descriptor).effects.tier).toBe("irreversible")
   })
 
+  it("accepts a description of exactly the Agent Skills limit and warns one character over", () => {
+    const atLimit = fromMarkdown(`---\ndescription: ${"a".repeat(1024)}\n---\nbody`)
+    const overLimit = fromMarkdown(`---\ndescription: ${"a".repeat(1025)}\n---\nbody`)
+
+    expect(Option.isSome(atLimit.descriptor)).toBe(true)
+    expect(atLimit.warnings).not.toContainEqual(expect.objectContaining({ code: "invalid_description" }))
+    expect(overLimit.warnings).toContainEqual(expect.objectContaining({ code: "invalid_description" }))
+  })
+
+  it.each([
+    ["is absent", "---\nname: review\n---\nbody"],
+    ["is an empty string", "---\ndescription: ''\n---\nbody"],
+    ["is not a string", "---\ndescription:\n  - Review\n---\nbody"],
+    ["has no frontmatter at all", "Just a body."]
+  ])("drops an entry whose description %s", (_label, text) => {
+    const result = fromMarkdown(text)
+
+    expect(result.descriptor).toEqual(Option.none())
+    expect(result.warnings).toContainEqual(expect.objectContaining({
+      code: "missing_description",
+      name: "review",
+      message: "Markdown flows require a non-empty frontmatter description"
+    }))
+  })
+
+  it("falls back to the directory name when a path-named source derives no name", () => {
+    const result = fromMarkdown("---\ndescription: Review\n---\nbody", {
+      naming: "path",
+      name: Option.none(),
+      dirBasename: "fallback"
+    })
+
+    expect(Option.getOrThrow(result.descriptor).name).toBe("fallback")
+    expect(result.warnings).not.toContainEqual(expect.objectContaining({ code: "name_field_ignored" }))
+  })
+
+  it.each([
+    ["a declared seat", "model: opus", "opus"],
+    ["a blank seat", "model: '   '", undefined],
+    ["a non-string seat", "model:\n  - opus", undefined],
+    ["no seat at all", "capabilities: []", undefined]
+  ])("reads %s from frontmatter", (_label, member, model) => {
+    const result = fromMarkdown(`---\ndescription: Review\n${member}\n---\nbody`)
+
+    expect(Option.getOrUndefined(Option.getOrThrow(result.descriptor).model)).toBe(model)
+  })
+
+  it.each([
+    ["an explicit list", "capabilities: [Read, fs:write:src]", ["Read", "fs:write:src"], "compensable"],
+    ["an empty list", "capabilities: []", [], "sealed"],
+    ["a space-separated string", "capabilities: Read  Grep", ["Read", "Grep"], "sealed"],
+    ["a whitespace-only string", "capabilities: '   '", [], "sealed"]
+  ])("bounds authority from %s", (_label, member, capabilities, tier) => {
+    const descriptor = Option.getOrThrow(fromMarkdown(`---\ndescription: Review\n${member}\n---\nbody`).descriptor)
+
+    expect(descriptor.capabilities).toEqual(capabilities)
+    expect(descriptor.effects.tier).toBe(tier)
+  })
+
+  it.each([
+    ["a string", "capabilities: Read Grep"],
+    ["a mapping", "capabilities:\n  read: true"],
+    ["a list of mappings", "capabilities:\n  - name: Read"]
+  ])("warns when capabilities are declared as %s", (_label, member) => {
+    const result = fromMarkdown(`---\ndescription: Review\n${member}\n---\nbody`)
+
+    expect(result.warnings).toContainEqual(expect.objectContaining({ code: "invalid_capabilities" }))
+  })
+
+  it("falls back to the wildcard when capabilities cannot bound authority", () => {
+    const descriptor = Option.getOrThrow(
+      fromMarkdown("---\ndescription: Review\ncapabilities:\n  read: true\n---\nbody").descriptor
+    )
+
+    expect(descriptor.capabilities).toEqual(["*"])
+    expect(descriptor.effects).toEqual({
+      reads: ["**"],
+      writes: ["**"],
+      mode: "expected",
+      onConflict: "serialize",
+      tier: "irreversible"
+    })
+  })
+
+  it.each([
+    ["a list", "flows: [read-pr, write-pr]", ["read-pr", "write-pr"]],
+    ["a string", "flows: read-pr write-pr", ["read-pr", "write-pr"]],
+    ["an empty list", "flows: []", []],
+    ["neither flows nor allowed-tools", "capabilities: []", []]
+  ])("reads the callable flow list from %s", (_label, member, flows) => {
+    const descriptor = Option.getOrThrow(fromMarkdown(`---\ndescription: Review\n${member}\n---\nbody`).descriptor)
+
+    expect(descriptor.flows).toEqual(flows)
+  })
+
+  it("prefers flows over allowed-tools when both are declared", () => {
+    const descriptor = Option.getOrThrow(
+      fromMarkdown("---\ndescription: Review\nflows: [read-pr]\nallowed-tools: Read Bash\n---\nbody").descriptor
+    )
+
+    expect(descriptor.flows).toEqual(["read-pr"])
+  })
+
+  it.each([
+    ["true", "disable-model-invocation: true", false],
+    ["the string true", "disable-model-invocation: 'true'", false],
+    ["false", "disable-model-invocation: false", true],
+    ["the string false", "disable-model-invocation: 'false'", true],
+    ["absent", "capabilities: []", true]
+  ])("reads model invocability when disable-model-invocation is %s", (_label, member, modelInvocable) => {
+    const result = fromMarkdown(`---\ndescription: Review\n${member}\n---\nbody`)
+
+    expect(Option.getOrThrow(result.descriptor).modelInvocable).toBe(modelInvocable)
+    expect(result.warnings).not.toContainEqual(expect.objectContaining({ code: "invalid_model_invocation" }))
+  })
+
+  it("keeps an entry visible when disable-model-invocation is not a boolean", () => {
+    const result = fromMarkdown("---\ndescription: Review\ndisable-model-invocation: maybe\n---\nbody")
+
+    expect(Option.getOrThrow(result.descriptor).modelInvocable).toBe(true)
+    expect(result.warnings).toContainEqual(expect.objectContaining({ code: "invalid_model_invocation" }))
+  })
+
+  it("reads a fully declared effect envelope", () => {
+    const result = fromMarkdown([
+      "---",
+      "description: Review",
+      "capabilities: [fs:write:src]",
+      "effects:",
+      "  reads: [src]",
+      "  writes: [src/out]",
+      "  mode: hermetic",
+      "  onConflict: fail",
+      "  tier: compensable",
+      "---",
+      "body"
+    ].join("\n"))
+
+    expect(Option.getOrThrow(result.descriptor).effects).toEqual({
+      reads: ["src"],
+      writes: ["src/out"],
+      mode: "hermetic",
+      onConflict: "fail",
+      tier: "compensable"
+    })
+    expect(result.warnings.map((warning) => warning.code)).toEqual(["missing_name"])
+  })
+
+  it.each([
+    ["lane", "lane"],
+    ["serialize", "serialize"]
+  ])("keeps the %s conflict policy", (declared, onConflict) => {
+    const descriptor = Option.getOrThrow(
+      fromMarkdown([
+        "---",
+        "description: Review",
+        "capabilities: []",
+        "effects:",
+        "  reads: []",
+        "  writes: []",
+        "  mode: expected",
+        `  onConflict: ${declared}`,
+        "---",
+        "body"
+      ].join("\n")).descriptor
+    )
+
+    expect(descriptor.effects.onConflict).toBe(onConflict)
+    expect(descriptor.effects.mode).toBe("expected")
+  })
+
+  it("raises an under-classifying declared tier to the inferred tier", () => {
+    const result = fromMarkdown([
+      "---",
+      "description: Review",
+      "capabilities: [Write]",
+      "effects:",
+      "  reads: []",
+      "  writes: []",
+      "  tier: sealed",
+      "---",
+      "body"
+    ].join("\n"))
+
+    expect(Option.getOrThrow(result.descriptor).effects.tier).toBe("irreversible")
+    expect(result.warnings).toContainEqual(expect.objectContaining({
+      code: "invalid_effect_tier",
+      message: "Effect tier sealed under-classifies declared authority; using irreversible"
+    }))
+  })
+
+  it.each([
+    [
+      "the declaration is not an object",
+      "effects: none",
+      "Frontmatter effects must be an object; using conservative effects"
+    ],
+    [
+      "reads is not a string array",
+      "effects:\n  reads: everything\n  writes: []",
+      "Frontmatter effects.reads must be a string array; using the conservative wildcard"
+    ],
+    [
+      "writes is not a string array",
+      "effects:\n  reads: []\n  writes:\n    - path: src",
+      "Frontmatter effects.writes must be a string array; using the conservative wildcard"
+    ],
+    [
+      "mode is unknown",
+      "effects:\n  reads: []\n  writes: []\n  mode: loose",
+      "Frontmatter effects.mode must be hermetic or expected; using expected"
+    ],
+    [
+      "the conflict policy is unknown",
+      "effects:\n  reads: []\n  writes: []\n  onConflict: whenever",
+      "Frontmatter effects.onConflict must be serialize, lane, or fail; using serialize"
+    ]
+  ])("falls back to conservative effects when %s", (_label, member, message) => {
+    const result = fromMarkdown(`---\ndescription: Review\ncapabilities: []\n${member}\n---\nbody`)
+
+    expect(Option.getOrThrow(result.descriptor).effects).toEqual({
+      reads: ["**"],
+      writes: ["**"],
+      mode: "expected",
+      onConflict: "serialize",
+      tier: "irreversible"
+    })
+    expect(result.warnings).toContainEqual(expect.objectContaining({
+      code: "invalid_effect_declaration",
+      message
+    }))
+  })
+
+  it("omits reads and writes that are not declared under bounded authority", () => {
+    const descriptor = Option.getOrThrow(
+      fromMarkdown("---\ndescription: Review\ncapabilities: [Read]\neffects:\n  tier: sealed\n---\nbody").descriptor
+    )
+
+    expect(descriptor.effects).toEqual({
+      reads: [],
+      writes: [],
+      mode: "hermetic",
+      onConflict: "serialize",
+      tier: "sealed"
+    })
+  })
+
+  it.each([
+    ["client", "client"],
+    ["local", "local"],
+    ["sandbox", "sandbox"],
+    ["remote", "remote"]
+  ])("reads the %s placement", (declared, placement) => {
+    const result = fromMarkdown(`---\ndescription: Review\nplacement: ${declared}\n---\nbody`)
+
+    expect(Option.getOrThrow(Option.getOrThrow(result.descriptor).placement)).toBe(placement)
+    expect(result.warnings).not.toContainEqual(expect.objectContaining({ code: "unsupported_module_metadata" }))
+  })
+
+  it("ignores an unknown placement and keeps the entry unplaced", () => {
+    const result = fromMarkdown("---\ndescription: Review\nplacement: orbit\n---\nbody")
+
+    expect(Option.isNone(Option.getOrThrow(result.descriptor).placement)).toBe(true)
+    expect(result.warnings).toContainEqual(expect.objectContaining({
+      code: "unsupported_module_metadata",
+      message: "Ignoring invalid placement; expected client, local, sandbox, or remote"
+    }))
+  })
+
+  it("warns once for each unsupported schema key", () => {
+    const result = fromMarkdown("---\ndescription: Review\ninput: {}\nschema: {}\n---\nbody")
+
+    expect(
+      result.warnings.filter((warning) => warning.code === "unsupported_input_schema").map((warning) => warning.message)
+    ).toEqual([
+      "Ignoring unsupported markdown flow input frontmatter",
+      "Ignoring unsupported markdown flow schema frontmatter"
+    ])
+  })
+
+  it("warns about unknown keys and keeps every field on the descriptor", () => {
+    const result = fromMarkdown("---\ndescription: Review\nunexpected: value\n---\nbody")
+
+    expect(Option.getOrThrow(result.descriptor).frontmatter).toEqual({
+      description: "Review",
+      unexpected: "value"
+    })
+    expect(result.warnings).toContainEqual(expect.objectContaining({
+      code: "unknown_frontmatter_key",
+      message: "Unknown frontmatter key: unexpected"
+    }))
+  })
+
+  it.each([
+    ["an empty string", "effort: ''"],
+    ["an unrecognised spelling", "effort: ludicrous"],
+    ["a known spelling", "effort: high"]
+  ])("carries an effort declaration through discovery when it is %s", (_label, member) => {
+    const result = fromMarkdown(`---\ndescription: Review\n${member}\n---\nbody`)
+
+    expect(Option.isSome(result.descriptor)).toBe(true)
+    expect(result.warnings.map((warning) => warning.code)).not.toContain("unknown_frontmatter_key")
+  })
+
+  it("projects the model seat and placement into the core authoring value", () => {
+    const placed = Option.getOrThrow(
+      fromMarkdown(
+        "---\ndescription: Review\nmodel: opus\nplacement: sandbox\ncapabilities: [Read]\nflows: [read-pr]\n---\nbody"
+      ).descriptor
+    )
+    const unplaced = Option.getOrThrow(fromMarkdown("---\ndescription: Review\ncapabilities: []\n---\nbody").descriptor)
+
+    expect(MarkdownFlow.toCoreFrontmatter(placed)).toEqual({
+      name: "review",
+      description: "Review",
+      flows: ["read-pr"],
+      capabilities: ["Read"],
+      effects: placed.effects,
+      model: "opus",
+      placement: "sandbox"
+    })
+    expect(MarkdownFlow.toCoreFrontmatter(unplaced)).toEqual({
+      name: "review",
+      description: "Review",
+      flows: [],
+      capabilities: [],
+      effects: unplaced.effects
+    })
+  })
+
   it("warns with field-specific codes for malformed known frontmatter", () => {
     const result = fromMarkdown([
       "---",
@@ -201,6 +531,18 @@ describe("MarkdownFlow", () => {
       "invalid_model_invocation"
     ]))
     expect(result.warnings).not.toContainEqual(expect.objectContaining({ code: "unknown_frontmatter_key" }))
+  })
+
+  it.each([
+    ["a short string", "compatibility: Claude Code", false],
+    ["a string of exactly 500 characters", `compatibility: ${"b".repeat(500)}`, false],
+    ["a string of 501 characters", `compatibility: ${"b".repeat(501)}`, true],
+    ["a list", "compatibility:\n  - Claude Code", true]
+  ])("accepts a compatibility declaration that is %s", (_label, member, warns) => {
+    const result = fromMarkdown(`---\ndescription: Review\n${member}\n---\nbody`)
+
+    expect(Option.isSome(result.descriptor)).toBe(true)
+    expect(result.warnings.some((warning) => warning.code === "invalid_compatibility")).toBe(warns)
   })
 
   it("keeps descriptors serializable when YAML aliases are cyclic", () => {

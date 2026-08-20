@@ -24,10 +24,65 @@ describe("Frontmatter", () => {
     expect(Frontmatter.split("---\n---\nbody")).toEqual({ frontmatter: "", body: "body" })
   })
 
+  it("keeps an unterminated frontmatter document as body text", () => {
+    expect(Frontmatter.split("---\nname: review\nbody without a closing fence")).toEqual({
+      frontmatter: undefined,
+      body: "---\nname: review\nbody without a closing fence"
+    })
+    expect(Frontmatter.split("---")).toEqual({ frontmatter: undefined, body: "---" })
+  })
+
   it("detects when a streamed metadata prefix is complete", () => {
     expect(Frontmatter.isMetadataComplete("---\ndescription: Review")).toBe(false)
     expect(Frontmatter.isMetadataComplete("---\ndescription: Review\n---\npartial body")).toBe(true)
     expect(Frontmatter.isMetadataComplete("# No frontmatter")).toBe(true)
+  })
+
+  it("treats a prefix shorter than an opening fence as incomplete", () => {
+    expect(Frontmatter.isMetadataComplete("")).toBe(false)
+    expect(Frontmatter.isMetadataComplete("--")).toBe(false)
+    expect(Frontmatter.isMetadataComplete("\uFEFF--")).toBe(false)
+    expect(Frontmatter.isMetadataComplete("---")).toBe(false)
+  })
+
+  it("completes a leading rule that is not an opening fence once its line ends", () => {
+    expect(Frontmatter.isMetadataComplete("----------")).toBe(false)
+    expect(Frontmatter.isMetadataComplete("----------\nbody")).toBe(true)
+  })
+
+  it("reads no fields from a document without frontmatter", () => {
+    expect(Frontmatter.parse({ path: "/skills/review/SKILL.md", text: "# Review\n" })).toEqual({
+      fields: {},
+      warnings: []
+    })
+    expect(Frontmatter.parse({ path: "/skills/review/SKILL.md", text: "---\n---\nbody" })).toEqual({
+      fields: {},
+      warnings: []
+    })
+    expect(Frontmatter.parse({ path: "/skills/review/SKILL.md", text: "---\n   \n---\nbody" })).toEqual({
+      fields: {},
+      warnings: []
+    })
+  })
+
+  it("retains finite numeric members of a decoded binary scalar", () => {
+    expect(Frontmatter.parse({
+      path: "/skills/review/SKILL.md",
+      text: "---\ndata: !!binary aGk=\n---\nbody"
+    })).toEqual({
+      fields: { data: { 0: 104, 1: 105 } },
+      warnings: []
+    })
+  })
+
+  it("replaces a non-serializable scalar with null and warns once", () => {
+    const result = Frontmatter.parse({
+      path: "/skills/review/SKILL.md",
+      text: "---\ndescription: Review\nmerged: !!merge x\n---\nbody"
+    })
+
+    expect(result.fields).toEqual({ description: "Review", merged: null })
+    expect(result.warnings).toEqual([expect.objectContaining({ code: "non_serializable_frontmatter" })])
   })
 
   it("parses YAML fields without validating unknown keys", () => {

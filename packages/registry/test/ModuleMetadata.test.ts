@@ -150,6 +150,309 @@ describe("ModuleMetadata", () => {
     expect(Option.getOrThrow(metadata.placement)).toBe("remote")
   })
 
+  it("returns conservative metadata when no default flow declaration is present", () => {
+    const metadata = ModuleMetadata.parse(
+      "const helper = 1\nexport const named = Flow.make({ description: \"Named\" })"
+    )
+
+    expect(ModuleMetadata.isComplete("")).toBe(false)
+    expect(metadata).toEqual({
+      description: undefined,
+      hasInput: false,
+      hasOutput: false,
+      model: Option.none(),
+      flows: [],
+      capabilities: ["*"],
+      effects: {
+        reads: ["**"],
+        writes: ["**"],
+        mode: "expected",
+        onConflict: "serialize",
+        tier: "irreversible"
+      },
+      placement: Option.none(),
+      modelInvocable: true,
+      declaresName: false,
+      warnings: [{ message: "Could not statically read the default Flow.make or Flow.agent declaration" }]
+    })
+  })
+
+  it.each([
+    ["a line comment that never ends in a newline", "// unterminated"],
+    ["a block comment that is never closed", "/* unterminated"],
+    ["a string literal that is never closed", "export default Flow.make({ description: \"unterminated"],
+    ["a regular expression that is never closed", "const pattern = /unterminated"]
+  ])("reads no declaration from %s", (_label, source) => {
+    expect(ModuleMetadata.isComplete(source)).toBe(false)
+    expect(ModuleMetadata.parse(source).description).toBeUndefined()
+  })
+
+  it.each([
+    ["\\n", "\n"],
+    ["\\r", "\r"],
+    ["\\t", "\t"],
+    ["\\b", "\b"],
+    ["\\f", "\f"],
+    ["\\v", "\v"],
+    ["\\0", "\0"],
+    ["\\\\", "\\"],
+    ["\\\"", "\""],
+    ["\\'", "'"],
+    ["\\`", "`"],
+    ["\\u0041", "A"],
+    ["\\x42", "B"]
+  ])("decodes the %j escape inside a description literal", (escape, decoded) => {
+    const metadata = ModuleMetadata.parse(
+      `export default Flow.make({ description: "before${escape}after", capabilities: [] })`
+    )
+
+    expect(metadata.description).toBe(`before${decoded}after`)
+  })
+
+  it("reads a backticked description and rejects an interpolated one", () => {
+    expect(
+      ModuleMetadata.parse("export default Flow.make({ description: `Reviews a change.` })").description
+    ).toBe("Reviews a change.")
+    expect(
+      ModuleMetadata.parse("export default Flow.make({ description: `Reviews ${subject}.` })").description
+    ).toBeUndefined()
+  })
+
+  it("lexes regular expressions, division, and numbers around the declaration", () => {
+    const metadata = ModuleMetadata.parse([
+      "/^leading$/.test(name)",
+      "const escaped = /\\/[\\]}]/",
+      "const flagged = typeof /trailing/gi",
+      "const half = 1 / 2",
+      "const ratio = width / height",
+      "export default Flow.make({",
+      "  description: \"Survives every lexical form.\",",
+      "  retries: 30,",
+      "  capabilities: []",
+      "})",
+      "void /at-end/"
+    ].join("\n"))
+
+    expect(metadata).toMatchObject({
+      description: "Survives every lexical form.",
+      capabilities: [],
+      effects: { tier: "sealed" },
+      warnings: []
+    })
+  })
+
+  it.each([
+    ["a bare identifier argument", "export default Flow.make(configuration)"],
+    ["an object nested inside a call argument", "export default Flow.make(withDefaults({ description: \"Inner\" }))"]
+  ])("reads no declaration from %s", (_label, source) => {
+    expect(ModuleMetadata.parse(source).description).toBeUndefined()
+  })
+
+  it("reads the declaration object that follows an earlier call argument", () => {
+    const metadata = ModuleMetadata.parse(
+      "export default Flow.make(withDefaults(), { description: \"Reads the second argument.\", capabilities: [] })"
+    )
+
+    expect(metadata.description).toBe("Reads the second argument.")
+    expect(metadata.capabilities).toEqual([])
+  })
+
+  it.each([
+    ["use client", "client"],
+    ["use server", "local"],
+    ["use local", "local"],
+    ["use sandbox", "sandbox"],
+    ["use remote", "remote"]
+  ])("reads the %s placement directive", (directive, placement) => {
+    const metadata = ModuleMetadata.parse(
+      `"${directive}"\nexport default Flow.make({ description: "Placed." })`
+    )
+
+    expect(Option.getOrThrow(metadata.placement)).toBe(placement)
+  })
+
+  it("reads no placement from an unrecognised leading directive or an empty module", () => {
+    expect(Option.isNone(ModuleMetadata.parse("\"use magic\"\nexport default Flow.make({})").placement)).toBe(true)
+    expect(Option.isNone(ModuleMetadata.parse("").placement)).toBe(true)
+  })
+
+  it("accepts a quoted property key and a trailing comma", () => {
+    const metadata = ModuleMetadata.parse([
+      "export default Flow.make({",
+      "  \"description\": \"Quoted and trailing.\",",
+      "  capabilities: [],",
+      "})"
+    ].join("\n"))
+
+    expect(metadata).toMatchObject({
+      description: "Quoted and trailing.",
+      capabilities: [],
+      warnings: []
+    })
+  })
+
+  it("projects a method member as conservative authority", () => {
+    const metadata = ModuleMetadata.parse([
+      "export default Flow.make({",
+      "  description: \"Declares a method.\",",
+      "  capabilities: [],",
+      "  run(count: number) { return count + 1 }",
+      "})"
+    ].join("\n"))
+
+    expect(metadata.capabilities).toEqual(["*"])
+    expect(metadata.hasInput).toBe(true)
+    expect(metadata.hasOutput).toBe(true)
+    expect(metadata.warnings).toContainEqual({
+      message:
+        "Object spread or computed properties make schemas and authority unprojectable; using conservative projections"
+    })
+  })
+
+  it.each([
+    ["an empty literal list and a model seat", "  flows: [],\n  model: \"smart\",", "smart"],
+    ["omitted entirely with no model seat", "", undefined]
+  ])("keeps declared capabilities when the flow list is %s", (_label, members, model) => {
+    const metadata = ModuleMetadata.parse([
+      "export default Flow.make({",
+      "  description: \"Reads files.\",",
+      members,
+      "  capabilities: [\"fs:read:.\"]",
+      "})"
+    ].join("\n"))
+
+    expect(metadata.capabilities).toEqual(["fs:read:."])
+    expect(metadata.flows).toEqual([])
+    expect(metadata.effects.tier).toBe("sealed")
+    expect(Option.getOrUndefined(metadata.model)).toBe(model)
+    expect(metadata.warnings).toEqual([])
+  })
+
+  it("projects a non-empty literal flow list as conservative authority", () => {
+    const metadata = ModuleMetadata.parse([
+      "export default Flow.make({",
+      "  description: \"Calls another flow.\",",
+      "  capabilities: [\"fs:read:.\"],",
+      "  flows: [\"read-pr\"]",
+      "})"
+    ].join("\n"))
+
+    expect(metadata.capabilities).toEqual(["*"])
+    expect(metadata.flows).toEqual(["read-pr"])
+    expect(metadata.warnings).toContainEqual({
+      message: "Flow authority cannot be projected statically; using the conservative wildcard"
+    })
+  })
+
+  it.each([
+    ["modelInvocable: false", false],
+    ["modelInvocable: true", true],
+    ["disableModelInvocation: false", true],
+    ["disableModelInvocation: true", false]
+  ])("reads %s as a literal visibility declaration", (member, modelInvocable) => {
+    const metadata = ModuleMetadata.parse(
+      `export default Flow.make({ description: "Visible or not.", ${member} })`
+    )
+
+    expect(metadata.modelInvocable).toBe(modelInvocable)
+    expect(metadata.warnings).toEqual([])
+  })
+
+  it.each([
+    ["modelInvocable", "modelInvocable: visibility"],
+    ["disableModelInvocation", "disableModelInvocation: visibility"]
+  ])("warns when %s is not a boolean literal", (_label, member) => {
+    const metadata = ModuleMetadata.parse(
+      `export default Flow.make({ description: "Visible or not.", ${member} })`
+    )
+
+    expect(metadata.modelInvocable).toBe(true)
+    expect(metadata.warnings).toContainEqual({
+      message: "Model invocation visibility must be declared as a boolean literal for discovery"
+    })
+  })
+
+  it("reads a fully declared effect envelope, including nested members", () => {
+    const metadata = ModuleMetadata.parse([
+      "export default Flow.make({",
+      "  description: \"Writes source files.\",",
+      "  capabilities: [\"fs:write:src\"],",
+      "  effects: {",
+      "    reads: [\"src\"],",
+      "    writes: [\"src\"],",
+      "    mode: \"expected\",",
+      "    onConflict: \"lane\",",
+      "    tier: \"compensable\",",
+      "    budget: { retries: 1 }",
+      "  }",
+      "})"
+    ].join("\n"))
+
+    expect(metadata.effects).toEqual({
+      reads: ["src"],
+      writes: ["src"],
+      mode: "expected",
+      onConflict: "lane",
+      tier: "compensable"
+    })
+    expect(metadata.warnings).toEqual([])
+  })
+
+  it("raises an under-classifying declared tier to the inferred tier", () => {
+    const metadata = ModuleMetadata.parse([
+      "export default Flow.make({",
+      "  description: \"Writes anywhere.\",",
+      "  capabilities: [\"fs:write\"],",
+      "  effects: { reads: [], writes: [], tier: \"sealed\" }",
+      "})"
+    ].join("\n"))
+
+    expect(metadata.effects.tier).toBe("irreversible")
+    expect(metadata.warnings).toContainEqual({
+      message: "Effect tier sealed under-classifies declared authority; using irreversible"
+    })
+  })
+
+  it.each([
+    [
+      "the effects value is not an object literal",
+      "effects: baseEffects",
+      "Effects must be a statically projectable object literal; using conservative effects"
+    ],
+    [
+      "the effects object spreads another value",
+      "effects: { ...baseEffects, reads: [], writes: [] }",
+      "Effects contain an object spread or computed member; using conservative effects"
+    ],
+    [
+      "the effects mode is not a known literal",
+      "effects: { reads: [], writes: [], mode: loose }",
+      "Effects mode and conflict policy must be string literals; using conservative effects"
+    ],
+    [
+      "the effects conflict policy is not a known literal",
+      "effects: { reads: [], writes: [], onConflict: \"whenever\" }",
+      "Effects mode and conflict policy must be string literals; using conservative effects"
+    ]
+  ])("falls back to conservative effects when %s", (_label, member, message) => {
+    const metadata = ModuleMetadata.parse([
+      "export default Flow.make({",
+      "  description: \"Declares effects badly.\",",
+      "  capabilities: [\"fs:read:.\"],",
+      `  ${member}`,
+      "})"
+    ].join("\n"))
+
+    expect(metadata.effects).toEqual({
+      reads: ["**"],
+      writes: ["**"],
+      mode: "expected",
+      onConflict: "serialize",
+      tier: "irreversible"
+    })
+    expect(metadata.warnings).toContainEqual({ message })
+  })
+
   it("warns when authority metadata cannot be statically projected", () => {
     const metadata = ModuleMetadata.parse([
       "export default Flow.make({",

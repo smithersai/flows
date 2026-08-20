@@ -159,4 +159,143 @@ describe("Maintenance", () => {
       "thread-message-3"
     ])
   })
+
+  it("rejects a token budget or a character ratio that cannot bound history", async () => {
+    const failures = await run(Effect.gen(function*() {
+      return [
+        yield* Effect.flip(Maintenance.limitHistory({ maxTokens: -1 })),
+        yield* Effect.flip(Maintenance.limitHistory({ maxTokens: Number.NaN })),
+        yield* Effect.flip(Maintenance.limitHistory({ maxTokens: Number.POSITIVE_INFINITY })),
+        yield* Effect.flip(Maintenance.limitHistory({ maxTokens: 1, charsPerToken: 0 })),
+        yield* Effect.flip(Maintenance.limitHistory({ maxTokens: 1, charsPerToken: -1 })),
+        yield* Effect.flip(Maintenance.limitHistory({ maxTokens: 1, charsPerToken: Number.POSITIVE_INFINITY }))
+      ]
+    }))
+
+    expect(failures.map((error) => [error.code, error.message])).toEqual([
+      ["store", "maxTokens must be a non-negative finite number"],
+      ["store", "maxTokens must be a non-negative finite number"],
+      ["store", "maxTokens must be a non-negative finite number"],
+      ["store", "charsPerToken must be a positive finite number"],
+      ["store", "charsPerToken must be a positive finite number"],
+      ["store", "charsPerToken must be a positive finite number"]
+    ])
+  })
+
+  it("empties every thread at a zero token budget and keeps everything under the default ratio", async () => {
+    const result = await run(Effect.gen(function*() {
+      const store = yield* MemoryStore.MemoryStore
+      const empty = yield* Maintenance.limitHistory({ maxTokens: 0 })
+      yield* append(store, "one", 2)
+      yield* append(store, "two", 1)
+      const generous = yield* Maintenance.limitHistory({ maxTokens: 1_000 })
+      const kept = yield* store.listMessages({ threadId: "one" })
+      const cleared = yield* Maintenance.limitHistory({ maxTokens: 0, charsPerToken: 1 })
+      const remaining = yield* Effect.all([
+        store.countMessages({ threadId: "one" }),
+        store.countMessages({ threadId: "two" })
+      ])
+      return { empty, generous, kept, cleared, remaining }
+    }))
+
+    expect(result.empty).toEqual({ deletedMessages: 0 })
+    expect(result.generous).toEqual({ deletedMessages: 0 })
+    expect(result.kept.map((message) => message.id)).toEqual(["one-message-0", "one-message-1"])
+    expect(result.cleared).toEqual({ deletedMessages: 3 })
+    expect(result.remaining).toEqual([0, 0])
+  })
+
+  it("rejects a negative or fractional keepRecent", async () => {
+    const failures = await run(Effect.gen(function*() {
+      const summarizer = { summarize: () => Effect.succeed("summary") }
+      return [
+        yield* Effect.flip(Maintenance.compact({ summarizer, keepRecent: -1 })),
+        yield* Effect.flip(Maintenance.compact({ summarizer, keepRecent: 1.5 }))
+      ]
+    }))
+
+    expect(failures.map((error) => [error.code, error.message])).toEqual([
+      ["store", "keepRecent must be a non-negative safe integer"],
+      ["store", "keepRecent must be a non-negative safe integer"]
+    ])
+  })
+
+  it("compacts nothing when there is no thread, no surplus, or only a system message", async () => {
+    const result = await run(Effect.gen(function*() {
+      const store = yield* MemoryStore.MemoryStore
+      const emptyStore = yield* Maintenance.compact({ summarizer: { summarize: () => Effect.succeed("s") } })
+      yield* append(store, "short", 2)
+      const atKeepRecent = yield* Maintenance.compact({
+        threadId: "short",
+        summarizer: { summarize: () => Effect.succeed("s") }
+      })
+      yield* store.appendMessage({ threadId: "system", id: "system-0", role: "system", text: "boot", at: 0 })
+      yield* store.appendMessage({ threadId: "system", id: "system-1", role: "user", text: "one", at: 1 })
+      yield* store.appendMessage({ threadId: "system", id: "system-2", role: "assistant", text: "two", at: 2 })
+      const systemOnly = yield* Maintenance.compact({
+        threadId: "system",
+        summarizer: { summarize: () => Effect.succeed("s") }
+      })
+      const untouched = yield* store.listMessages({ threadId: "system" })
+      return { emptyStore, atKeepRecent, systemOnly, untouched }
+    }))
+
+    expect(result.emptyStore).toEqual({ compactedThreads: 0, deletedMessages: 0 })
+    expect(result.atKeepRecent).toEqual({ compactedThreads: 0, deletedMessages: 0 })
+    expect(result.systemOnly).toEqual({ compactedThreads: 0, deletedMessages: 0 })
+    expect(result.untouched.map((message) => message.id)).toEqual(["system-0", "system-1", "system-2"])
+  })
+
+  it("compacts a single non-system message and replaces every message when keepRecent is zero", async () => {
+    const result = await run(Effect.gen(function*() {
+      const store = yield* MemoryStore.MemoryStore
+      yield* append(store, "single", 3)
+      const single = yield* Maintenance.compact({
+        threadId: "single",
+        summarizer: { summarize: () => Effect.succeed("older context") }
+      })
+      const afterSingle = yield* store.listMessages({ threadId: "single" })
+      yield* append(store, "all", 2)
+      const all = yield* Maintenance.compact({
+        threadId: "all",
+        keepRecent: 0,
+        summarizer: { summarize: ({ messages }) => Effect.succeed(`summary of ${messages.length}`) }
+      })
+      const afterAll = yield* store.listMessages({ threadId: "all" })
+      return { single, afterSingle, all, afterAll }
+    }))
+
+    expect(result.single).toEqual({ compactedThreads: 1, deletedMessages: 1 })
+    expect(result.afterSingle.map((message) => [message.role, message.text])).toEqual([
+      ["system", "older context"],
+      ["assistant", "text-1"],
+      ["user", "text-2"]
+    ])
+    expect(result.afterSingle[0]?.id).toMatch(/^summary-/)
+    expect(result.all).toEqual({ compactedThreads: 1, deletedMessages: 2 })
+    expect(result.afterAll.map((message) => [message.role, message.text])).toEqual([
+      ["system", "summary of 2"]
+    ])
+  })
+
+  it("renders every summarized message as role and text for the injected summarizer", async () => {
+    const rendered: Array<string> = []
+    await run(Effect.gen(function*() {
+      const store = yield* MemoryStore.MemoryStore
+      yield* append(store, "rendered", 4)
+      yield* Maintenance.compact({
+        threadId: "rendered",
+        summarizer: {
+          summarize: (input) =>
+            Effect.sync(() => {
+              rendered.push(input.rendered)
+              return `${input.threadId} summary`
+            })
+        },
+        makeSummaryId: (threadId, messages) => `${threadId}-${messages.length}`
+      })
+    }))
+
+    expect(rendered).toEqual(["user: text-0\nassistant: text-1"])
+  })
 })

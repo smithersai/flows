@@ -82,6 +82,110 @@ describe("ModelEvent", () => {
     })
   })
 
+  it("folds an empty stream into an aborted, empty message", () => {
+    const settled = Events.settledMessage([])
+
+    expect(settled.message).toMatchObject({ role: "assistant", stopReason: "aborted", content: [] })
+    expect(settled.message.responseId).toBeUndefined()
+    expect(settled.message.itemIds).toBeUndefined()
+    expect(settled.usage).toEqual({})
+  })
+
+  it("constructs usage and every event through the attached constructors", () => {
+    expect(Events.Usage.make({ inputTokens: 1 })).toEqual({ inputTokens: 1 })
+    expect(Events.ModelEvent.Usage({ inputTokens: 1, totalTokens: 2 })).toEqual({
+      type: "usage",
+      inputTokens: 1,
+      totalTokens: 2
+    })
+    expect(Events.ModelEvent.TextStart({ type: "text-start", id: "a" })).toEqual({ type: "text-start", id: "a" })
+    expect(Events.ModelEvent.ToolResult({ type: "tool-result", id: "a", output: "out" })).toMatchObject({
+      type: "tool-result",
+      output: "out"
+    })
+    expect(Events.ModelEvent.settledMessage([]).message.stopReason).toBe("aborted")
+  })
+
+  it("keeps the first settle and ignores a duplicate one", () => {
+    const settled = Events.settledMessage([
+      { type: "settle", stopReason: "stop", responseId: "first", itemIds: ["one"] },
+      { type: "settle", stopReason: "length", responseId: "second", itemIds: ["two"] }
+    ])
+
+    expect(settled.message).toMatchObject({ stopReason: "stop", responseId: "first", itemIds: ["one"] })
+  })
+
+  it("keeps a later usage report's fields without erasing earlier ones", () => {
+    const settled = Events.settledMessage([
+      { type: "usage", inputTokens: 5, cacheWriteTokens: 1 },
+      { type: "usage", inputTokens: 7, outputTokens: 2 },
+      { type: "settle", stopReason: "stop" }
+    ])
+
+    expect(settled.usage).toEqual({ inputTokens: 7, outputTokens: 2, cacheWriteTokens: 1 })
+  })
+
+  it("ignores deltas addressed to a part of a different kind", () => {
+    const settled = Events.settledMessage([
+      { type: "tool-call-start", id: "shared", name: "read" },
+      { type: "text-delta", id: "shared", text: "not text" },
+      { type: "thinking-delta", id: "shared", text: "not thinking" },
+      { type: "text-start", id: "text" },
+      { type: "tool-call-delta", id: "text", arguments: "{}" },
+      { type: "settle", stopReason: "stop" }
+    ])
+
+    expect(settled.message.content).toEqual([
+      { type: "tool-call", id: "shared", name: "read", arguments: "" },
+      { type: "text", text: "" }
+    ])
+  })
+
+  it("ignores a tool-call-end for an unknown or mistyped part", () => {
+    const settled = Events.settledMessage([
+      { type: "text-start", id: "text" },
+      { type: "tool-call-end", id: "text", arguments: "{\"a\":1}" },
+      { type: "tool-call-end", id: "never-opened", arguments: "{\"a\":1}" },
+      { type: "settle", stopReason: "stop" }
+    ])
+
+    expect(settled.message.content).toEqual([{ type: "text", text: "" }])
+  })
+
+  it("replaces unparseable end arguments and keeps accumulated ones when none are repeated", () => {
+    const repaired = Events.settledMessage([
+      { type: "tool-call-start", id: "call", name: "write" },
+      { type: "tool-call-delta", id: "call", arguments: "{\"path\":\"a\"}" },
+      { type: "tool-call-end", id: "call", arguments: "{\"path\":" },
+      { type: "settle", stopReason: "tool-calls" }
+    ])
+    expect(repaired.message.content).toEqual([{ type: "tool-call", id: "call", name: "write", arguments: "{}" }])
+
+    const accumulated = Events.settledMessage([
+      { type: "tool-call-start", id: "call", name: "write" },
+      { type: "tool-call-delta", id: "call", arguments: "{\"path\":\"a\"}" },
+      { type: "tool-call-end", id: "call" },
+      { type: "settle", stopReason: "tool-calls" }
+    ])
+    expect(accumulated.message.content).toEqual([
+      { type: "tool-call", id: "call", name: "write", arguments: "{\"path\":\"a\"}" }
+    ])
+  })
+
+  it("opens a part from a delta whose start never arrived", () => {
+    const settled = Events.settledMessage([
+      { type: "thinking-delta", id: "thinking", text: "unopened" },
+      { type: "tool-call-delta", id: "call", arguments: "{}" },
+      { type: "tool-result", id: "call", output: "ignored by the assistant message" },
+      { type: "settle", stopReason: "stop" }
+    ])
+
+    expect(settled.message.content).toEqual([
+      { type: "thinking", text: "unopened" },
+      { type: "tool-call", id: "call", name: "unknown", arguments: "{}" }
+    ])
+  })
+
   it("repairs interrupted tool JSON and preserves settlement metadata", () => {
     const settled = Events.settledMessage([
       { type: "tool-call-start", id: "call", name: "write" },

@@ -45,6 +45,38 @@ const provideRegistry = <A, E>(
     Effect.provide(platformLayer)
   )
 
+const descriptor = (
+  name: string,
+  options: { readonly path?: string; readonly modelInvocable?: boolean } = {}
+): FlowDescriptor => {
+  const path = options.path ?? `${fixtures}/${name}.md`
+  return new FlowDescriptor({
+    name,
+    description: `Flow ${name}.`,
+    body: new BodyRefMarkdown({ path, baseDirectory: fixtures }),
+    input: new SchemaRefMarkdownArgs({}),
+    output: new SchemaRefMarkdownOutput({}),
+    model: Option.none(),
+    flows: [],
+    capabilities: [],
+    effects: {
+      reads: [],
+      writes: [],
+      mode: "hermetic",
+      onConflict: "serialize",
+      tier: "sealed"
+    },
+    placement: Option.none(),
+    modelInvocable: options.modelInvocable ?? true,
+    path,
+    frontmatter: {},
+    provenance: new Provenance({ source: "test", root: fixtures })
+  })
+}
+
+const fromDescriptors = (entries: ReadonlyArray<FlowDescriptor>) =>
+  Registry.layerFromDescriptors(entries).pipe(Layer.provide(platformLayer))
+
 describe("Registry", () => {
   it("merges sources in order, warns on duplicates, and keeps first provenance", async () => {
     const result = await Effect.runPromise(
@@ -283,6 +315,111 @@ describe("Registry", () => {
     expect(result.preserved.map((entry) => entry.name)).toEqual(["after"])
   })
 
+  it("returns an optional lookup for a known and an unknown name", async () => {
+    const result = await Effect.runPromise(
+      provideRegistry(
+        Effect.gen(function*() {
+          const registry = yield* Registry.Registry
+          return {
+            known: yield* registry.getOption("changelog"),
+            unknown: yield* registry.getOption("does-not-exist"),
+            empty: yield* registry.getOption("")
+          }
+        })
+      )
+    )
+
+    expect(Option.getOrThrow(result.known).name).toBe("changelog")
+    expect(result.unknown).toEqual(Option.none())
+    expect(result.empty).toEqual(Option.none())
+  })
+
+  it("is empty in every projection when no descriptors are supplied", async () => {
+    const result = await Effect.runPromise(
+      Effect.gen(function*() {
+        const registry = yield* Registry.Registry
+        return {
+          entries: yield* registry.list(),
+          visible: yield* registry.visible(),
+          warnings: yield* registry.warnings(),
+          missing: yield* registry.getOption("anything")
+        }
+      }).pipe(Effect.provide(fromDescriptors([])))
+    )
+
+    expect(result.entries).toEqual([])
+    expect(result.visible).toEqual([])
+    expect(result.warnings).toEqual([])
+    expect(result.missing).toEqual(Option.none())
+  })
+
+  it("keeps the first of two same-named descriptors and warns about the rest", async () => {
+    const first = descriptor("review", { path: `${fixtures}/first-review.md` })
+    const second = descriptor("review", { path: `${fixtures}/second-review.md` })
+    const third = descriptor("review", { path: `${fixtures}/third-review.md` })
+    const hidden = descriptor("hidden", { modelInvocable: false })
+
+    const result = await Effect.runPromise(
+      Effect.gen(function*() {
+        const registry = yield* Registry.Registry
+        return {
+          entries: yield* registry.list(),
+          visible: yield* registry.visible(),
+          found: yield* registry.get("review"),
+          warnings: yield* registry.warnings()
+        }
+      }).pipe(Effect.provide(fromDescriptors([first, second, third, hidden])))
+    )
+
+    expect(result.entries.map((entry) => entry.path)).toEqual([first.path, hidden.path])
+    expect(result.visible.map((entry) => entry.name)).toEqual(["review"])
+    expect(result.found.path).toBe(first.path)
+    expect(result.warnings.map((warning) => warning.path)).toEqual([second.path, third.path])
+    expect(result.warnings[0]).toMatchObject({
+      code: "duplicate_name",
+      name: "review",
+      message: `Duplicate flow name "review"; keeping first entry from "${first.path}"`
+    })
+  })
+
+  it("reads one complete snapshot per operation while a refresh replaces it", async () => {
+    const before = descriptor("before")
+    const after = descriptor("after")
+    let scans = 0
+    const discovery = Discovery.makeNoop({
+      scan: () =>
+        Effect.sync(() => {
+          scans++
+          return new SourceScan({ entries: scans === 1 ? [before] : [after], warnings: [] })
+        })
+    })
+
+    const result = await Effect.runPromise(
+      Effect.gen(function*() {
+        const registry = yield* Registry.Registry
+        const [names, refreshed] = yield* Effect.all(
+          [
+            Effect.all(
+              Array.from({ length: 8 }, () => Effect.map(registry.list(), (entries) => entries.map((e) => e.name))),
+              { concurrency: "unbounded" }
+            ),
+            registry.refresh()
+          ],
+          { concurrency: "unbounded" }
+        )
+        return { names, refreshed, final: yield* registry.list() }
+      }).pipe(
+        Effect.provide(Registry.layer({ sources: [{ source: "test", root: fixtures, naming: "path" }] })),
+        Effect.provide(Layer.succeed(Discovery.Discovery)(discovery)),
+        Effect.provide(platformLayer)
+      )
+    )
+
+    expect(result.names.every((names) => names.length === 1)).toBe(true)
+    expect(result.names.every((names) => names[0] === "before" || names[0] === "after")).toBe(true)
+    expect(result.final.map((entry) => entry.name)).toEqual(["after"])
+  })
+
   it("preserves lenient discovery warnings without logging or throwing", async () => {
     const warnings = await Effect.runPromise(
       provideRegistry(
@@ -298,5 +435,80 @@ describe("Registry", () => {
         (warning) => warning.code === "missing_description" && warning.path.endsWith("/broken/flow.mdx")
       )
     ).toBe(true)
+  })
+})
+
+describe("Registry stubs", () => {
+  it("answers every method from an empty stub", async () => {
+    const registry = Registry.makeNoop()
+
+    const result = await Effect.runPromise(
+      Effect.gen(function*() {
+        return {
+          entries: yield* registry.list(),
+          visible: yield* registry.visible(),
+          warnings: yield* registry.warnings(),
+          option: yield* registry.getOption("missing"),
+          refreshed: yield* registry.refresh(),
+          get: yield* Effect.flip(registry.get("missing")),
+          body: yield* Effect.flip(registry.loadBody("missing")),
+          prompt: yield* Effect.flip(registry.runPrompt("missing", { args: "" }))
+        }
+      })
+    )
+
+    expect(result.entries).toEqual([])
+    expect(result.visible).toEqual([])
+    expect(result.warnings).toEqual([])
+    expect(result.option).toEqual(Option.none())
+    expect(result.refreshed).toBeUndefined()
+    expect(result.get).toMatchObject({
+      code: "not_found",
+      message: `not_found: Registry.get: flow "missing" was not found`
+    })
+    expect(result.body.code).toBe("not_found")
+    expect(result.prompt.code).toBe("not_found")
+  })
+
+  it("keeps stub methods that are not overridden", async () => {
+    const entry = descriptor("stubbed")
+    const registry = Registry.makeNoop({
+      list: () => Effect.succeed([entry]),
+      get: () => Effect.succeed(entry)
+    })
+
+    const result = await Effect.runPromise(
+      Effect.gen(function*() {
+        return {
+          entries: yield* registry.list(),
+          visible: yield* registry.visible(),
+          found: yield* registry.get("stubbed"),
+          option: yield* registry.getOption("stubbed")
+        }
+      })
+    )
+
+    expect(result.entries.map((item) => item.name)).toEqual(["stubbed"])
+    expect(result.visible).toEqual([])
+    expect(result.found.name).toBe("stubbed")
+    expect(result.option).toEqual(Option.none())
+  })
+
+  it.each([
+    ["without overrides", undefined, []],
+    ["with overrides", [descriptor("stubbed")], ["stubbed"]]
+  ])("provides a stub layer %s", async (_label, entries, names) => {
+    const layer = entries === undefined
+      ? Registry.layerNoop()
+      : Registry.layerNoop({ list: () => Effect.succeed(entries) })
+
+    const listed = await Effect.runPromise(
+      Effect.gen(function*() {
+        const registry = yield* Registry.Registry
+        return yield* registry.list()
+      }).pipe(Effect.provide(layer))
+    )
+
+    expect(listed.map((entry) => entry.name)).toEqual(names)
   })
 })

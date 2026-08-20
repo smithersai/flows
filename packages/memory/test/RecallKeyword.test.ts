@@ -10,6 +10,9 @@ const rows = [
   { key: "hidden", text: "alpha alpha", tags: ["scope:x"], status: "rejected", updatedAtMs: 3 }
 ]
 
+const storeOf = (searchRows: () => Effect.Effect<ReadonlyArray<Keyword.Row>>) =>
+  MemoryStore.MemoryStore.of({ searchRows } as unknown as MemoryStore.Service)
+
 describe("RecallKeyword", () => {
   it("scores terms, applies authoritative tags/status, and breaks ties by recency", async () => {
     const store = MemoryStore.MemoryStore.of({
@@ -36,5 +39,66 @@ describe("RecallKeyword", () => {
       )
     )
     expect(result.map(({ key }) => key)).toEqual(["new", "alpha"])
+  })
+
+  it("returns no rows and never reads the store when no bank is selected", async () => {
+    const result = await Effect.runPromise(
+      Keyword.recall({ banks: [], query: "alpha" }).pipe(
+        Effect.provideService(
+          MemoryStore.MemoryStore,
+          storeOf(() => Effect.die("searchRows must not be called for an empty bank list"))
+        )
+      )
+    )
+    expect(result).toEqual([])
+  })
+
+  it("scores an absent term as zero, drops zero-scoring rows, and breaks exact ties by key", async () => {
+    const tied = [
+      { key: "b", text: "alpha", tags: [], updatedAtMs: 5 },
+      { key: "a", text: "alpha", tags: [], updatedAtMs: 5 },
+      { key: "unmatched", text: "delta", tags: [], updatedAtMs: 9 }
+    ]
+    const result = await Effect.runPromise(
+      Keyword.recall({ banks: ["bank"], query: "alpha gamma" }).pipe(
+        Effect.provideService(MemoryStore.MemoryStore, storeOf(() => Effect.succeed(tied)))
+      )
+    )
+    expect(result.map(({ key, score }) => [key, score])).toEqual([["a", 1], ["b", 1]])
+  })
+
+  it("recalls nothing for a query with no terms and nothing from an empty bank", async () => {
+    const empty = await Effect.runPromise(
+      Keyword.recall({ banks: ["bank"], query: "   " }).pipe(
+        Effect.provideService(MemoryStore.MemoryStore, storeOf(() => Effect.succeed(rows)))
+      )
+    )
+    const noRows = await Effect.runPromise(
+      Keyword.recall({ banks: ["bank"], query: "alpha" }).pipe(
+        Effect.provideService(MemoryStore.MemoryStore, storeOf(() => Effect.succeed([])))
+      )
+    )
+    expect([empty, noRows]).toEqual([[], []])
+  })
+
+  it("installs keyword recall as the recall service", async () => {
+    const result = await Effect.runPromise(
+      Effect.service(Recall.Recall).pipe(
+        Effect.flatMap((recall) => recall.recall({ banks: ["bank"], query: "alpha" })),
+        Effect.provide(Keyword.layer),
+        Effect.provideService(MemoryStore.MemoryStore, storeOf(() => Effect.succeed(rows)))
+      )
+    )
+    expect(result.map(({ key }) => key)).toEqual(["new", "alpha"])
+  })
+
+  it("normalizes query terms and scores a row against them", () => {
+    expect(Keyword.normalizeQueryTerms("")).toEqual([])
+    expect(Keyword.normalizeQueryTerms("   ")).toEqual([])
+    expect(Keyword.normalizeQueryTerms(" , ; ")).toEqual([])
+    expect(Keyword.normalizeQueryTerms("Ålpha-BÉTA_1, gamma")).toEqual(["ålpha-béta_1", "gamma"])
+    const row = { key: "alpha", text: "alpha beta", tags: [], updatedAtMs: 0 }
+    expect(Keyword.scoreRow([], row)).toBe(0)
+    expect(Keyword.scoreRow(["alpha", "beta", "gamma"], row)).toBe(2)
   })
 })

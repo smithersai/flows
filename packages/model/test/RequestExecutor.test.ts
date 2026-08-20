@@ -8,6 +8,7 @@ import * as Layer from "effect/Layer"
 import * as Random from "effect/Random"
 import type * as Scope from "effect/Scope"
 import * as TestClock from "effect/testing/TestClock"
+import * as HttpBody from "effect/unstable/http/HttpBody"
 import * as Headers from "effect/unstable/http/Headers"
 import * as HttpClient from "effect/unstable/http/HttpClient"
 import * as HttpClientError from "effect/unstable/http/HttpClientError"
@@ -91,6 +92,63 @@ const expectModelError = (value: unknown): ModelError => {
 
 const bodyBytes = (value: HttpClientRequest.HttpClientRequest): ReadonlyArray<number> =>
   value.body._tag === "Uint8Array" ? Array.from(value.body.body) : []
+
+const NOW = 1_700_000_000_000
+
+// One non-retryable exchange against a frozen clock, so every reset instant an
+// assertion names is exact rather than wall-clock dependent.
+const errorFor = async (
+  spec: ResponseSpec,
+  sent: HttpClientRequest.HttpClientRequest = request()
+): Promise<ModelError> => {
+  const requests: Array<HttpClientRequest.HttpClientRequest> = []
+  const layer = executorLayer([spec], requests)
+  const error = await Effect.runPromise(
+    Effect.scoped(
+      Effect.gen(function*() {
+        yield* TestClock.setTime(NOW)
+        const executor = yield* RequestExecutor.RequestExecutor
+        return yield* execute(executor, sent).pipe(Effect.flip)
+      }).pipe(
+        Effect.provide(layer),
+        Effect.provide(TestClock.layer()),
+        Effect.provideService(HttpClient.TracerDisabledWhen, () => true)
+      )
+    )
+  )
+  expect(requests).toHaveLength(1)
+  return expectModelError(error)
+}
+
+// A transport failure is retryable, so the bounded schedule is exhausted on the
+// TestClock rather than in wall-clock time.
+const transportFailure = async (
+  reason: (sent: HttpClientRequest.HttpClientRequest) => HttpClientError.HttpClientError["reason"],
+  sent: HttpClientRequest.HttpClientRequest
+): Promise<ModelError> => {
+  const client = HttpClient.make((attempted) =>
+    Effect.fail(new HttpClientError.HttpClientError({ reason: reason(attempted) }))
+  )
+  const layer = RequestExecutor.layer.pipe(
+    Layer.provide(Layer.succeed(KernelHttpClient.HttpClient)(client))
+  )
+  const error = await Effect.runPromise(
+    Effect.scoped(
+      Effect.gen(function*() {
+        const executor = yield* RequestExecutor.RequestExecutor
+        const fiber = yield* execute(executor, sent).pipe(Effect.flip, Effect.forkChild)
+        yield* Effect.yieldNow
+        yield* TestClock.adjust(120_000)
+        return yield* Fiber.join(fiber)
+      }).pipe(
+        Effect.provide(layer),
+        Effect.provide(TestClock.layer()),
+        Effect.provideService(HttpClient.TracerDisabledWhen, () => true)
+      )
+    )
+  )
+  return expectModelError(error)
+}
 
 describe("RequestExecutor", () => {
   it("retries a generic 429 exactly twice and preserves Retry-After metadata", async () => {
@@ -742,6 +800,257 @@ describe("RequestExecutor", () => {
     for (const password of [headerPassword, queryPassword, bodyPassword, "response-password"]) {
       expect(serialized).not.toContain(password)
     }
+  })
+
+  it("classifies each status that is not a rate limit", async () => {
+    expect((await errorFor({ status: 403, body: "{}" })).code).toBe("authentication")
+    expect((await errorFor({ status: 400, body: "blocked by content_filter" })).code).toBe("content_policy")
+    expect((await errorFor({ status: 400, body: "maximum context length is 200000 tokens" })).code).toBe(
+      "context_overflow"
+    )
+    for (const status of [404, 409, 413, 422]) {
+      expect((await errorFor({ status, body: "{}" })).code).toBe("invalid_request")
+    }
+    // 402 is neither retryable nor one of the recognized request faults.
+    expect(await errorFor({ status: 402, body: "{}" })).toMatchObject({
+      code: "unknown",
+      message: "Provider request failed with HTTP 402: {}"
+    })
+  })
+
+  it("reports an empty and an unreadable response body without inventing detail", async () => {
+    expect(await errorFor({ status: 400, body: "" })).toMatchObject({
+      code: "invalid_request",
+      message: "Provider request failed with HTTP 400"
+    })
+    expect(await errorFor({ status: 400, body: "   " })).toMatchObject({ code: "invalid_request" })
+
+    const unreadable = HttpClient.make((sent) =>
+      Effect.succeed(
+        HttpClientResponse.fromWeb(
+          sent,
+          new Response(
+            new ReadableStream({
+              start(controller) {
+                controller.error(new Error("body stream failed"))
+              }
+            }),
+            { status: 400 }
+          )
+        )
+      )
+    )
+    const layer = RequestExecutor.layer.pipe(
+      Layer.provide(Layer.succeed(KernelHttpClient.HttpClient)(unreadable))
+    )
+
+    const error = await run(
+      Effect.gen(function*() {
+        const executor = yield* RequestExecutor.RequestExecutor
+        return yield* execute(executor, request(), {
+          classifyError: (status, body) =>
+            new ModelError({ code: "invalid_provider_output", message: `classified ${status} from "${body}"` })
+        }).pipe(Effect.flip)
+      }),
+      layer
+    )
+
+    // The classifier still runs, and sees an empty body rather than `undefined`.
+    expect(expectModelError(error)).toMatchObject({
+      code: "invalid_provider_output",
+      message: "classified 400 from \"\""
+    })
+  })
+
+  it("keeps a provider's own code and message when the body has no error envelope", async () => {
+    expect(await errorFor({ status: 418, body: "{\"code\":\"teapot\",\"message\":\"short and stout\"}" }))
+      .toMatchObject({
+        code: "unknown",
+        providerCode: "teapot",
+        httpStatus: 418
+      })
+    expect(await errorFor({ status: 418, body: "{\"type\":\"teapot\",\"detail\":\"short and stout\"}" }))
+      .toMatchObject({ providerCode: "teapot" })
+  })
+
+  it("normalizes every reset instant a provider body can express", async () => {
+    expect(await errorFor({ status: 400, body: "{\"rate_limit\":{\"remaining\":0,\"reset\":30}}" })).toMatchObject({
+      resetAtEpochMillis: NOW + 30_000,
+      resetSource: "body.rate_limit.reset"
+    })
+    // A resource with headroom left is not the window this request waits on.
+    expect((await errorFor({ status: 400, body: "{\"rate_limit\":{\"remaining\":5,\"reset\":30}}" })).resetAtEpochMillis)
+      .toBeUndefined()
+
+    expect(await errorFor({ status: 400, body: "{\"limits\":[{\"retry_after_ms\":1500}]}" })).toMatchObject({
+      resetAtEpochMillis: NOW + 1_500,
+      resetSource: "body.limits[0].retry_after_ms"
+    })
+    expect(await errorFor({ status: 400, body: "{\"retry_after\":\"2\"}" })).toMatchObject({
+      resetAtEpochMillis: NOW + 2_000,
+      resetSource: "body.retry_after"
+    })
+    // The nearest of two competing retry windows wins.
+    expect(await errorFor({ status: 400, body: "{\"retry_after\":9,\"nested\":{\"reset_after\":4}}" })).toMatchObject({
+      resetAtEpochMillis: NOW + 4_000,
+      resetSource: "body.nested.reset_after"
+    })
+    expect(await errorFor({ status: 400, body: "{\"reset_at\":1700000060000}" })).toMatchObject({
+      resetAtEpochMillis: 1_700_000_060_000
+    })
+    expect(await errorFor({ status: 400, body: "{\"reset_at\":\"1700000060\"}" })).toMatchObject({
+      resetAtEpochMillis: 1_700_000_060_000
+    })
+    expect(await errorFor({ status: 400, body: "{\"reset_at\":\"1m30s\"}" })).toMatchObject({
+      resetAtEpochMillis: NOW + 90_000
+    })
+
+    // Values that cannot name an instant leave the field absent.
+    for (
+      const body of [
+        "{\"reset_at\":\"not-a-time\"}",
+        "{\"reset_at\":\"x1s\"}",
+        "{\"reset_at\":{\"nested\":1}}",
+        "{\"reset_at\":true}",
+        "{\"retry_after\":1e308}"
+      ]
+    ) {
+      expect((await errorFor({ status: 400, body })).resetAtEpochMillis).toBeUndefined()
+    }
+  })
+
+  it("ignores reset headers it cannot read and an unparseable Retry-After", async () => {
+    expect(
+      (await errorFor({ status: 400, body: "bad", headers: { "x-ratelimit-reset-requests": "not-a-time" } }))
+        .resetAtEpochMillis
+    ).toBeUndefined()
+    expect(await errorFor({ status: 400, body: "bad", headers: { "x-ratelimit-reset-requests": "" } }))
+      .toMatchObject({ resetAtEpochMillis: NOW, resetSource: "x-ratelimit-reset-requests" })
+    expect(await errorFor({ status: 400, body: "bad", headers: { "retry-after": "tomorrow" } })).toMatchObject({
+      retryAfterMillis: undefined,
+      resetAtEpochMillis: undefined
+    })
+    expect(await errorFor({ status: 400, body: "bad", headers: { "retry-after": "  " } })).toMatchObject({
+      retryAfterMillis: undefined
+    })
+  })
+
+  it("scrubs credentials from raw, byte, structured, and form request bodies", async () => {
+    const rawForm = Request.setBody(
+      Request.post("https://provider.test/v1/models"),
+      HttpBody.raw("api_key=raw-secret&page=1")
+    )
+    expect(JSON.stringify(await errorFor({ status: 400, body: "echoed raw-secret" }, rawForm)))
+      .not.toContain("raw-secret")
+
+    const rawBytes = Request.setBody(
+      Request.post("https://provider.test/v1/models"),
+      HttpBody.raw(new TextEncoder().encode("{\"api_key\":\"bytes-secret\"}"))
+    )
+    expect(JSON.stringify(await errorFor({ status: 400, body: "echoed bytes-secret" }, rawBytes)))
+      .not.toContain("bytes-secret")
+
+    const rawStructured = Request.setBody(
+      Request.post("https://provider.test/v1/models"),
+      HttpBody.raw({ api_key: "object-secret", nested: [{ password: 987654321, secret_flag: true }] })
+    )
+    const structured = await errorFor(
+      { status: 400, body: "echoed object-secret 987654321 true" },
+      rawStructured
+    )
+    expect(JSON.stringify(structured)).not.toContain("object-secret")
+    expect(JSON.stringify(structured)).not.toContain("987654321")
+
+    const formData = new FormData()
+    formData.append("api_key", "form-secret")
+    formData.append("model", "safe")
+    const form = Request.bodyFormData(Request.post("https://provider.test/v1/models"), formData)
+    expect(JSON.stringify(await errorFor({ status: 400, body: "echoed form-secret" }, form)))
+      .not.toContain("form-secret")
+  })
+
+  it("scrubs credentials carried as appended URL parameters", async () => {
+    const withParams = Request.post("https://provider.test/v1/models").pipe(
+      Request.setUrlParam("access_token", "param-secret"),
+      Request.setUrlParam("page", "2")
+    )
+
+    const error = await errorFor({ status: 400, body: "echoed param-secret" }, withParams)
+    expect(JSON.stringify(error)).not.toContain("param-secret")
+
+    const transport = await transportFailure(
+      (attempted) => new HttpClientError.TransportError({ request: attempted, description: "echoed param-secret" }),
+      withParams
+    )
+    expect(transport.message).toContain("access_token=%3Credacted%3E")
+    expect(transport.message).toContain("page=2")
+    expect(transport.message).not.toContain("param-secret")
+  })
+
+  it("redacts the header names the caller's policy names, not only the built-in ones", async () => {
+    const requests: Array<HttpClientRequest.HttpClientRequest> = []
+    const layer = executorLayer([{ status: 400, body: "echoed tenant-secret and public-value" }], requests)
+
+    const error = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function*() {
+          const executor = yield* RequestExecutor.RequestExecutor
+          return yield* execute(
+            executor,
+            request("https://provider.test/v1/models", "{}", {
+              "x-tenant": "tenant-secret",
+              "x-public": "public-value"
+            })
+          ).pipe(Effect.flip)
+        }).pipe(
+          Effect.provide(layer),
+          Effect.provideService(Headers.CurrentRedactedNames, [/^x-tenant/i, "x-session"]),
+          Effect.provideService(HttpClient.TracerDisabledWhen, () => true)
+        )
+      )
+    )
+
+    const serialized = JSON.stringify(expectModelError(error))
+    expect(serialized).not.toContain("tenant-secret")
+    expect(serialized).toContain("public-value")
+  })
+
+  it("describes a transport failure without a description, a cause, or headers", async () => {
+    const bare = await transportFailure(
+      (attempted) => new HttpClientError.TransportError({ request: attempted, cause: { code: 42 } }),
+      Request.post("https://provider.test/v1/models")
+    )
+    expect(bare).toMatchObject({
+      code: "transport",
+      message: "HTTP transport failed: TransportError (POST https://provider.test/v1/models)"
+    })
+
+    const stringCause = await transportFailure(
+      (attempted) => new HttpClientError.TransportError({ request: attempted, cause: "connection reset" }),
+      Request.post("https://provider.test/v1/models")
+    )
+    expect(stringCause.message).toBe(
+      "HTTP transport failed: TransportError: connection reset (POST https://provider.test/v1/models)"
+    )
+
+    const plainError = await transportFailure(
+      (attempted) => new HttpClientError.TransportError({ request: attempted, cause: new Error("plain failure") }),
+      request("https://provider.test/v1/models", "{}", { "x-public": "yes" })
+    )
+    expect(plainError.message).toBe(
+      "HTTP transport failed: TransportError: plain failure (POST https://provider.test/v1/models, headers redacted)"
+    )
+  })
+
+  it("redacts a request URL it cannot parse rather than echoing it", async () => {
+    // A relative URL never resolves to a host, so the client rejects it before
+    // the fake handler runs and the executor reports the target as redacted.
+    const relative = await transportFailure(
+      (attempted) => new HttpClientError.TransportError({ request: attempted, description: "unused" }),
+      Request.post("/v1/models")
+    )
+
+    expect(relative.message).toBe("HTTP transport failed: InvalidUrlError (POST <redacted>)")
   })
 
   it("propagates interruption of an in-flight execute", async () => {

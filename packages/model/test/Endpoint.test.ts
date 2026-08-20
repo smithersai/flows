@@ -36,5 +36,53 @@ describe("Endpoint", () => {
     expect(failureMessage({ url: "https://example.test", query: [["token", "secret"]] })).toMatch(/credentials/)
     expect(failureMessage({ url: "https://example.test", query: [["signature", "secret"]] })).toMatch(/credentials/)
     expect(failureMessage({ url: "https://example.test/?password=secret" })).toMatch(/credentials/)
+    expect(failureMessage({ url: "https://example.test", query: { sig: "secret" } })).toMatch(/credentials/)
+  })
+
+  it("rejects an unparseable URL, a fragment, and a path carrying its own query", () => {
+    expect(failureMessage({ url: "not a url" })).toBe("Invalid endpoint URL: not a url")
+    expect(failureMessage({ url: "" })).toBe("Invalid endpoint URL: ")
+    expect(failureMessage({ url: "https://example.test/#section" })).toMatch(/fragments/)
+    expect(failureMessage({ url: "https://example.test", path: "/v1?debug=1" })).toMatch(
+      /must not contain query strings or fragments/
+    )
+    expect(failureMessage({ url: "https://example.test", path: "/v1#frag" })).toMatch(
+      /must not contain query strings or fragments/
+    )
+    expect(failureMessage({ url: "https://user@example.test" })).toMatch(/credentials/)
+    expect(failureMessage({ url: "https://:password@example.test" })).toMatch(/credentials/)
+  })
+
+  it("accepts record query input and merges it with the URL's own pairs", () => {
+    expect(make({ url: "https://example.test/?b=url", query: { a: "record" } })).toEqual({
+      method: "POST",
+      url: "https://example.test/",
+      query: [["a", "record"], ["b", "url"]]
+    })
+  })
+
+  it("orders equal names by value and keeps identical pairs stable", () => {
+    const endpoint = make({
+      url: "https://example.test",
+      query: [["b", "2"], ["a", "9"], ["a", "1"], ["a", "9"], ["c", "3"]]
+    })
+
+    expect(endpoint.query).toEqual([["a", "1"], ["a", "9"], ["a", "9"], ["b", "2"], ["c", "3"]])
+    expect(Endpoint.render(endpoint)).toBe("https://example.test/?a=1&a=9&a=9&b=2&c=3")
+  })
+
+  it("treats an absent, empty, and slash-heavy path the same way", () => {
+    expect(make({ url: "https://example.test/v1" }).url).toBe("https://example.test/v1")
+    expect(make({ url: "https://example.test/v1", path: "" }).url).toBe("https://example.test/v1")
+    expect(make({ url: "https://example.test/v1//", path: "//responses" }).url).toBe("https://example.test/v1/responses")
+  })
+
+  it("renders an endpoint without query pairs and one whose values need escaping", () => {
+    const bare = make({ url: "https://example.test/v1/responses" })
+    expect(bare.query).toEqual([])
+    expect(Endpoint.render(bare)).toBe("https://example.test/v1/responses")
+
+    const escaped = make({ url: "https://example.test", query: [["q", "a b&c"]] })
+    expect(Endpoint.render(escaped)).toBe("https://example.test/?q=a+b%26c")
   })
 })

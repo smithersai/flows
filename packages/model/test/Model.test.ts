@@ -37,19 +37,70 @@ describe("ModelError", () => {
   })
 })
 
+const request = {
+  modelId: "model",
+  system: [],
+  messages: [],
+  tools: [],
+  params: {}
+}
+
 describe("Model", () => {
   it("resolves its noop layer through Effect.provide", async () => {
     const program = Effect.gen(function*() {
       return yield* Model.Model
     }).pipe(Effect.provide(Model.layerNoop()))
     const service = await Effect.runPromise(program)
-    const exit = await Effect.runPromiseExit(Stream.runDrain(service.stream({
-      modelId: "model",
-      system: [],
-      messages: [],
-      tools: [],
-      params: {}
-    })))
+    const exit = await Effect.runPromiseExit(Stream.runDrain(service.stream(request)))
     expect(exit._tag).toBe("Failure")
+  })
+
+  it("reports the missing route as a typed no_route failure", async () => {
+    const error = await Effect.runPromise(
+      Stream.runDrain(Model.makeNoop().stream(request)).pipe(Effect.flip)
+    )
+
+    expect(error).toBeInstanceOf(ModelError)
+    expect(error).toMatchObject({ code: "no_route", message: "no model route in this environment" })
+  })
+
+  it("lets an override replace the noop stream", async () => {
+    const events = await Effect.runPromise(
+      Stream.runCollect(
+        Model.makeNoop({ stream: () => Stream.make({ type: "text-start" as const, id: "overridden" }) }).stream(request)
+      )
+    )
+
+    expect(Array.from(events)).toEqual([{ type: "text-start", id: "overridden" }])
+  })
+
+  it("provides an implementation through its layer", async () => {
+    const events = await Effect.runPromise(
+      Effect.gen(function*() {
+        const model = yield* Model.Model
+        return yield* Stream.runCollect(model.stream(request))
+      }).pipe(
+        Effect.provide(
+          Model.layer({
+            stream: (input) => Stream.make({ type: "text-delta" as const, id: "layer", text: input.modelId })
+          })
+        )
+      )
+    )
+
+    expect(Array.from(events)).toEqual([{ type: "text-delta", id: "layer", text: "model" }])
+  })
+
+  it("keeps the noop layer's overrides addressable through the tag", async () => {
+    const exit = await Effect.runPromiseExit(
+      Effect.gen(function*() {
+        const model = yield* Model.Model
+        return yield* Stream.runCollect(model.stream(request))
+      }).pipe(
+        Effect.provide(Model.layerNoop({ stream: () => Stream.empty }))
+      )
+    )
+
+    expect(exit._tag).toBe("Success")
   })
 })

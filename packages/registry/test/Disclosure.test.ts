@@ -98,6 +98,32 @@ describe("Disclosure", () => {
     ])
   })
 
+  it("keeps entries that already arrive in name order", () => {
+    expect(
+      Disclosure.toEntries([
+        descriptor("alpha", "Alpha flow"),
+        descriptor("zebra", "Zebra flow")
+      ])
+    ).toEqual([
+      { name: "alpha", description: "Alpha flow" },
+      { name: "zebra", description: "Zebra flow" }
+    ])
+  })
+
+  it("renders a single entry", () => {
+    expect(Disclosure.toEntries([descriptor("only", "The only flow")])).toEqual([
+      { name: "only", description: "The only flow" }
+    ])
+    expect(Disclosure.toXml([descriptor("only", "The only flow")])).toBe([
+      "<available_skills>",
+      "  <skill>",
+      "    <name>only</name>",
+      "    <description>The only flow</description>",
+      "  </skill>",
+      "</available_skills>"
+    ].join("\n"))
+  })
+
   it("renders an exact empty block", () => {
     expect(Disclosure.toXml([])).toBe("<available_skills>\n</available_skills>")
   })

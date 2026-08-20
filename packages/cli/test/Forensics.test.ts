@@ -174,3 +174,326 @@ describe("Forensics.renderTranscript", () => {
     expect(Forensics.renderTranscript([])).toBe("No events.")
   })
 })
+
+describe("Forensics.digest boundaries", () => {
+  it("keeps the last named seat when a later turn opens without one", () => {
+    const d = Forensics.digest([
+      event("control.agent.turn-opened", { seat: "anthropic:claude-sonnet-4-5" }, 1),
+      event("control.agent.turn-opened", {}, 2)
+    ])
+    expect(d.turns).toBe(2)
+    expect(d.seat).toBe("anthropic:claude-sonnet-4-5")
+  })
+
+  it("names an unlabelled refusal rather than dropping it", () => {
+    const d = Forensics.digest([event("control.agent.cell-call-settled", { outcome: "failure" }, 1)])
+    expect(d.callsFailed).toBe(1)
+    expect(d.refusals).toEqual([{ message: "unknown refusal", count: 1 }])
+  })
+
+  it("records a park with no serialized approval as having none", () => {
+    const d = Forensics.digest([event("control.approval.requested", { question: "May I?" }, 1)])
+    expect(d.parkedQuestion).toBe("May I?")
+    expect(d.parkedApproval).toBeUndefined()
+  })
+
+  it("digests the empty journal as a zeroed, unlaunched digest", () => {
+    expect(Forensics.digest([])).toEqual({
+      status: undefined,
+      cause: undefined,
+      seat: undefined,
+      turns: 0,
+      calls: 0,
+      callsFailed: 0,
+      duplicateCalls: 0,
+      editsAttempted: 0,
+      editsSucceeded: 0,
+      flows: [],
+      refusals: [],
+      inputTokens: 0,
+      outputTokens: 0,
+      finalOutput: undefined,
+      parkedQuestion: undefined,
+      parkedApproval: undefined,
+      startedAt: undefined,
+      endedAt: undefined
+    })
+  })
+
+  it("counts the third identical call as a second duplicate", () => {
+    const d = Forensics.digest([
+      call("read", { path: "a" }, 1),
+      call("read", { path: "a" }, 2),
+      call("read", { path: "a" }, 3),
+      call("read", { path: "b" }, 4)
+    ])
+    expect(d.calls).toBe(4)
+    expect(d.duplicateCalls).toBe(2)
+  })
+
+  it("counts every edit flow name and no other", () => {
+    const d = Forensics.digest([
+      call("write", {}, 1),
+      settledCall("write", 2),
+      call("edit", {}, 3),
+      settledCall("edit", 4),
+      call("apply_patch", {}, 5),
+      settledCall("apply_patch", 6),
+      call("read", {}, 7),
+      settledCall("read", 8)
+    ])
+    expect(d.editsAttempted).toBe(3)
+    expect(d.editsSucceeded).toBe(3)
+  })
+
+  it("does not credit a failed edit as a successful one", () => {
+    const d = Forensics.digest([
+      call("edit", {}, 1),
+      event("control.agent.cell-call-settled", { flowName: "edit", outcome: "failure", message: "denied" }, 2)
+    ])
+    expect(d.editsAttempted).toBe(1)
+    expect(d.editsSucceeded).toBe(0)
+    expect(d.callsFailed).toBe(1)
+  })
+
+  it("keeps the last transition of each kind when a run transitions twice", () => {
+    const d = Forensics.digest([
+      event("control.run.running", { runId: "run-1" }, 1),
+      event("control.run.failed", { runId: "run-1", cause: "first" }, 2),
+      event("control.run.completed", { runId: "run-1" }, 3)
+    ])
+    // The status is the last transition seen; the cause is only read on the
+    // transition that recorded it, so a later status does not erase it.
+    expect(d.status).toBe("completed")
+    expect(d.cause).toBe("first")
+  })
+})
+
+describe("Forensics.eventLine", () => {
+  it.each(
+    [
+      ["a seated turn", "control.agent.turn-opened", { seat: "openai:gpt-5.6-sol" }, "turn opened · openai:gpt-5.6-sol"],
+      ["an unseated turn", "control.agent.turn-opened", {}, "turn opened · "],
+      [
+        "a model reply",
+        "control.agent.model-settled",
+        { text: "hello\nworld", usage: { inputTokens: 9, outputTokens: 2 } },
+        "model   hello (9 in / 2 out)"
+      ],
+      ["a model reply with no usage", "control.agent.model-settled", {}, "model    (0 in / 0 out)"],
+      ["a cell", "control.agent.cell-produced", { text: "return 1" }, "cell    return 1"],
+      ["an empty cell", "control.agent.cell-produced", {}, "cell    "],
+      ["a call", "control.agent.cell-call-started", { flowName: "bash", input: { command: "ls" } }, "call    bash {\"command\":\"ls\"}"],
+      ["an unnamed call", "control.agent.cell-call-started", {}, "call    ? undefined"],
+      ["a successful call", "control.agent.cell-call-settled", { outcome: "success", value: { ok: true } }, "  -> ok {\"ok\":true}"],
+      ["a refused call", "control.agent.cell-call-settled", { outcome: "failure", message: "denied" }, "  -> FAIL denied"],
+      ["an unlabelled refusal", "control.agent.cell-call-settled", { outcome: "failure" }, "  -> FAIL "],
+      [
+        "a completing transition",
+        "control.agent.transition-applied",
+        { transition: { _tag: "complete", output: "done" } },
+        "complete done"
+      ],
+      [
+        "a completing transition with no output",
+        "control.agent.transition-applied",
+        { transition: { _tag: "complete" } },
+        "complete "
+      ],
+      [
+        "a parking transition",
+        "control.agent.transition-applied",
+        { transition: { _tag: "park", reason: "approval", message: "May I?" } },
+        "park (approval) May I?"
+      ],
+      [
+        "a parking transition with neither reason nor message",
+        "control.agent.transition-applied",
+        { transition: { _tag: "park" } },
+        "park (?) "
+      ],
+      [
+        "a continuing transition",
+        "control.agent.transition-applied",
+        { transition: { _tag: "continue", context: [1], state: { a: 1 } } },
+        "continue · context 3B · state 7B"
+      ],
+      [
+        "a continuing transition with no context or state",
+        "control.agent.transition-applied",
+        { transition: {} },
+        "continue · context 2B · state 4B"
+      ],
+      ["a settled cell", "control.agent.cell-settled", { outcome: { _tag: "settled" } }, "cell settled"],
+      [
+        "a failed cell",
+        "control.agent.cell-settled",
+        { outcome: { _tag: "failed", message: "boom" } },
+        "cell FAILED boom"
+      ],
+      ["a cell with no outcome", "control.agent.cell-settled", {}, "cell ? "],
+      ["an unrecognised kind", "control.run.pending", { runId: "run-1" }, "control.run.pending {\"runId\":\"run-1\"}"]
+    ] as const
+  )("renders %s", (_label, kind, payload, expected) => {
+    expect(Forensics.eventLine(event(kind, payload, 1))).toBe(expected)
+  })
+
+  it("renders a payload JSON cannot serialize as its string form", () => {
+    // `JSON.stringify(undefined)` is `undefined`, not a string, which is the
+    // one case the `?? String(value)` fallback exists for.
+    expect(Forensics.eventLine(event("control.websocket.connected", undefined, 1)))
+      .toBe("control.websocket.connected undefined")
+  })
+
+  it("clips an over-wide value and marks the elision", () => {
+    const line = Forensics.eventLine(event("control.agent.cell-produced", { text: "x".repeat(200) }, 1))
+    // 100 is the width: 99 kept characters plus the ellipsis.
+    expect(line).toBe(`cell    ${"x".repeat(99)}…`)
+  })
+
+  it("keeps a value that is exactly the width intact", () => {
+    const line = Forensics.eventLine(event("control.agent.cell-produced", { text: "x".repeat(100) }, 1))
+    expect(line).toBe(`cell    ${"x".repeat(100)}`)
+  })
+})
+
+describe("Forensics.renderDiagnosis boundaries", () => {
+  it("reports a failure with no recorded cause as exactly that", () => {
+    const d = Forensics.digest([event("control.run.failed", { runId: "run-1" }, 1)])
+    expect(Forensics.renderDiagnosis({ runId: "run-1" }, d))
+      .toContain("Verdict   failed — no cause recorded in the journal")
+  })
+
+  it("reports a park with no recorded question as a pending gate", () => {
+    const d = Forensics.digest([event("control.run.waiting-approval", { runId: "run-1" }, 1)])
+    expect(Forensics.renderDiagnosis({ runId: "run-1" }, d))
+      .toContain("Verdict   waiting-approval — a permission gate is pending")
+  })
+
+  it("quotes the resolved output when the run both edited and completed", () => {
+    const d = Forensics.digest([
+      call("edit", { path: "a" }, 1),
+      settledCall("edit", 2),
+      event("control.agent.resolved", { text: "patched a\nand b" }, 3),
+      event("control.run.completed", { runId: "run-1" }, 4)
+    ])
+    const card = Forensics.renderDiagnosis({ runId: "run-1", flowId: "fix" }, d)
+    expect(card).toContain("Verdict   completed — patched a")
+    expect(card).toContain("Output    patched a")
+  })
+
+  it("falls back to the bare status when a completed run resolved with empty output", () => {
+    const d = Forensics.digest([
+      call("edit", { path: "a" }, 1),
+      event("control.agent.resolved", { text: "" }, 2),
+      event("control.run.completed", { runId: "run-1" }, 3)
+    ])
+    const card = Forensics.renderDiagnosis({ runId: "run-1" }, d)
+    expect(card).toContain("Verdict   completed\n")
+    expect(card).not.toContain("Output")
+  })
+
+  it("names an unlaunched run with no summary as unknown and zero-length", () => {
+    const card = Forensics.renderDiagnosis(undefined, Forensics.digest([]))
+    expect(card).toContain("Verdict   unlaunched")
+    expect(card).toContain("Run       ? · 0s")
+  })
+
+  it("renders a run longer than a minute in minutes and padded seconds", () => {
+    const d = Forensics.digest([
+      event("control.run.running", { runId: "run-1" }, 0),
+      event("control.run.completed", { runId: "run-1" }, 125_000)
+    ])
+    expect(Forensics.renderDiagnosis({ runId: "run-1" }, d)).toContain("· 2m 05s")
+  })
+
+  it("keeps a run of exactly a minute in the minute form", () => {
+    const d = Forensics.digest([
+      event("control.run.running", { runId: "run-1" }, 0),
+      event("control.run.completed", { runId: "run-1" }, 60_000)
+    ])
+    expect(Forensics.renderDiagnosis({ runId: "run-1" }, d)).toContain("· 1m 00s")
+  })
+
+  it("keeps a run of just under a minute in the second form", () => {
+    const d = Forensics.digest([
+      event("control.run.running", { runId: "run-1" }, 0),
+      event("control.run.completed", { runId: "run-1" }, 59_000)
+    ])
+    expect(Forensics.renderDiagnosis({ runId: "run-1" }, d)).toContain("· 59s")
+  })
+
+  it("lists at most three refusals however many were recorded", () => {
+    const d = Forensics.digest([
+      refusedCall("a", 1),
+      refusedCall("b", 2),
+      refusedCall("c", 3),
+      refusedCall("d", 4)
+    ])
+    const card = Forensics.renderDiagnosis({ runId: "run-1" }, d)
+    expect(card.split("\n").filter((line) => line.includes("1× ")).length).toBe(3)
+  })
+
+  it("groups the thousands separator into the token line", () => {
+    const d = Forensics.digest([
+      event("control.agent.model-settled", { usage: { inputTokens: 1_234_567, outputTokens: 89 } }, 1)
+    ])
+    expect(Forensics.renderDiagnosis({ runId: "run-1" }, d)).toContain("Tokens    1,234,567 in / 89 out")
+  })
+})
+
+describe("Forensics.renderTranscript boundaries", () => {
+  it("skips turn bookkeeping events and events outside the run and agent namespaces", () => {
+    const text = Forensics.renderTranscript([
+      event("control.agent.turn-opened", { seat: "s", at: 0 }, 0),
+      event("control.agent.turn-closed", {}, 1_000),
+      event("control.agent.steering-drained", {}, 2_000),
+      event("control.websocket.connected", null, 3_000),
+      event("control.approval.requested", { question: "May I?" }, 4_000)
+    ])
+    // Only the approval survives the filter: bookkeeping and transport events
+    // are noise in a turn-by-turn read.
+    expect(text).not.toContain("turn-closed")
+    expect(text).not.toContain("steering-drained")
+    expect(text).not.toContain("websocket")
+    expect(text).toContain("[+00:04] approval.requested")
+  })
+
+  it("names an unattributed, never-launched history as unknown on both axes", () => {
+    const orphan: ControlSchema.ControlEvent = {
+      sequence: 1,
+      kind: "control.agent.cell-produced",
+      occurredAt: 0,
+      payload: { text: "x" } as ControlSchema.ControlEvent["payload"]
+    }
+    expect(Forensics.renderTranscript([orphan])).toContain("? · ? · 0s · 0 turns")
+  })
+
+  it("headers a turn that opened without a seat", () => {
+    expect(Forensics.renderTranscript([event("control.agent.turn-opened", {}, 0)]))
+      .toContain("=== turn 1 ·  ===")
+  })
+
+  it("renders a delta whose admission stamp did not survive as an unstamped run", () => {
+    // `digest` is total over malformed journal rows, so a delta with neither a
+    // payload stamp nor an admission time still projects: the transcript keeps
+    // the turn structure and reports an unknown run, status, and length.
+    const unstamped = {
+      sequence: 1,
+      kind: "control.agent.turn-opened",
+      payload: { seat: "openai:gpt-5.6-sol" }
+    } as unknown as ControlSchema.ControlEvent
+    const text = Forensics.renderTranscript([unstamped])
+    expect(text).toContain("? · ? · 0s · 1 turns")
+    expect(text).toContain("=== turn 1 · openai:gpt-5.6-sol ===")
+  })
+
+  it("offsets every line from the first event, not from zero", () => {
+    const text = Forensics.renderTranscript([
+      event("control.run.running", { runId: "run-1", at: 100_000 }, 100_000),
+      event("control.run.completed", { runId: "run-1", at: 190_000 }, 190_000)
+    ])
+    expect(text).toContain("[+00:00] run.running")
+    expect(text).toContain("[+01:30] run.completed")
+  })
+})
