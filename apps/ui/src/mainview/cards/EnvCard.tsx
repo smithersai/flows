@@ -11,7 +11,6 @@ export const EnvCardBody = ({
 	card,
 }: {
 	readonly card: Extract<Card, { kind: "env" }>;
-	readonly onRunCommand: (name: string, args?: string) => void;
 }) => (
 	<div className="world-card-list">
 		<p className="world-card-path">{card.payload.repo}</p>

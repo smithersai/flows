@@ -5,7 +5,7 @@ import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import App from "../App";
 import { ControllerTestProvider } from "../ControllerContext";
-import { chooserFilter, chooserKeyAction } from "../ChatCards";
+import { chooserFilter, chooserKeyAction, chooserMove, freshnessLabel } from "../ChatCards";
 import { createAppController } from "./AppController";
 import type { AppController as AppControllerType, AppServices } from "./AppController";
 import type { NativeAgent, NativeRepositories } from "../native/NativeBridge";
@@ -236,6 +236,45 @@ describe("wave 10 — the chooser card, keyboard-complete", () => {
 		expect(chooserKeyAction(" ", "flo")).toEqual({ kind: "none" });
 		expect(chooserKeyAction("Enter", "")).toEqual({ kind: "confirm" });
 		expect(chooserKeyAction("a", "")).toEqual({ kind: "none" });
+	});
+
+	test("arrows at the window's end grow the window instead of trapping the highlight on page one", () => {
+		// 205 repositories, 50 rendered: ArrowDown on row 50 must page forward —
+		// the old modulo wrap stranded a keyboard-only user inside the first page.
+		const atWindowEnd = chooserMove({
+			delta: 1,
+			highlightedIndex: 49,
+			visibleCount: 50,
+			visibleLimit: 50,
+			totalCount: 205,
+		});
+		expect(atWindowEnd).toEqual({ highlighted: 50, visibleLimit: 100 });
+		// Within the window, movement is a plain step.
+		expect(
+			chooserMove({ delta: 1, highlightedIndex: 10, visibleCount: 50, visibleLimit: 50, totalCount: 205 }),
+		).toEqual({ highlighted: 11, visibleLimit: 50 });
+		// At the TRUE end (the whole inventory rendered), down wraps to the top.
+		expect(
+			chooserMove({ delta: 1, highlightedIndex: 204, visibleCount: 205, visibleLimit: 205, totalCount: 205 }),
+		).toEqual({ highlighted: 0, visibleLimit: 205 });
+		// Up from the top wraps to the bottom of the rendered window.
+		expect(
+			chooserMove({ delta: -1, highlightedIndex: 0, visibleCount: 50, visibleLimit: 50, totalCount: 205 }),
+		).toEqual({ highlighted: 49, visibleLimit: 50 });
+		// The last page grows only to the inventory's size.
+		expect(
+			chooserMove({ delta: 1, highlightedIndex: 199, visibleCount: 200, visibleLimit: 200, totalCount: 205 }),
+		).toEqual({ highlighted: 200, visibleLimit: 205 });
+	});
+
+	test("freshness labels read from an injected clock, not the ambient one", () => {
+		const now = Date.parse("2026-08-20T12:00:00Z");
+		expect(freshnessLabel(null, now)).toBe("never pushed");
+		expect(freshnessLabel("2026-08-20T09:00:00Z", now)).toBe("today");
+		expect(freshnessLabel("2026-08-19T09:00:00Z", now)).toBe("yesterday");
+		expect(freshnessLabel("2026-08-10T09:00:00Z", now)).toBe("10d ago");
+		expect(freshnessLabel("2026-06-20T09:00:00Z", now)).toBe("2mo ago");
+		expect(freshnessLabel("2024-08-20T09:00:00Z", now)).toBe("2y ago");
 	});
 
 	test("row click toggles, all/none bindings fire, confirm PUTs the selection", async () => {

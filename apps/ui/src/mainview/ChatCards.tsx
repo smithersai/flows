@@ -502,9 +502,9 @@ export interface CardViewProps {
  * empty), typing filters, Enter confirms. Select-all/none plus the one
  * confirm action; every act is a command binding.
  */
-const freshnessLabel = (pushedAt: string | null): string => {
+export const freshnessLabel = (pushedAt: string | null, now: number = Date.now()): string => {
 	if (pushedAt === null) return "never pushed";
-	const days = Math.max(0, Math.floor((Date.now() - Date.parse(pushedAt)) / 86_400_000));
+	const days = Math.max(0, Math.floor((now - Date.parse(pushedAt)) / 86_400_000));
 	if (Number.isNaN(days)) return "";
 	if (days === 0) return "today";
 	if (days === 1) return "yesterday";
@@ -546,6 +546,41 @@ export const chooserFilter = <C extends { fullName: string }>(
 /** Keep a 200+ repository account responsive while preserving local search over the whole inventory. */
 export const REPO_CHOOSER_PAGE_SIZE = 50;
 
+/**
+ * The chooser's arrow-key windowing, pure so it is testable without a DOM.
+ * Moving down past the rendered window grows the window by a page instead of
+ * wrapping, so a keyboard-only user can reach repositories past the first
+ * page (previously the highlight wrapped at row 50 and the only way further
+ * was the scroll handler). At the true end the highlight wraps to the top.
+ */
+export const chooserMove = (args: {
+	readonly delta: 1 | -1;
+	readonly highlightedIndex: number;
+	readonly visibleCount: number;
+	readonly visibleLimit: number;
+	readonly totalCount: number;
+	readonly pageSize?: number;
+}): { readonly highlighted: number; readonly visibleLimit: number } => {
+	const pageSize = args.pageSize ?? REPO_CHOOSER_PAGE_SIZE;
+	if (args.visibleCount === 0) return { highlighted: 0, visibleLimit: args.visibleLimit };
+	if (args.delta === 1) {
+		if (args.highlightedIndex + 1 < args.visibleCount) {
+			return { highlighted: args.highlightedIndex + 1, visibleLimit: args.visibleLimit };
+		}
+		if (args.visibleLimit < args.totalCount) {
+			return {
+				highlighted: args.highlightedIndex + 1,
+				visibleLimit: Math.min(args.visibleLimit + pageSize, args.totalCount),
+			};
+		}
+		return { highlighted: 0, visibleLimit: args.visibleLimit };
+	}
+	return {
+		highlighted: (args.highlightedIndex + args.visibleCount - 1) % args.visibleCount,
+		visibleLimit: args.visibleLimit,
+	};
+};
+
 const RepoChooserCardBody = ({
 	card,
 	onRepoToggle,
@@ -573,12 +608,15 @@ const RepoChooserCardBody = ({
 		if (action.kind === "none") return;
 		event.preventDefault();
 		if (action.kind === "move") {
-			if (visibleRows.length === 0) return;
-			setHighlighted(
-				action.delta === 1
-					? (highlightedIndex + 1) % visibleRows.length
-					: (highlightedIndex + visibleRows.length - 1) % visibleRows.length,
-			);
+			const next = chooserMove({
+				delta: action.delta,
+				highlightedIndex,
+				visibleCount: visibleRows.length,
+				visibleLimit,
+				totalCount: filteredRows.length,
+			});
+			if (next.visibleLimit !== visibleLimit) setVisibleLimit(next.visibleLimit);
+			setHighlighted(next.highlighted);
 			return;
 		}
 		if (saving) return;
@@ -590,6 +628,9 @@ const RepoChooserCardBody = ({
 		onReposConfirm();
 	};
 
+	const activeDescendant =
+		visibleRows.length === 0 ? undefined : `repo-chooser-option-${highlightedIndex}`;
+
 	return (
 		<div className="repo-chooser">
 			<input
@@ -598,6 +639,10 @@ const RepoChooserCardBody = ({
 				value={filter}
 				placeholder="Type to filter repositories…"
 				aria-label="Filter repositories"
+				role="combobox"
+				aria-expanded={true}
+				aria-controls="repo-chooser-list"
+				aria-activedescendant={activeDescendant}
 				disabled={saving}
 				onChange={(event) => {
 					setFilter(event.target.value);
@@ -608,6 +653,7 @@ const RepoChooserCardBody = ({
 			/>
 			<ul
 				className="repo-chooser-list"
+				id="repo-chooser-list"
 				role="listbox"
 				aria-multiselectable
 				aria-label="Your repositories"
@@ -624,6 +670,7 @@ const RepoChooserCardBody = ({
 							<button
 								type="button"
 								role="option"
+								id={`repo-chooser-option-${index}`}
 								aria-selected={checked}
 								data-highlighted={index === highlightedIndex}
 								className="repo-chooser-row"
@@ -1150,9 +1197,9 @@ export function CardView({
 					{card.kind === "notifications" ? (
 						<NotificationsCardBody card={card} onRunCommand={onRunCommand} />
 					) : null}
-					{card.kind === "env" ? <EnvCardBody card={card} onRunCommand={onRunCommand} /> : null}
+					{card.kind === "env" ? <EnvCardBody card={card} /> : null}
 					{card.kind === "repo-import" ? <RepoImportCardBody card={card} onRunCommand={onRunCommand} /> : null}
-					{card.kind === "branches" ? <BranchesCardBody card={card} onRunCommand={onRunCommand} /> : null}
+					{card.kind === "branches" ? <BranchesCardBody card={card} /> : null}
 					{card.kind === "file-list" ? <FileListCardBody card={card} onRunCommand={onRunCommand} /> : null}
 					{card.kind === "file" ? <FileCardBody card={card} onRunCommand={onRunCommand} /> : null}
 					{card.kind === "theme-picker" ? <ThemePickerCardBody card={card} onRunCommand={onRunCommand} /> : null}

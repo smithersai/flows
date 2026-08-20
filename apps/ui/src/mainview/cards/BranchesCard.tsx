@@ -12,7 +12,6 @@ export const BranchesCardBody = ({
 	card,
 }: {
 	readonly card: Extract<Card, { kind: "branches" }>;
-	readonly onRunCommand: (name: string, args?: string) => void;
 }) => (
 	<div className="world-card-list">
 		<ul className="world-card-list">
