@@ -148,6 +148,18 @@ const baseline = (): MemoryTimeTravelStore.JournalRecord => ({
   }
 })
 
+const journalEntry = (seq: number): JournalEvent.Entry => ({
+  runId: "run" as JournalEvent.RunId,
+  seq: seq as JournalEvent.Seq,
+  eventId: `event-${seq}`,
+  sourceId: "test" as JournalEvent.SourceId,
+  sourceSeq: seq as JournalEvent.SourceSeq,
+  emittedAtMs: seq,
+  eventType: "baseline",
+  payload: {},
+  meta: { lineageId: frame.lineageId }
+})
+
 const effect = (
   id: string,
   kind: string,
@@ -218,12 +230,13 @@ const provide = <A, E, R>(
     readonly runs: RunStore.Service
     readonly jj: Jj.Jj
     readonly handlers?: ReadonlyArray<EffectHandlerRegistry.Handler>
+    readonly journal?: Journal.Service
   }
 ) =>
   program.pipe(
     Effect.provide(Layer.succeed(TimeTravelStore, options.store)),
     Effect.provide(Layer.succeed(RunStore.RunStore, options.runs)),
-    Effect.provide(Layer.succeed(Journal.Journal, makeJournal(options.store))),
+    Effect.provide(Layer.succeed(Journal.Journal, options.journal ?? makeJournal(options.store))),
     Effect.provide(CacheStore.layerNoop({
       get: () => Effect.succeed(Option.none())
     })),
@@ -237,6 +250,49 @@ const provide = <A, E, R>(
   )
 
 describe("Rewind", () => {
+  it.effect("fails a repeated frame-validation page instead of spinning", () =>
+    Effect.gen(function*() {
+      const failure = yield* Effect.flip(
+        Rewind.validate({ runId: "run", frame }).pipe(
+          Effect.provideService(
+            Journal.Journal,
+            Journal.makeNoop({ entries: () => Effect.succeed({ entries: [journalEntry(0)], hasMore: true }) })
+          )
+        )
+      )
+
+      expect(failure).toMatchObject({
+        code: "invalid",
+        message: "journal validation pagination did not advance for run"
+      })
+    }))
+
+  it.effect("fails a repeated suffix page instead of spinning", () =>
+    Effect.gen(function*() {
+      const store = MemoryTimeTravelStore.make({ records: [baseline()] })
+      const failure = yield* Effect.flip(provide(
+        Rewind.rewind({ runId: "run", frame, owner, auditId: "audit-repeated-suffix" }),
+        {
+          store,
+          runs: makeRuns([row("run")]),
+          jj: makeJj("current").service,
+          journal: Journal.makeNoop({
+            entries: ({ after }) =>
+              Effect.succeed(
+                after === undefined
+                  ? { entries: [journalEntry(0)], hasMore: false }
+                  : { entries: [journalEntry(1)], hasMore: true }
+              )
+          })
+        }
+      ))
+
+      expect(failure).toMatchObject({
+        code: "invalid",
+        message: "journal suffix pagination did not advance for run"
+      })
+    }))
+
   it.effect("compensates in reverse order, restores jj, archives the suffix, and suspends the run", () =>
     Effect.gen(function*() {
       const calls: Array<string> = []
@@ -392,15 +448,12 @@ describe("Rewind", () => {
 
   it.effect("claims and cancels a nonterminal detached child under explicit cancel policy", () =>
     Effect.gen(function*() {
-      const edge: LineageEdge = {
-        parentRunId: "run",
-        parentSeq: 1,
-        childRunId: "child",
-        kind: "child",
-        attached: false
-      }
-      const store = MemoryTimeTravelStore.make({ records: [baseline()], edges: [edge] })
-      const runs = makeRuns([row("run"), row("child", "suspended")])
+      const edges: ReadonlyArray<LineageEdge> = [
+        { parentRunId: "run", parentSeq: 1, childRunId: "child-a", kind: "child", attached: false },
+        { parentRunId: "run", parentSeq: 2, childRunId: "child-b", kind: "child", attached: false }
+      ]
+      const store = MemoryTimeTravelStore.make({ records: [baseline()], edges })
+      const runs = makeRuns([row("run"), row("child-a", "suspended"), row("child-b", "suspended")])
       const jj = makeJj("current")
 
       const result = yield* (
@@ -416,8 +469,9 @@ describe("Rewind", () => {
         )
       )
 
-      expect(result.cancelledChildren).toEqual(["child"])
-      expect(runs.state("child")).toMatchObject({ status: "cancelled", owner: null })
+      expect(result.cancelledChildren).toEqual(["child-b", "child-a"])
+      expect(runs.state("child-a")).toMatchObject({ status: "cancelled", owner: null })
+      expect(runs.state("child-b")).toMatchObject({ status: "cancelled", owner: null })
     }))
 
   it.effect("leaves detached children unchanged when rewind fails before the archive commit", () =>

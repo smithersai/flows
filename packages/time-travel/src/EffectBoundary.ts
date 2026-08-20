@@ -281,7 +281,12 @@ export const fromEntry = (
   }
 }
 
-/** Decodes a known boundary event, failing closed when its durable payload is corrupt. */
+/**
+ * Decodes a known boundary event, failing closed when its durable payload is corrupt.
+ *
+ * @since 0.1.0
+ * @category decoders
+ */
 export const decodeEntry = (
   entry: JournalEvent.Entry
 ): Effect.Effect<EffectRecord | undefined, TimeTravelError> => {

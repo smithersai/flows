@@ -88,7 +88,9 @@ export const projection = (
       }
       if (entry.eventType !== "flows.engine.snapshot-identified") return state
       const { lineageId } = yield* Schema.decodeUnknownEffect(LineageMeta)(entry.meta).pipe(
-        Effect.mapError((cause) => error("invalid", `snapshot event ${entry.eventId} has corrupt lineage metadata`, cause))
+        Effect.mapError((cause) =>
+          error("invalid", `snapshot event ${entry.eventId} has corrupt lineage metadata`, cause)
+        )
       )
       const payload = yield* Schema.decodeUnknownEffect(SnapshotPayload)(entry.payload).pipe(
         Effect.mapError((cause) => error("invalid", `snapshot event ${entry.eventId} is corrupt`, cause))

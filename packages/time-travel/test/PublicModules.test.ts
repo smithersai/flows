@@ -1,6 +1,7 @@
 import { describe, expect, it } from "@effect/vitest"
 import * as Jj from "@smthrs/jj"
 import * as Journal from "@smthrs/journal/Journal"
+import type * as JournalEvent from "@smthrs/journal/JournalEvent"
 import * as RunStore from "@smthrs/run-store/RunStore"
 import * as CacheStore from "@smthrs/step-cache/CacheStore"
 import * as Effect from "effect/Effect"
@@ -50,7 +51,8 @@ const row = (overrides: Partial<RunStore.RunRow> = {}): RunStore.RunRow => ({
 const runFork = (
   runs: RunStore.Service,
   store: TimeTravelStore["Service"],
-  jj: Jj.Jj
+  jj: Jj.Jj,
+  dependencies = forkDeps
 ) =>
   Effect.scoped(
     Fork.fork({
@@ -62,7 +64,7 @@ const runFork = (
       Effect.provide(Layer.succeed(RunStore.RunStore, runs)),
       Effect.provide(Layer.succeed(TimeTravelStore, store)),
       Effect.provide(Layer.succeed(Jj.Jj, jj)),
-      Effect.provide(forkDeps)
+      Effect.provide(dependencies)
     )
   )
 
@@ -136,6 +138,37 @@ describe("public time-travel modules", () => {
 })
 
 describe("Fork.fork", () => {
+  it.effect("fails a repeated suffix page instead of spinning", () =>
+    Effect.gen(function*() {
+      const repeated = {
+        runId: "parent" as JournalEvent.RunId,
+        seq: 1 as JournalEvent.Seq,
+        eventId: "repeated",
+        sourceId: "test" as JournalEvent.SourceId,
+        sourceSeq: 1 as JournalEvent.SourceSeq,
+        emittedAtMs: 0,
+        eventType: "unrelated",
+        payload: {},
+        meta: { lineageId: frame.lineageId }
+      }
+      const dependencies = Layer.mergeAll(
+        Layer.succeed(
+          Journal.Journal,
+          Journal.makeNoop({ entries: () => Effect.succeed({ entries: [repeated], hasMore: true }) })
+        ),
+        Layer.succeed(CacheStore.CacheStore, CacheStore.makeNoop()),
+        EffectHandlerRegistry.layerNoop
+      )
+      const failure = yield* Effect.flip(runFork(
+        RunStore.makeNoop({ get: () => Effect.succeed(row()) }),
+        MemoryTimeTravelStore.make(),
+        Jj.makeNoop({}),
+        dependencies
+      ))
+
+      expect(failure).toMatchObject({ code: "invalid", message: "journal fork pagination did not advance" })
+    }))
+
   it.effect("creates the fork workspace and always forgets it when the scope closes", () =>
     Effect.gen(function*() {
       const calls: Array<string> = []

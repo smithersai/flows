@@ -288,10 +288,11 @@ describe("Replay", () => {
       let pages = 0
       const repeated = entry(0, "same")
       const journal = Journal.makeNoop({
-        entries: () => Effect.sync(() => {
-          pages += 1
-          return { entries: [repeated], hasMore: true }
-        })
+        entries: () =>
+          Effect.sync(() => {
+            pages += 1
+            return { entries: [repeated], hasMore: true }
+          })
       })
       const failure = yield* Effect.flip(
         Replay.rederive(
