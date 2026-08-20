@@ -1,0 +1,353 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "10e7bcaae6ead421319a8d67cc58759ba7fcea9b",
+ "tree": "6f769d0c120ca95dbd4171caf810db663c239b9e",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 42,
+  "sectionCount": 83
+ },
+ "source": {
+  "commit": "bdd707bfcf264bb5dad763ed13108ee81323899e",
+  "subject": "🐛 fix(run-store): make run state fold durable",
+  "priorCanonicalCommit": "2632c05da63099666add6437c743f4c5b3922f59",
+  "treeEqualToSource": false,
+  "indexOnSourceLine": 37,
+  "sourceLineCount": 71,
+  "subjectRewritten": true,
+  "rewriteReason": "the source commit landed 13 separable concerns under one subject; this commit carries one of them and states it, while the last commit of the split keeps the source subject verbatim and reproduces the source tree exactly",
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true,
+  "split": {
+   "of": "2632c05da63099666add6437c743f4c5b3922f59",
+   "index": 6,
+   "count": 13,
+   "granularity": "whole-path",
+   "rationale": "path-partitioned split of prior canonical commit 2632c05da63099666add6437c743f4c5b3922f59 (85 files, 2647 changed lines) into 13 dependency-ordered atomic commits; the partition is by whole path, no hunk is divided, and the union of the 13 path sets is exactly the prior commit's path set, so the last split commit's tree is byte-identical to the prior canonical tree and to the source commit's tree",
+   "members": [
+    "35e8bb5ee63f687e4c5d505c0eeb2a0dc4852912",
+    "f2a7988d68204605a0893d95d2e72986c5324607",
+    "0db9b9e56057fdb635498531007046b455f59f17",
+    "93a03795321b1c8eb6b0549f7e9c077983b2a4de",
+    "4b74f1869551d52856c373d3c00176b5239f6d70",
+    "10e7bcaae6ead421319a8d67cc58759ba7fcea9b",
+    "92af181d2eb89f8f5c08e2bb547c02e96afc8955",
+    "6ba1f1e4bbfdb4e9948794207954c551fa325b2e",
+    "83bb9a5cb7fd6687b99a75a8be32bcb4e79bf977",
+    "1c4f303b40917cb36087ef46817a11f2cb9e0d29",
+    "ceccf909f0e096f82af297262f7e60620400663f",
+    "c92bd7ef9e370096bcb56fdd661d9f3ba04dd080",
+    "45e3c1570fd6be09e9c529beaab1c8602d059998"
+   ],
+   "priorSize": {
+    "files": 85,
+    "added": 1940,
+    "deleted": 707,
+    "changed": 2647
+   }
+  }
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "engine-store",
+  "epicsTouched": [
+   {
+    "id": "engine-store",
+    "files": 7
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 880,
+  "globalCount": 921,
+  "purpose": "🐛 fix(time-travel): leave the run, attempt, and consensus folds out of replay archiving",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "4b74f1869551d52856c373d3c00176b5239f6d70"
+  ],
+  "parent": "4b74f1869551d52856c373d3c00176b5239f6d70",
+  "sourceImports": [
+   "0cbeeb277d9929243737e789e6318cc45bd98bac",
+   "1741fe3e11078585191eacc9cf2eccd8a3526c1d",
+   "30fab3bcf2a89c54c6357770164337d851030e04",
+   "3c5d2a382f0b4329646f29959243a04c97df5c2b",
+   "94f7c8bf4001f5fb8bb81bf239df5caa97fbbaec",
+   "a3268b56e9da9bd3213f796ff44e6ac6e5ac5d43",
+   "c6c0d5170329c2c48b6f3ad7b1f39755c840387c",
+   "c8bce393ea55d3257b21dbf5095fb2af8220a9d3",
+   "d62c430a56c4fec9e9ccc2c81a1884c93ded9643"
+  ],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "4b74f1869551d52856c373d3c00176b5239f6d70",
+  "next": "92af181d2eb89f8f5c08e2bb547c02e96afc8955",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "6fe6857b28247375ab46b0d79cba15e74754ebd6"
+ },
+ "size": {
+  "files": 7,
+  "added": 182,
+  "deleted": 27
+ },
+ "provenance": {
+  "strategy": "path-partitioned split of the source commit's tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": false,
+  "sourceCommit": "bdd707bfcf264bb5dad763ed13108ee81323899e",
+  "splitOf": "2632c05da63099666add6437c743f4c5b3922f59"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "packages/time-travel/src/MemoryTimeTravelStore.ts",
+   "mode": "100644",
+   "blob": "47a40946fee297be89deacdde879fcb047b546cb",
+   "previousBlob": "83a48a721edfb2a069fcd2c1271d2e38a1a7e5c6",
+   "added": 19,
+   "deleted": 4,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 45,
+     "oldLines": 0,
+     "newStart": 46,
+     "newLines": 9
+    },
+    {
+     "oldStart": 302,
+     "oldLines": 2,
+     "newStart": 311,
+     "newLines": 5
+    },
+    {
+     "oldStart": 310,
+     "oldLines": 2,
+     "newStart": 322,
+     "newLines": 5
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/time-travel/src/SqlTimeTravelStore.ts",
+   "mode": "100644",
+   "blob": "74566809409bb755f07e35a27f00a88503c6946f",
+   "previousBlob": "1911ad1d6f1e40daf2da5f5229e877d1fd503803",
+   "added": 28,
+   "deleted": 3,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 503,
+     "oldLines": 0,
+     "newStart": 504,
+     "newLines": 3
+    },
+    {
+     "oldStart": 511,
+     "oldLines": 0,
+     "newStart": 515,
+     "newLines": 3
+    },
+    {
+     "oldStart": 515,
+     "oldLines": 0,
+     "newStart": 522,
+     "newLines": 3
+    },
+    {
+     "oldStart": 520,
+     "oldLines": 0,
+     "newStart": 530,
+     "newLines": 3
+    },
+    {
+     "oldStart": 526,
+     "oldLines": 2,
+     "newStart": 538,
+     "newLines": 13
+    },
+    {
+     "oldStart": 529,
+     "oldLines": 1,
+     "newStart": 551,
+     "newLines": 0
+    },
+    {
+     "oldStart": 635,
+     "oldLines": 0,
+     "newStart": 658,
+     "newLines": 3
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/time-travel/src/internal/Recovery.ts",
+   "mode": "100644",
+   "blob": "a65321f87399b68315b4e7b9d413b99088caf1d4",
+   "previousBlob": "8beb7e5f49f5838fa507e47f38fefe8365b00d9c",
+   "added": 21,
+   "deleted": 18,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 21,
+     "oldLines": 1,
+     "newStart": 21,
+     "newLines": 1
+    },
+    {
+     "oldStart": 153,
+     "oldLines": 17,
+     "newStart": 153,
+     "newLines": 20
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/time-travel/src/internal/Rewind.ts",
+   "mode": "100644",
+   "blob": "e6bd5b28bdb4c972cd8031a46bb85b9593316eaf",
+   "previousBlob": "0d76bf167d9b918c6d34452c74049afd049dab5f",
+   "added": 17,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 267,
+     "oldLines": 0,
+     "newStart": 268,
+     "newLines": 1
+    },
+    {
+     "oldStart": 329,
+     "oldLines": 1,
+     "newStart": 330,
+     "newLines": 1
+    },
+    {
+     "oldStart": 358,
+     "oldLines": 0,
+     "newStart": 360,
+     "newLines": 15
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/time-travel/test/Truncation.test.ts",
+   "mode": "100644",
+   "blob": "ccc40ce261c120c5f3b6eeedcbdf65ebe86952ac",
+   "previousBlob": "c3c88479111882ae8c12b179f1c7ef8431403a76",
+   "added": 52,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 98,
+     "oldLines": 0,
+     "newStart": 99,
+     "newLines": 52
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/time-travel/test/Recovery.test.ts",
+   "mode": "100644",
+   "blob": "d1dfd390fc8f5f2f77d757bcd5cb683b0e73bf43",
+   "previousBlob": "71337ca95757698c12fe0f89d77bf9b720a0d3e0",
+   "added": 44,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 169,
+     "oldLines": 0,
+     "newStart": 170,
+     "newLines": 44
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  },
+  {
+   "change": "M",
+   "path": "packages/time-travel/test/RecoveryCorruption.test.ts",
+   "mode": "100644",
+   "blob": "dc11dffad99f783bd533f1fe4e2358686558493d",
+   "previousBlob": "197fc0c533e76ec9e8a6aa82af6bd6c30e680b0b",
+   "added": 1,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 20,
+     "oldLines": 1,
+     "newStart": 19,
+     "newLines": 0
+    },
+    {
+     "oldStart": 23,
+     "oldLines": 0,
+     "newStart": 23,
+     "newLines": 1
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": {
+    "index": 6,
+    "id": "engine-store",
+    "name": "Durable, replayable flow execution"
+   }
+  }
+ ],
+ "sizeJustification": "split from prior canonical commit 2632c05da63099666add6437c743f4c5b3922f59; 209 changed lines across 7 files, below the 2000-line large-commit threshold"
+}
