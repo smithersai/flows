@@ -193,7 +193,9 @@ describe("ChainRuntime behind the NativeAgent seam", () => {
 		const h = await harness({ author: hanging });
 		const done = h.waitForDone();
 		h.controller.send("do something slow");
-		await new Promise((resolve) => setTimeout(resolve, 10));
+		// A tick, not a clock: startTurn's synchronous prefix registers the fiber
+		// within a microtask, so one macrotask is enough for stop() to find it.
+		await new Promise((resolve) => setTimeout(resolve, 0));
 		h.controller.stop();
 		const terminal = await done;
 		expect(terminal.reason).toBe("cancelled");
@@ -244,8 +246,10 @@ describe("ChainRuntime behind the NativeAgent seam", () => {
 		await entered;
 
 		// The composer mid-turn: rendered as the user's bubble, admitted as steering.
+		// The admit lands in the steering Ref within a microtask, so one tick —
+		// not a wall-clock wait — orders it before the gate releases.
 		h.controller.send("also check the tests");
-		await new Promise((resolve) => setTimeout(resolve, 10));
+		await new Promise((resolve) => setTimeout(resolve, 0));
 		releaseWait();
 		const terminal = await done;
 		expect("error" in terminal ? terminal.error : undefined).toBeUndefined();
@@ -486,6 +490,42 @@ describe("ChainRuntime behind the NativeAgent seam", () => {
 		expect(JSON.stringify(contexts.at(-1))).toContain("count the stars");
 	});
 
+	test("a background parked without an approval frees its slot instead of parking capacity forever", async () => {
+		// Non-approval parks have no wake-up (only approval parks resume through
+		// resolveApproval), so the lineage must leave backgroundGoals — otherwise
+		// three dormant parks exhaust MAX_BACKGROUNDS and every later spawn is
+		// refused. The fourth parker is the tell: it only parks when the first
+		// three slots were released.
+		const author = Author.layerFn((input) =>
+			input.context.includes("role:park")
+				? flow(`return park("quota", "out of budget")`)
+				: flow(
+						`const bg = await ctx.call("background", { goal: "park work", context: ["role:park"] })`,
+						`await ctx.call("say", { text: "spawned" })`,
+						`return done({})`,
+					),
+		);
+		const h = await harness({ author });
+		const pausedCount = (): number =>
+			[...h.store.collections.messages.values()].filter((message) =>
+				message.text.includes("A background task paused (quota)"),
+			).length;
+		const untilPaused = async (count: number): Promise<void> => {
+			for (let waited = 0; pausedCount() < count && waited < 200; waited += 1) {
+				await new Promise((resolve) => setTimeout(resolve, 10));
+			}
+		};
+
+		for (let round = 1; round <= 4; round += 1) {
+			const done = h.waitForDone();
+			h.controller.send(`spawn parker ${round}`);
+			const terminal = await done;
+			expect("error" in terminal ? terminal.error : undefined).toBeUndefined();
+			await untilPaused(round);
+		}
+		expect(pausedCount()).toBe(4);
+	});
+
 	test("scripts read and write the worldview through recall and remember", async () => {
 		const h = await harness({
 			author: Author.layerMock([
@@ -533,13 +573,18 @@ describe("ChainRuntime behind the NativeAgent seam", () => {
 		runtime.subscribe((frame) => {
 			if (frame.type === "done") second.frames.push(frame);
 		});
+		const terminalDone = new Promise<void>((resolve) => {
+			runtime.subscribe((frame) => {
+				if (frame.type === "done") resolve();
+			});
+		});
 		const result = await runtime.startTurn({
 			runId: lineage!,
 			messages: [{ role: "user", content: "make a note about the plan" }],
 			instructions: "",
 		});
 		expect(result.status).toBe("started");
-		await new Promise((resolve) => setTimeout(resolve, 50));
+		await terminalDone;
 		const terminal = second.frames.find((frame) => frame.type === "done");
 		expect(terminal).toBeDefined();
 		expect(terminal !== undefined && "error" in terminal ? terminal.error : undefined).toBeUndefined();

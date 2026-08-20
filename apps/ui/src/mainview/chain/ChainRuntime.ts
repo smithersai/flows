@@ -317,6 +317,13 @@ export const createChainRuntime = (options: ChainRuntimeOptions): NativeAgent =>
 				deliverNote(`A background task is waiting on your approval: ${spec.goal}`);
 				return;
 			}
+			/*
+			 * A non-approval park has no wake-up: only approval parks resume
+			 * (resolveApproval re-runs the lineage). Keeping the entry would
+			 * park one of the MAX_BACKGROUNDS slots on a task that can never
+			 * move again, so the dormant lineage leaves the registry here.
+			 */
+			backgroundGoals.delete(lineage);
 			deliverNote(`A background task paused (${outcome.reason.code}): ${spec.goal}`);
 		});
 	};
