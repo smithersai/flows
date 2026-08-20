@@ -58,6 +58,8 @@ const stable = (value: unknown): string => JSON.stringify(canonical(value))
 
 /** Did the run do what the case declares? */
 const behaviour = Scorer.make({
+  id: "evals/agent/suite/behaviour",
+  version: "1",
   name: "evals/agent/behaviour",
   description: "Deep equality between the run's observation and the case's declared expectation.",
   score: ({ groundTruth, output }) =>
@@ -91,6 +93,8 @@ const brokenInvariant = (observation: Subject.Observation): string | undefined =
 
 /** Is the observation the shape this suite promises? */
 const contract = Scorer.make({
+  id: "evals/agent/suite/contract",
+  version: "1",
   name: "evals/agent/contract",
   description: "The observation decodes as the declared schema and holds the invariants that schema cannot state.",
   score: ({ output }) =>

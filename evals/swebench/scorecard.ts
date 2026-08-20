@@ -30,7 +30,7 @@
  *
  * @since 0.1.0
  */
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs"
+import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs"
 import { dirname, join, resolve } from "node:path"
 import { DatabaseSync } from "node:sqlite"
 import { fileURLToPath } from "node:url"
@@ -54,7 +54,7 @@ const options = {
   work: resolve(here, flag("work", "work")),
   patches: resolve(here, flag("patches", "patches")),
   timings: resolve(here, flag("timings", "timings")),
-  reports: resolve(here, flag("reports", ".")),
+  report: resolve(here, flag("report", "")),
   model: flag("model", "flows-cell-harness"),
   baseline: resolve(here, flag("baseline", "baseline/codex-comparison.json")),
   sample: resolve(here, flag("sample", "sample.json")),
@@ -66,31 +66,27 @@ const instancesFlag = flag("instances", "")
 // Verdicts, from the official evaluator's reports
 // ---------------------------------------------------------------------------
 
-/** A verdict from a run that graded the patch beats one from a run that could
- * not start its container. Docker read timeouts under load produce the latter,
- * and they must not shadow a real result. */
-const rank: Record<string, number> = { "resolved": 4, "unresolved": 3, "empty patch": 2, "eval error": 1 }
-
-const readVerdicts = (dir: string, model: string): Record<string, string> => {
+const readVerdicts = (file: string): Record<string, string> => {
+  if (file.length === 0 || !existsSync(file) || !statSync(file).isFile()) {
+    throw new Error("scorecard requires --report <official evaluator report.json>")
+  }
   const verdicts: Record<string, string> = {}
   const record = (id: string, verdict: string) => {
-    if (verdicts[id] === undefined || rank[verdict]! > rank[verdicts[id]!]!) verdicts[id] = verdict
-  }
-  const files = existsSync(dir)
-    ? readdirSync(dir).filter((name) => name.startsWith(`${model}.`) && name.endsWith(".json"))
-    : []
-  for (const file of files) {
-    let report: Record<string, ReadonlyArray<string>>
-    try {
-      report = JSON.parse(readFileSync(join(dir, file), "utf8"))
-    } catch {
-      continue
+    if (verdicts[id] !== undefined) {
+      throw new Error(`official evaluator report assigns ${id} both '${verdicts[id]}' and '${verdict}'`)
     }
-    for (const id of report.resolved_ids ?? []) record(id, "resolved")
-    for (const id of report.unresolved_ids ?? []) record(id, "unresolved")
-    for (const id of report.empty_patch_ids ?? []) record(id, "empty patch")
-    for (const id of report.error_ids ?? []) record(id, "eval error")
+    verdicts[id] = verdict
   }
+  let report: Record<string, ReadonlyArray<string>>
+  try {
+    report = JSON.parse(readFileSync(file, "utf8"))
+  } catch (error) {
+    throw new Error(`could not read official evaluator report ${file}`, { cause: error })
+  }
+  for (const id of report.resolved_ids ?? []) record(id, "resolved")
+  for (const id of report.unresolved_ids ?? []) record(id, "unresolved")
+  for (const id of report.empty_patch_ids ?? []) record(id, "empty patch")
+  for (const id of report.error_ids ?? []) record(id, "eval error")
   return verdicts
 }
 
@@ -296,7 +292,7 @@ const callout = (flows: string, codex: string): string =>
     ? "both pass"
     : "both fail"
 
-const verdicts = readVerdicts(options.reports, options.model)
+const verdicts = readVerdicts(options.report)
 const baselineRows = readJson<ReadonlyArray<BaselineRow>>(options.baseline, [])
 const baseline = new Map(baselineRows.map((row) => [row.id, row]))
 

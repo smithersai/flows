@@ -67,6 +67,7 @@ const large = await run(`/files.read big.txt ${REPO}`, "big.txt");
 const largeCard = await page.locator('[data-kind="file"]').last().innerText();
 console.log(`big.txt: card present: ${large.card}, truncation notice: ${largeCard.includes("Truncated")}`);
 if (!large.card) failures.push("large file rendered no card");
+if (large.card && !largeCard.includes("Truncated")) failures.push("large file rendered without the required truncation notice");
 
 const binary = await run(`/files.read blob.bin ${REPO}`, "blob.bin");
 const binaryCard = page.locator('[data-kind="file"]').last();

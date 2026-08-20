@@ -31,7 +31,7 @@ const program = Effect.gen(function*() {
     cases: [{ name: "hello", input: { name: "Ada" } }],
     concurrency: 1
   })
-  return yield* Runner.run(suite)
+  return yield* Runner.run(suite, { runId: "nightly-2026-01-01", at: "2026-01-01T00:00:00.000Z" })
 }).pipe(Effect.provide(CaseExecutor.layerNoop))
 ```
 

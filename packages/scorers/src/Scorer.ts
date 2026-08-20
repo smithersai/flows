@@ -6,6 +6,7 @@
  * @since 0.1.0
  */
 import * as Flow from "@smthrs/core/Flow"
+import * as Digest from "@smthrs/core/Digest"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import { ScorerError } from "./ScorerError.ts"
@@ -75,17 +76,14 @@ export type MakeOptions<E = never> =
     "input" | "output"
   >
   & {
+    /** Stable module-owned scorer identity. */
+    readonly id: string
+    /** Stable scorer contract/configuration version. */
+    readonly version: string
+    /** Canonical, inert configuration that changes scoring semantics. */
+    readonly config?: unknown
     readonly score: (input: Input) => Effect.Effect<Result, E | ScorerError>
   }
-
-const digest = (text: string): string => {
-  let value = 2166136261
-  for (const character of text) {
-    value ^= character.charCodeAt(0)
-    value = Math.imul(value, 16777619)
-  }
-  return (value >>> 0).toString(16).padStart(8, "0")
-}
 
 /**
  * Declares a scorer flow and derives its scorer key from its own declaration.
@@ -94,17 +92,13 @@ const digest = (text: string): string => {
  * @since 0.1.0
  */
 export const make = <E = never>(options: MakeOptions<E>): Scorer<E> => {
-  const { score, ...declaration } = options
+  const { score, id, version, config, ...declaration } = options
+  if (id.trim().length === 0 || version.trim().length === 0) {
+    throw new TypeError("Scorer id and version must not be empty")
+  }
   const flow = Flow.make({ ...declaration, input: Input, output: Result })
-  const keyMaterial = JSON.stringify({
-    name: flow.name ?? null,
-    description: flow.description ?? null,
-    capabilities: flow.capabilities,
-    effects: flow.effects ?? null,
-    implementation: flow.implementation ?? null
-  })
   return Object.assign(flow, {
-    scorerKey: digest(`${keyMaterial}\u0000${score.toString()}`),
+    scorerKey: Digest.digest(Digest.canonical({ id, version, config: config ?? null })),
     score
   })
 }

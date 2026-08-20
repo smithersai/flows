@@ -640,11 +640,16 @@ export const createTurnController = (
 				if (steeredAsk !== undefined && turn.askClass === undefined) {
 					turn.askClass = steeredAsk;
 				}
-				void agent.steer(turn.id, prompt).then((admitted) => {
-					if (admitted) {
-						store.dispatch({ type: "message.steered", actor: "user", turnId: turn.id, text: prompt });
-					}
-				});
+				void agent
+					.steer(turn.id, prompt)
+					.then((admitted) => {
+						if (admitted) {
+							store.dispatch({ type: "message.steered", actor: "user", turnId: turn.id, text: prompt });
+						}
+					})
+					.catch(() => {
+						// The draft remains untouched, so a rejected steer is retryable.
+					});
 			}
 			return;
 		}
@@ -787,6 +792,13 @@ export const createTurnController = (
 				// A background lineage resumed inside the runtime; only a turn
 				// lineage re-enters the turn lifecycle here.
 				if (card.payload.background !== true) resumeChainTurn(lineage);
+			}).catch(() => {
+				store.dispatch({
+					type: "card.approval.decision.failed",
+					actor: "system",
+					id,
+					message: "The decision could not reach the chain. Nothing was recorded — try again.",
+				});
 			});
 			return;
 		}
@@ -838,6 +850,16 @@ export const createTurnController = (
 						message: result.message,
 					});
 				}
+			})
+			.catch(() => {
+				if (ctx.activeTurn?.id !== lineage) return;
+				ctx.activeTurn = undefined;
+				store.dispatch({
+					type: "message.response.failed",
+					actor: "system",
+					turnId: lineage,
+					message: "The chain could not resume. Try the approval again.",
+				});
 			});
 	};
 

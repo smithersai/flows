@@ -6,7 +6,7 @@
  * @since 0.1.0
  */
 import { Journal, JournalEvent } from "@smthrs/journal"
-import { Context, Effect, Layer, Option, Schema } from "effect"
+import { Context, Effect, Layer, Option, Schema, Semaphore } from "effect"
 import type * as NotificationModel from "./Notification.ts"
 import * as NotificationEvent from "./NotificationEvent.ts"
 import * as NotificationState from "./NotificationState.ts"
@@ -184,7 +184,12 @@ const load = (
       if (Option.isNone(decoded)) continue
       if ("notification" in decoded.value) {
         notifications.set(decoded.value.notification.id, decoded.value.notification)
-        state = NotificationState.admit(state, decoded.value.notification, entry.seq).state
+        state = NotificationState.applyAdmission(
+          state,
+          decoded.value.notification,
+          entry.seq,
+          decoded.value.decision
+        )
       } else {
         state = NotificationState.applyPromoted(state, decoded.value.ids)
       }
@@ -211,8 +216,9 @@ export const layer: Layer.Layer<NotificationQueue, never, Journal.Journal> = Lay
   NotificationQueue,
   Effect.gen(function*() {
     const journal = yield* Journal.Journal
+    const operations = yield* Semaphore.make(1)
     return make({
-      admit: Effect.fn("NotificationQueue.admit")(function*(rawRunId, notification) {
+      admit: Effect.fn("NotificationQueue.admit")((rawRunId, notification) => operations.withPermits(1)(journal.transact(Effect.gen(function*() {
         const runId = JournalEvent.RunId.make(rawRunId)
         const loaded = yield* load(journal, runId)
         const prior = loaded.entries.find((entry) => {
@@ -264,8 +270,8 @@ export const layer: Layer.Layer<NotificationQueue, never, Journal.Journal> = Lay
           seq: receipt.seq,
           duplicate: receipt._tag === "Duplicate"
         }
-      }),
-      drain: Effect.fn("NotificationQueue.drain")(function*(input) {
+      }))),
+      drain: Effect.fn("NotificationQueue.drain")((input) => operations.withPermits(1)(journal.transact(Effect.gen(function*() {
         const runId = JournalEvent.RunId.make(input.runId)
         const loaded = yield* load(journal, runId)
         const prior = loaded.entries.flatMap((entry) =>
@@ -316,7 +322,7 @@ export const layer: Layer.Layer<NotificationQueue, never, Journal.Journal> = Lay
           boundary: input.boundary,
           duplicate: false
         }
-      })
+      })))
     })
   })
 )

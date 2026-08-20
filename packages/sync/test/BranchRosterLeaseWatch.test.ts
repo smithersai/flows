@@ -15,6 +15,8 @@ import type { BranchId, ParticipantId } from "../src/BranchProtocol.ts"
 import * as BranchRpcs from "../src/BranchRpcs.ts"
 import * as BranchServer from "../src/BranchServer.ts"
 import * as BranchShare from "../src/BranchShare.ts"
+import * as SyncPrincipal from "../src/SyncPrincipal.ts"
+import { SyncAuth } from "../src/SyncRpcs.ts"
 import * as TestSocket from "../src/test/TestSocket.ts"
 
 type Client = RpcClient.RpcClient<RpcGroup.Rpcs<typeof BranchRpcs.BranchRpcs>, RpcClientError.RpcClientError>
@@ -27,7 +29,10 @@ type Requirements =
 const base = Layer.mergeAll(
   BranchShare.layerHmac({ secret: "roster-watch-secret" }),
   BranchCommands.layerNoop,
-  BranchIds.layerSequential("roster")
+  BranchIds.layerSequential("roster"),
+  Layer.succeed(SyncAuth)((effect) =>
+    Effect.provideService(effect, SyncPrincipal.SyncPrincipal, SyncPrincipal.workspace("roster-test"))
+  )
 )
 
 const program = <A, E>(effect: Effect.Effect<A, E, Requirements>) =>

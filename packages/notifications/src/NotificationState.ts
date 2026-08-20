@@ -119,6 +119,27 @@ export const admit = (state: State, notification: Notification, seq: number): Ad
   })
 }
 
+/** Applies the decision already committed in an admission journal event. */
+export const applyAdmission = (
+  state: State,
+  notification: Notification,
+  seq: number,
+  decision: AdmissionDecision
+): State => {
+  if (decision === "rejected-full") return state
+  if (decision === "admitted") {
+    return immutable(state.capacity, [...state.items, { notification, seq }])
+  }
+  const key = notification._tag === "system-event" ? coalesceKey(notification) : null
+  const index = key === null ? -1 : state.items.findIndex(
+    (item) => item.notification._tag === "system-event" && coalesceKey(item.notification) === key
+  )
+  if (index === -1) return immutable(state.capacity, [...state.items, { notification, seq }])
+  const items = [...state.items]
+  items[index] = { notification, seq: items[index]!.seq }
+  return immutable(state.capacity, items)
+}
+
 /**
  * Returns still-pending notifications in their durable journal order.
  *

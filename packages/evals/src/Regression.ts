@@ -85,6 +85,7 @@ export interface Report {
 
 const key = (caseName: string, scorer: string): string => `${caseName}\u0000${scorer}`
 const validTolerance = (value: number): boolean => Number.isFinite(value) && value >= 0
+const compareText = (left: string, right: string): number => left < right ? -1 : left > right ? 1 : 0
 
 /**
  * Compares a run to a baseline, preserving missing and inconclusive observations.
@@ -127,12 +128,24 @@ export const compare = (
   const missing: Array<MissingObservation> = []
   const keys = new Set([...baselineByKey.keys(), ...actualByKey.keys()])
   for (const groupedKey of keys) {
-    const expected = baselineByKey.get(groupedKey) ?? []
-    const observed = actualByKey.get(groupedKey) ?? []
+    const expected = [...baselineByKey.get(groupedKey) ?? []]
+    const observed = [...actualByKey.get(groupedKey) ?? []]
+    const pairs: Array<readonly [BaselineRecord | undefined, Extract<Observation, { readonly kind: "score" }> | undefined]> = []
+    for (const stepKey of [...new Set(expected.map((record) => record.stepKey))].sort(compareText)) {
+      const expectedAtStep = expected.filter((record) => record.stepKey === stepKey).sort((a, b) => a.score - b.score)
+      const observedAtStep = observed.filter((record) => record.stepKey === stepKey).sort((a, b) => a.score - b.score)
+      const count = Math.min(expectedAtStep.length, observedAtStep.length)
+      for (let index = 0; index < count; index++) pairs.push([expectedAtStep[index], observedAtStep[index]])
+      for (let index = 0; index < count; index++) {
+        expected.splice(expected.indexOf(expectedAtStep[index]!), 1)
+        observed.splice(observed.indexOf(observedAtStep[index]!), 1)
+      }
+    }
+    expected.sort((a, b) => compareText(a.stepKey, b.stepKey) || a.score - b.score)
+    observed.sort((a, b) => compareText(a.stepKey, b.stepKey) || a.score - b.score)
     const count = Math.max(expected.length, observed.length)
-    for (let index = 0; index < count; index++) {
-      const baselineRecord = expected[index]
-      const observation = observed[index]
+    for (let index = 0; index < count; index++) pairs.push([expected[index], observed[index]])
+    for (const [baselineRecord, observation] of pairs) {
       if (baselineRecord === undefined) {
         if (observation !== undefined) {
           missing.push({

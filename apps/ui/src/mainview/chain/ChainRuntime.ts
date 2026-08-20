@@ -195,7 +195,13 @@ export const createChainRuntime = (options: ChainRuntimeOptions): NativeAgent =>
 	const authorLayerOf = () =>
 		options.authorLayer ??
 		layerAuthor({ baseUrl: options.baseUrl, fetchImpl: options.fetchImpl, modelId: options.modelId });
-	const runnerLayerOf = () => options.runnerLayer ?? QuickJsRunner.layer();
+	/*
+	 * Model-authored JavaScript runs on the browser main thread. Keep both
+	 * axes bounded at this production call site: a non-terminating script must
+	 * be interrupted, and an allocating script must not exhaust the page.
+	 */
+	const runnerLayerOf = () =>
+		options.runnerLayer ?? QuickJsRunner.layer({ steps: 100_000, memoryBytes: 16 * 1024 * 1024 });
 
 	const worldview = worldviewEntries(options.store);
 
@@ -346,7 +352,29 @@ export const createChainRuntime = (options: ChainRuntimeOptions): NativeAgent =>
 				// lineage id, so replay returns it without spawning again.
 				const lineage = `bg-${crypto.randomUUID()}`;
 				backgroundGoals.set(lineage, { goal: record.goal as string, context });
-				queueMicrotask(() => runBackground(lineage));
+				/*
+				 * The child may start only after the parent's CallSettled append is
+				 * durable. A crash before that append therefore leaves no child
+				 * history, while boot reconciliation below can launch a committed
+				 * intent that crashed before this continuation ran.
+				 */
+				void (async () => {
+					for (let attempt = 0; attempt < 100; attempt += 1) {
+						const committed = [...options.store.collections.chainEvents.values()].some((row) => {
+							const event = row.event as {
+								readonly _tag?: unknown;
+								readonly name?: unknown;
+								readonly result?: { readonly lineage?: unknown };
+							};
+							return event._tag === "CallSettled" && event.name === "background" && event.result?.lineage === lineage;
+						});
+						if (committed) {
+							runBackground(lineage);
+							return;
+						}
+						await Promise.resolve();
+					}
+				})();
 				return { lineage };
 			});
 		},
@@ -361,13 +389,25 @@ export const createChainRuntime = (options: ChainRuntimeOptions): NativeAgent =>
 	const resumeBackgrounds = (): void => {
 		const byLineage = new Map<string, { goal: string; done: boolean }>();
 		for (const record of options.store.collections.chainEvents.values()) {
-			if (!record.lineageId.startsWith("bg-")) continue;
 			const event = record.event as {
 				readonly _tag: string;
 				readonly chain?: string;
 				readonly goal?: string;
+				readonly name?: string;
+				readonly payload?: { readonly goal?: unknown };
+				readonly result?: { readonly lineage?: unknown };
 				readonly outcome?: { readonly _tag?: string };
 			};
+			if (
+				event._tag === "CallSettled" &&
+				event.name === "background" &&
+				typeof event.result?.lineage === "string" &&
+				event.result.lineage.startsWith("bg-")
+			) {
+				const goal = typeof event.payload?.goal === "string" ? event.payload.goal : "";
+				byLineage.set(event.result.lineage, { goal, done: false });
+			}
+			if (!record.lineageId.startsWith("bg-")) continue;
 			const entry = byLineage.get(record.lineageId) ?? { goal: "", done: false };
 			if (event._tag === "ChainStarted" && event.chain === undefined) {
 				entry.goal = event.goal ?? "";
@@ -575,6 +615,7 @@ export const createAgentSeat = (
 	let chain: NativeAgent | undefined;
 
 	const forward = (frame: AgentTurnFrame): void => {
+		if (frame.type === "done") startedBy.delete(frame.runId);
 		for (const listener of listeners) listener(frame);
 	};
 	if (native !== undefined) native.subscribe(forward);

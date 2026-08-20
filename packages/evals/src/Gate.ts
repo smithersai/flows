@@ -52,6 +52,17 @@ const samples = (report: Report): ReadonlyArray<ScoreSample> =>
  */
 export const check = (report: Report, options: Options = {}): Effect.Effect<Verdict, ScoreGateError> =>
   Effect.gen(function*() {
+    const runFailures = report.run.cases.flatMap((result) =>
+      result.error === undefined ? [] : [`case '${result.case}' failed: ${result.error.message}`]
+    )
+    const auditFailures = [
+      ...report.missing.map((item) => `missing ${item.side} observation for ${item.case}/${item.scorer}/${item.stepKey}`),
+      ...report.regressions.map((item) => `regression for ${item.case}/${item.scorer}`),
+      ...report.nondeterminism.map((item) => `nondeterminism for ${item.case}/${item.scorer}`)
+    ]
+    if (runFailures.length > 0 || auditFailures.length > 0) {
+      return { _tag: "Inconclusive", reasons: [...runFailures, ...auditFailures] }
+    }
     const expectation = expectScores(samples(report))
     let result: Verdict = { _tag: "Passed" }
     const merge = (next: Verdict): void => {

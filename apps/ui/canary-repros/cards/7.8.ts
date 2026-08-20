@@ -80,6 +80,10 @@ await context.close();
 const overflowing = measured.filter((row) => row.preScrollWidth > row.preClientWidth + 1 && row.preOverflow === "visible");
 const noInnerScroll = measured.filter((row) => row.bodyMaxHeight === "none" && !row.bodyScrollsInside && row.cardHeight > 1200);
 
+if (measured.length !== 2) {
+	console.error(`SETUP 7.8: expected exactly two fenced file cards, rendered ${measured.length}.`);
+	process.exit(2);
+}
 if (overflowing.length > 0 || noInnerScroll.length > 0) {
 	console.error(
 		`FAIL 7.8: ${overflowing.length} file card(s) overflow their box horizontally with overflow:visible and no scroller` +

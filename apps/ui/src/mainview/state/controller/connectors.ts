@@ -108,7 +108,7 @@ export const createConnectorController = (
 	 * repository to watch before I can create a workflow" to someone watching
 	 * three. A degraded digest is not a forgotten selection.
 	 */
-	const loadWatchedSelection = async (): Promise<void> => {
+	const loadWatchedSelection = async (isCurrent: () => boolean): Promise<void> => {
 		try {
 			const response = await http(`${baseUrl}${RECO_WATCHED_PATH}`);
 			if (!response.ok) {
@@ -116,6 +116,7 @@ export const createConnectorController = (
 				return;
 			}
 			const body = (await response.json().catch(() => undefined)) as { selected?: unknown } | undefined;
+			if (!isCurrent()) return;
 			if (!Array.isArray(body?.selected)) return;
 			mirrorWatched(body.selected.filter((name): name is string => typeof name === "string"));
 		} catch {
@@ -324,17 +325,28 @@ export const createConnectorController = (
 			(outcome) => (outcome === true ? undefined : outcome),
 		);
 	const loadFirstRunRecoImpl = async (bump: boolean): Promise<true | string> => {
+		const identity = store.collections.identitySessions.get("identity");
+		const epoch = ctx.accountEpoch;
+		const state = identity?.state;
+		const login = identity?.login;
+		const isCurrent = (): boolean => {
+			const latest = store.collections.identitySessions.get("identity");
+			return ctx.accountEpoch === epoch && latest?.state === state && latest?.login === login;
+		};
 		let response: Response;
 		try {
 			response = await http(`${baseUrl}${RECO_FIRST_RUN_PATH}`);
 		} catch {
+			if (!isCurrent()) return true;
 			const message =
 				"I couldn't reach the recommendations service just now — ask me anything and we'll start from here.";
 			store.dispatch({ type: "reco.message.loaded", actor: "system", message });
 			return message;
 		}
+		if (!isCurrent()) return true;
 		if (!response.ok) {
 			const message = await errorMessageOf(response, "The recommendations service didn't answer.");
+			if (!isCurrent()) return true;
 			store.dispatch({ type: "reco.message.loaded", actor: "system", message });
 			return message;
 		}
@@ -375,6 +387,7 @@ export const createConnectorController = (
 					} | null;
 			  }
 			| undefined;
+		if (!isCurrent()) return true;
 		if (body?.degraded === true) {
 			const message =
 				typeof body.honestMessage === "string" && body.honestMessage.trim() !== ""
@@ -384,7 +397,7 @@ export const createConnectorController = (
 			// itself succeeded, so the toast resolves ok; the message says the rest.
 			store.dispatch({ type: "reco.message.loaded", actor: "system", message });
 			// The digest needed GitHub; the SELECTION does not. Keep it.
-			await loadWatchedSelection();
+			await loadWatchedSelection(isCurrent);
 			return true;
 		}
 		/*

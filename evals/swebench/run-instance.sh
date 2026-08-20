@@ -8,9 +8,9 @@
 # (wall clock, for the scorecard), and logs-agent/<instance_id>.run.log.
 #
 # This spends real API tokens and needs docker. See README.md.
-set -u
+set -euo pipefail
 S="$(cd "$(dirname "$0")" && pwd)"
-INSTANCE="$1"
+INSTANCE="${1:-}"
 SEAT="${2:-openai:gpt-5.6-sol}"
 BUDGET="${3:-1200}"
 DATASET="${SWB_DATASET:-$S/swb-verified.json}"
@@ -18,13 +18,28 @@ DATASET="${SWB_DATASET:-$S/swb-verified.json}"
 if [ ! -f "$DATASET" ]; then
   echo "[$INSTANCE] no dataset at $DATASET — run ./bootstrap.sh first"; exit 1
 fi
+BASE="$(node "$S/lib/validate-instance.mjs" "$DATASET" "$INSTANCE")" || exit $?
+case "$BUDGET" in
+  ''|*[!0-9]*) echo "[$INSTANCE] timeout must be a positive integer"; exit 2 ;;
+  0) echo "[$INSTANCE] timeout must be a positive integer"; exit 2 ;;
+esac
 
 IMAGE_ID="$(echo "$INSTANCE" | sed 's/__/_1776_/')"
 IMAGE="swebench/sweb.eval.x86_64.${IMAGE_ID}:latest"
-WORK="$S/work/$INSTANCE"
 CONTAINER="flowsbench-$(echo "$INSTANCE" | tr '_.' '--')"
 
 mkdir -p "$S/work" "$S/patches" "$S/logs-agent" "$S/timings"
+WORK_ROOT="$(cd "$S/work" && pwd -P)"
+WORK="$(node -e 'process.stdout.write(require("node:path").resolve(process.argv[1], process.argv[2]))' "$WORK_ROOT" "$INSTANCE")"
+if [ "$(dirname "$WORK")" != "$WORK_ROOT" ]; then
+  echo "[$INSTANCE] resolved work path escaped $WORK_ROOT"; exit 2
+fi
+
+cleanup() {
+  docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
+  rmdir "$S/.extract-lock" 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
 
 echo "[$INSTANCE] image $IMAGE"
 if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
@@ -41,24 +56,16 @@ fi
 # lane's cleanup runs.
 LOCK="$S/.extract-lock"
 until mkdir "$LOCK" 2>/dev/null; do sleep 5; done
-trap 'rmdir "$LOCK" 2>/dev/null' EXIT
-rm -rf "$WORK"; mkdir -p "$WORK"
+rm -rf -- "$WORK"; mkdir -p "$WORK"
 TMPC="$(docker create --platform linux/amd64 "$IMAGE")"
 docker cp "$TMPC:/testbed/." "$WORK/" >/dev/null 2>&1
 docker rm -f "$TMPC" >/dev/null 2>&1
 rmdir "$LOCK" 2>/dev/null
-trap - EXIT
 
 docker rm -f "$CONTAINER" >/dev/null 2>&1
 docker run -d --platform linux/amd64 --name "$CONTAINER" \
   -v "$WORK:/testbed" -w /testbed "$IMAGE" sleep infinity >/dev/null 2>&1 || {
   echo "[$INSTANCE] CONTAINER START FAILED"; exit 1; }
-
-BASE="$(node -e '
-const fs=require("fs");
-const all=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
-process.stdout.write(all.find(r=>r.instance_id===process.argv[2]).base_commit);
-' "$DATASET" "$INSTANCE")"
 
 # Keep the harness scaffolding out of the model patch.
 printf 'flows/\n.flows/\n.jj/\nagent-run.log\n' >> "$WORK/.git/info/exclude"
@@ -77,20 +84,26 @@ node "$S/lib/write-flow.mjs" "$DATASET" "$INSTANCE" "$SEAT" "$CONTAINER" "$TEST_
 
 echo "[$INSTANCE] agent start ($SEAT, ${BUDGET}s)"
 START=$(date +%s)
+set +e
 (
   cd "$WORK" || exit 1
   A=$("$S/flows.sh" --json plan fix | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(JSON.stringify(JSON.parse(s).approval))}catch{process.exit(1)}})') || exit 1
-  "$S/flows.sh" --json approve "$A" --scope run >/dev/null 2>&1
+  "$S/flows.sh" --json approve "$A" --scope run >/dev/null 2>&1 || {
+    echo "[$INSTANCE] APPROVAL FAILED"; exit 1;
+  }
   timeout "$BUDGET" "$S/flows.sh" --json run "$A"
 ) > "$S/logs-agent/$INSTANCE.run.log" 2>&1
+RUN_STATUS=$?
+set -e
 END=$(date +%s)
-echo "[$INSTANCE] agent done in $((END-START))s"
+echo "[$INSTANCE] agent done in $((END-START))s (status $RUN_STATUS)"
 
 # The wall clock the scorecard grades speed on. The journal's own span stops at
 # the last journaled event, which is not the same as how long the operator
 # waited for the process, so the process time is recorded here.
-printf '{\n  "instance_id": "%s",\n  "seat": "%s",\n  "budgetSeconds": %s,\n  "startedAt": %s,\n  "endedAt": %s,\n  "wallClockSeconds": %s\n}\n' \
+printf '{\n  "instance_id": "%s",\n  "seat": "%s",\n  "budgetSeconds": %s,\n  "startedAt": %s,\n  "endedAt": %s,\n  "wallClockSeconds": %s,\n  "exitStatus": %s,\n  "timedOut": %s\n}\n' \
   "$INSTANCE" "$SEAT" "$BUDGET" "$((START*1000))" "$((END*1000))" "$((END-START))" \
+  "$RUN_STATUS" "$([ "$RUN_STATUS" -eq 124 ] && printf true || printf false)" \
   > "$S/timings/$INSTANCE.json"
 
 # The model patch: the working tree against the instance's base commit, with
@@ -104,5 +117,5 @@ printf '{\n  "instance_id": "%s",\n  "seat": "%s",\n  "budgetSeconds": %s,\n  "s
 ) > "$S/patches/$INSTANCE.patch" 2>/dev/null
 node "$S/lib/strip-modes.mjs" "$S/patches/$INSTANCE.patch" >/dev/null 2>&1
 
-docker rm -f "$CONTAINER" >/dev/null 2>&1
 echo "[$INSTANCE] patch bytes: $(wc -c < "$S/patches/$INSTANCE.patch" | tr -d ' ')"
+exit "$RUN_STATUS"

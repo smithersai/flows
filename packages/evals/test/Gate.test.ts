@@ -1,6 +1,7 @@
 import * as Effect from "effect/Effect"
 import { describe, expect, it } from "vitest"
 import * as Gate from "../src/Gate.ts"
+import { EvalError } from "../src/EvalError.ts"
 
 const report = (
   observations: ReadonlyArray<
@@ -73,5 +74,31 @@ describe("Gate", () => {
       })
     )
     expect(Gate.ciGrade(verdict).exitCode).toBe(5)
+  })
+
+  it("fails closed on target errors and incomplete regression evidence", async () => {
+    const targetFailed = await Effect.runPromise(
+      Gate.check({
+        ...report([]),
+        run: {
+          runId: "run",
+          suite: "s",
+          cases: [{
+            case: "crashed",
+            error: new EvalError({ code: "executor", message: "target crashed" }),
+            observations: []
+          }],
+          observations: []
+        }
+      })
+    )
+    const missing = await Effect.runPromise(
+      Gate.check({
+        ...report([]),
+        missing: [{ side: "run" as const, case: "c", scorer: "s", stepKey: "k" }]
+      })
+    )
+    expect(targetFailed).toMatchObject({ _tag: "Inconclusive", reasons: [expect.stringContaining("target crashed")] })
+    expect(missing).toMatchObject({ _tag: "Inconclusive", reasons: [expect.stringContaining("missing run")] })
   })
 })

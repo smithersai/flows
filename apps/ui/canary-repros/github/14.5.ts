@@ -20,7 +20,12 @@
  */
 import { BASE, ensureSignedIn, open, report } from "./_lib";
 
-const REPO = process.env.REPO ?? "codeplanesmithers/canary-sandbox";
+const REPO = process.env.CANARY_DISPOSABLE_REPO ?? "";
+const number = Number(process.env.CANARY_FIXTURE_LANDING_NUMBER ?? "");
+const title = process.env.CANARY_FIXTURE_LANDING_TITLE ?? "";
+if (REPO === "" || !Number.isSafeInteger(number) || number <= 0 || title === "") {
+	throw new Error("CANARY_DISPOSABLE_REPO, CANARY_FIXTURE_LANDING_NUMBER, and CANARY_FIXTURE_LANDING_TITLE are required");
+}
 const { context, page } = await open();
 await ensureSignedIn(page);
 
@@ -32,6 +37,9 @@ const ghPullsBefore = await fetch(`https://api.github.com/repos/${REPO}/pulls?st
 	.then(async (r) => (r.ok ? ((await r.json()) as unknown[]).length : -1))
 	.catch(() => -1);
 console.log(`github before: head=${ghHeadBefore.slice(0, 8)} openPulls=${ghPullsBefore}`);
+if (ghHeadBefore === "unreadable" || ghPullsBefore < 0) {
+	throw new Error("GitHub is unreadable; refusing to run an irreversible landing without the confirmation baseline");
+}
 
 const api = (path: string, method = "GET", body?: unknown): Promise<{ status: number; body: string }> =>
 	page.evaluate(
@@ -47,19 +55,12 @@ const api = (path: string, method = "GET", body?: unknown): Promise<{ status: nu
 		[path, method, body ?? null] as [string, string, unknown],
 	);
 
-const change = JSON.parse((await api(`/api/repos/${REPO}/changes?limit=5`)).body).items[0].change_id as string;
-const title = `Canary repro 14.5 ${Date.now()}`;
-const number = JSON.parse(
-	(
-		await api(`/api/repos/${REPO}/landings`, "POST", {
-			title,
-			body: "",
-			source_bookmark: "main",
-			target_bookmark: "main",
-			change_ids: [change],
-		})
-	).body,
-).number as number;
+const fixtureResponse = await api(`/api/repos/${REPO}/landings/${number}`);
+if (fixtureResponse.status !== 200) throw new Error(`fixture landing could not be read: HTTP ${fixtureResponse.status}`);
+const fixture = JSON.parse(fixtureResponse.body) as { title?: string; state?: string };
+if (fixture.title !== title || fixture.state !== "open") {
+	throw new Error(`fixture fence failed: expected open "${title}", got ${JSON.stringify(fixture)}`);
+}
 console.log(`landing under test: ${REPO}#${number} "${title}"`);
 
 const composer = page.locator("textarea").last();
@@ -88,7 +89,9 @@ const failures: Array<string> = [];
 /* The card must not claim a merge. */
 if (/\bMERGED\b/i.test(card)) failures.push("the card claimed MERGED rather than the queue state");
 /* And the pull request it just landed must be findable on GitHub. */
-if (ghPull === 0) {
+if (ghHeadAfter === "unreadable" || ghPull < 0) {
+	failures.push("GitHub became unreadable after landing; confirmation was not completed");
+} else if (ghPull === 0) {
 	failures.push(
 		`the pull request the card landed ("${title}", card shows #${number}) does not exist on github.com/${REPO}; GitHub's default-branch head is unchanged at ${ghHeadAfter.slice(0, 8)} — the landing happened only in the jjhub mirror`,
 	);

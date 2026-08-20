@@ -29,6 +29,8 @@ import { Scorer, ScoreStore } from "@smthrs/scorers"
 import { Effect } from "effect"
 
 const quality = Scorer.make({
+  id: "my-package/scorers/quality",
+  version: "1",
   name: "quality",
   score: () => Effect.succeed({ score: 1 })
 })

@@ -41,8 +41,10 @@ const defaultMaxAttempts = 10
 const defaultBaseDelayMs = 50
 const defaultMaxDelayMs = 10_000
 
-const boundedPositiveInteger = (value: number | undefined, fallback: number): number =>
-  Math.max(1, Math.floor(value ?? fallback))
+const boundedPositiveInteger = (value: number | undefined, fallback: number): number => {
+  const candidate = value ?? fallback
+  return Number.isSafeInteger(candidate) && candidate >= 1 ? candidate : 1
+}
 
 const causeCode = (cause: unknown): string | undefined => {
   if (typeof cause !== "object" || cause === null || !("code" in cause)) {
@@ -64,7 +66,6 @@ const isRetryableCode = (code: string | undefined): boolean =>
   code !== undefined &&
   (code.startsWith("SQLITE_BUSY") ||
     code.startsWith("SQLITE_LOCKED") ||
-    code.startsWith("SQLITE_IOERR") ||
     retryablePostgresStates.has(code))
 
 // PGlite runs Postgres in-process and does not always surface a SQLSTATE, so
@@ -73,13 +74,12 @@ const isRetryableMessage = (message: string): boolean =>
   message.includes("database is locked") ||
   message.includes("database is busy") ||
   message.includes("cannot rollback - no transaction is active") ||
-  message.includes("disk i/o error") ||
   message.includes("could not serialize access") ||
   message.includes("deadlock detected")
 
 /**
- * Returns whether a failure represents a transient write conflict or I/O
- * error, in either the SQLite or the Postgres vocabulary. The failure may be
+ * Returns whether a failure represents a transient write conflict in either
+ * the SQLite or the Postgres vocabulary. The failure may be
  * the structured SQL error itself or a domain error wrapping one — the walk
  * follows `cause` chains (and a `SqlError`'s reason cause) either way, so the
  * outermost `DurableWriter.write` still replays a transaction whose failing

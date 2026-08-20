@@ -22,6 +22,8 @@ import { BASE, PROFILE, ensureSignedIn, report, seam } from "./_lib";
 const BILLING = process.env.BILLING_UPSTREAM ?? "https://billing.smithers.sh";
 const GRANTS = `${BILLING}/api/billing/admin/grants`;
 const TOKEN = process.env.CHECKLIST_BILLING_ADMIN_TOKEN ?? "";
+const FIXTURE_LOGIN = process.env.CANARY_BILLING_FIXTURE_LOGIN ?? "";
+const APPROVED = process.env.CANARY_BILLING_GRANT_APPROVED === "1";
 
 const failures: string[] = [];
 
@@ -43,12 +45,17 @@ if (TOKEN === "") {
 			"credits-exactly-once halves of the row were never exercised (the deployed billing ADMIN_SERVICE_TOKEN is held by the operator)",
 	);
 } else {
+	if (FIXTURE_LOGIN === "" || !APPROVED) {
+		throw new Error(
+			"CANARY_BILLING_FIXTURE_LOGIN and CANARY_BILLING_GRANT_APPROVED=1 are required; refusing to credit an ambient production ledger",
+		);
+	}
 	const headers = { "content-type": "application/json", "x-smithers-admin-token": TOKEN };
 	const untimestamped = await fetch(GRANTS, {
 		method: "POST",
 		headers,
 		body: JSON.stringify({
-			login: "codeplanesmithers",
+				login: FIXTURE_LOGIN,
 			grantId: "admin:canary-money-17-7-untimestamped",
 			amountUsd: 1,
 			requester: "canary-money-lane",
@@ -59,9 +66,9 @@ if (TOKEN === "") {
 		failures.push(`an untimestamped grant answered HTTP ${untimestamped.status} ${untimestampedText.slice(0, 200)}, not 400 timestamp_required`);
 	}
 	const timestamp = new Date().toISOString();
-	const grantId = `admin:canary-money-17-7-${timestamp}`;
+	const grantId = "admin:canary-money-17-7-fixed-fixture-v1";
 	const body = JSON.stringify({
-		login: "codeplanesmithers",
+		login: FIXTURE_LOGIN,
 		grantId,
 		amountUsd: 1,
 		requester: "canary-money-lane",
@@ -72,14 +79,16 @@ if (TOKEN === "") {
 	const firstBody = (await first.json().catch(() => null)) as Record<string, unknown> | null;
 	const replay = await fetch(GRANTS, { method: "POST", headers, body });
 	const replayBody = (await replay.json().catch(() => null)) as Record<string, unknown> | null;
-	if (first.status !== 201 || firstBody?.granted !== true) {
-		failures.push(`the first grant answered HTTP ${first.status} ${JSON.stringify(firstBody)}, not 201 {granted:true}`);
+	const firstWasCreated = first.status === 201 && firstBody?.granted === true;
+	const firstWasPriorFixture = first.status !== 201 && firstBody?.duplicate === true;
+	if (!firstWasCreated && !firstWasPriorFixture) {
+		failures.push(`the fixed fixture grant answered HTTP ${first.status} ${JSON.stringify(firstBody)}, not a create or duplicate`);
 	}
 	if (replay.status === 201 || replayBody?.duplicate !== true) {
 		failures.push(`replaying the same grantId credited again: HTTP ${replay.status} ${JSON.stringify(replayBody)}`);
 	}
 	/* The audit record: requester and requestedAt must be on the stored credit. */
-	if (typeof firstBody?.requester !== "string" || typeof firstBody?.requestedAt !== "string") {
+	if (firstWasCreated && (typeof firstBody?.requester !== "string" || typeof firstBody?.requestedAt !== "string")) {
 		failures.push(`the grant answer carries no audit attribution: ${JSON.stringify(firstBody)}`);
 	}
 }

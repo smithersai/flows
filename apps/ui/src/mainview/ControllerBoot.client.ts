@@ -34,15 +34,16 @@ const bootProgram = (session: BootSession | undefined) =>
 				...(nativeOpenExternal === undefined ? {} : { openExternal: nativeOpenExternal }),
 			}),
 		);
-		yield* Effect.sync(() => {
+		const bindChain = () => {
 			agent.bindChain(
 				createChainRuntime({ store, commands: controller.commands, fetchImpl: controller.tappedFetch }),
 			);
-		});
+		};
 
 		if (session === undefined) {
 			// Electrobun has no server renderer; it retains the existing client-side session path.
 			yield* promiseEffect("load identity session", () => controller.loadSession());
+			yield* Effect.sync(bindChain);
 			if (controller.handleAuthReturn(window.location.search)) {
 				window.history.replaceState(null, "", window.location.pathname);
 			}
@@ -50,6 +51,7 @@ const bootProgram = (session: BootSession | undefined) =>
 		}
 
 		yield* Effect.sync(() => seedSession(controller, session));
+		yield* Effect.sync(bindChain);
 		if (session.authFailed) {
 			yield* Effect.sync(() => {
 				controller.handleAuthReturn("?auth=failed");

@@ -31,13 +31,18 @@ import {
 import * as BranchRpcs from "../src/BranchRpcs.ts"
 import * as BranchServer from "../src/BranchServer.ts"
 import * as BranchShare from "../src/BranchShare.ts"
+import * as SyncPrincipal from "../src/SyncPrincipal.ts"
+import { SyncAuth } from "../src/SyncRpcs.ts"
 import * as TestSocket from "../src/test/TestSocket.ts"
 
 const base = Layer.mergeAll(TestJournal.layer(), BranchShare.layerHmac({ secret: "wire-secret" }), BranchIds.layer)
 const services = Layer.mergeAll(BranchPresence.layer({ leaseMs: 600_000 }), BranchCommands.layer).pipe(
   Layer.provide(base)
 )
-const layer = Layer.mergeAll(base, services)
+const testAuth = Layer.succeed(SyncAuth)((effect) =>
+  Effect.provideService(effect, SyncPrincipal.SyncPrincipal, SyncPrincipal.workspace("branch-test"))
+)
+const layer = Layer.mergeAll(base, services, testAuth)
 
 type Requirements =
   | Journal.Journal
@@ -59,7 +64,7 @@ type Client = RpcClient.RpcClient<RpcGroup.Rpcs<typeof BranchRpcs.BranchRpcs>, R
  * hand-rolled `Protocol` bound to the socket pair), so typed failures decode
  * on the client exactly as they would over a hosted transport.
  */
-const connect = (pair: TestSocket.Pair): Effect.Effect<Client, never, Requirements> =>
+const connect = (pair: TestSocket.Pair, authenticated = true): Effect.Effect<Client, never, Requirements> =>
   Effect.gen(function*() {
     const handlers = yield* Layer.build(BranchServer.layerHandlers)
     const serialization = RpcSerialization.json.makeUnsafe()
@@ -88,6 +93,13 @@ const connect = (pair: TestSocket.Pair): Effect.Effect<Client, never, Requiremen
     )
     yield* RpcServer.make(BranchRpcs.BranchRpcs, { disableFatalDefects: true }).pipe(
       Effect.provideService(RpcServer.Protocol, protocol),
+      Effect.provideService(SyncAuth, (effect) =>
+        Effect.provideService(
+          effect,
+          SyncPrincipal.SyncPrincipal,
+          authenticated ? SyncPrincipal.workspace("branch-test") : SyncPrincipal.anonymous
+        )
+      ),
       Effect.provide(handlers),
       Effect.forkScoped
     )
@@ -118,6 +130,18 @@ const say = (
   })
 
 describe("BranchRpcs over the wire", () => {
+  it.effect("requires workspace authentication and enforces the branch TTL policy", () =>
+    Effect.gen(function*() {
+      const denied = yield* program(Effect.gen(function*() {
+        const client = yield* connect(yield* TestSocket.makePair(), false)
+        return yield* Effect.flip(client["Branch.CreateBranch"]({ ttlMs: 60_000 }))
+      }))
+      expect(denied).toMatchObject({ code: "unauthorized" })
+      expect(() => Schema.decodeUnknownSync(BranchRpcs.CreateBranchPayload)({
+        ttlMs: BranchRpcs.maximumBranchTtlMs + 1
+      })).toThrow()
+    }))
+
   it.effect("creates a branch and admits commands idempotently", () =>
     Effect.gen(function*() {
       const [first, second, journalLength] = yield* program(

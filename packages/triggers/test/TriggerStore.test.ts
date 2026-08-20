@@ -1,6 +1,7 @@
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as SqlTriggerStore from "../src/SqlTriggerStore.ts"
 import * as TriggerStore from "../src/TriggerStore.ts"
@@ -77,5 +78,21 @@ describe("TriggerStore", () => {
     const claims = await Effect.runPromise(program)
     expect(claims.filter((claim) => claim.claimed && claim.action === "fire")).toHaveLength(1)
     expect(claims.filter((claim) => claim.claimed && claim.action === "skip")).toHaveLength(1)
+  })
+
+  it("reclaims a launch reservation after its deterministic lease expires", async () => {
+    const result = await Effect.runPromise(Effect.gen(function*() {
+      const store = yield* TriggerStore.TriggerStore
+      yield* store.register(trigger)
+      const first = yield* store.claimFire({ triggerId: trigger.id, occurrence: 1, overlap: "skip" })
+      yield* TestClock.adjust(SqlTriggerStore.reservationLeaseMs + 1)
+      const noLongerActive = yield* store.activeRun(trigger.id)
+      const retried = yield* store.claimFire({ triggerId: trigger.id, occurrence: 1, overlap: "skip" })
+      return { first, noLongerActive, retried }
+    }).pipe(Effect.provide(layer), Effect.provide(TestClock.layer())))
+
+    expect(result.first).toMatchObject({ claimed: true, action: "fire" })
+    expect(result.noLongerActive).toMatchObject({ _tag: "None" })
+    expect(result.retried).toMatchObject({ claimed: true, action: "fire" })
   })
 })

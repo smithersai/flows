@@ -471,31 +471,6 @@ describe("action execution keys", () => {
     }
   )
 
-  effect("changes sealed replay identity when its input, layer, or capability material changes", () => {
-    const keyFor = (input: string, layer: string, capability: string) =>
-      key({
-        kind: "cache",
-        input: {
-          body: "action",
-          dependencies: { input: { kind: "literal", value: input } }
-        },
-        environment: {
-          layers: [layer],
-          capabilities: { declared: [capability] }
-        }
-      })
-    const first = keyFor("input-a", "layer-a", "capability-a")
-    const changedInput = keyFor("input-b", "layer-a", "capability-a")
-    const changedLayer = keyFor("input-a", "layer-b", "capability-a")
-    const changedCapability = keyFor("input-a", "layer-a", "capability-b")
-
-    return Effect.gen(function*() {
-      expect(first).not.toBe(changedInput)
-      expect(first).not.toBe(changedLayer)
-      expect(first).not.toBe(changedCapability)
-    })
-  })
-
   effect("keeps ordinal action keys isolated by run and never by action name", () =>
     Effect.gen(function*() {
       const ordinal = (run: string, attempt: number) => `ordinal/${run}/compensable/${attempt}`

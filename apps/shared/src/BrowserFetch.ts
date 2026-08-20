@@ -123,7 +123,7 @@ export const isPublicAddress = (raw: string): boolean => {
 const guardTarget = async (
 	url: URL,
 	resolveHost: ResolveHost,
-): Promise<BrowserFetchFailure | undefined> => {
+): Promise<BrowserFetchFailure | { readonly addresses: ReadonlyArray<string> }> => {
 	if (url.protocol !== "https:") {
 		return { ok: false, message: "Only https:// pages can be read." };
 	}
@@ -135,7 +135,7 @@ const guardTarget = async (
 		if (!isPublicAddress(hostname)) {
 			return { ok: false, message: "That address points at a private host, which the browser tool never reads." };
 		}
-		return undefined;
+		return { addresses: [normalizeIpLiteral(hostname)] };
 	}
 	let addresses: ReadonlyArray<string>;
 	try {
@@ -151,7 +151,7 @@ const guardTarget = async (
 			return { ok: false, message: "That address resolves to a private host, which the browser tool never reads." };
 		}
 	}
-	return undefined;
+	return { addresses };
 };
 
 /** Pull the readable text out of an HTML page: no scripts, no styles, no tags. */
@@ -234,7 +234,12 @@ const readCapped = async (body: ReadableStream<Uint8Array>): Promise<string> => 
 
 export interface BrowserFetchDeps {
 	readonly resolveHost: ResolveHost;
-	readonly fetchImpl?: (input: string, init?: RequestInit) => Promise<Response>;
+	/**
+	 * Connects to `address` while preserving the URL hostname for Host and TLS
+	 * certificate/SNI verification. An ordinary hostname-based fetch is not a
+	 * valid implementation because it would perform a second DNS lookup.
+	 */
+	readonly fetchImpl?: (input: string, init: RequestInit, address: string) => Promise<Response>;
 	readonly timeoutMs?: number;
 }
 
@@ -249,17 +254,20 @@ export const browserFetch = async (
 	} catch {
 		return { ok: false, message: "That is not a URL I can read." };
 	}
-	const http = deps.fetchImpl ?? fetch;
 	const timeoutMs = deps.timeoutMs ?? BROWSER_FETCH_TIMEOUT_MS;
 
 	let current = url;
 	for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
-		const refused = await guardTarget(current, deps.resolveHost);
-		if (refused !== undefined) return refused;
+		const guarded = await guardTarget(current, deps.resolveHost);
+		if ("ok" in guarded) return guarded;
+		if (deps.fetchImpl === undefined) {
+			return { ok: false, message: "Secure pinned egress is unavailable for the browser tool." };
+		}
+		const address = guarded.addresses[0]!;
 		const timeout = AbortSignal.timeout(timeoutMs);
 		let response: Response;
 		try {
-			response = await http(current.toString(), {
+			response = await deps.fetchImpl(current.toString(), {
 				method: "GET",
 				redirect: "manual",
 				signal: timeout,
@@ -267,7 +275,7 @@ export const browserFetch = async (
 					"user-agent": "smithers-browser",
 					accept: "text/html,application/xhtml+xml,text/plain,text/markdown;q=0.8,*/*;q=0.5",
 				},
-			});
+			}, address);
 		} catch (error) {
 			const timedOut = timeout.aborted;
 			return {

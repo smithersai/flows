@@ -47,7 +47,7 @@ variable "listen_port" {
 module "cache" {
   source = "../../modules/cache"
 
-  name_prefix       = "smithers build"
+  name_prefix       = "smithers-build"
   postgres_password = var.postgres_password
   postgres_image    = var.postgres_image
   bun_image         = var.bun_image

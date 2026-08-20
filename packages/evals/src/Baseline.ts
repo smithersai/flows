@@ -8,6 +8,8 @@ import * as Effect from "effect/Effect"
 import { EvalError } from "./EvalError.ts"
 import type { Observation, RunResult } from "./Runner.ts"
 
+const compareText = (left: string, right: string): number => left < right ? -1 : left > right ? 1 : 0
+
 /**
  * Current committed baseline artifact version.
  *
@@ -56,7 +58,7 @@ const canonical = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(canonical)
   if (value !== null && typeof value === "object") {
     return Object.fromEntries(
-      Object.entries(value).filter(([, entry]) => entry !== undefined).sort(([a], [b]) => a.localeCompare(b)).map((
+      Object.entries(value).filter(([, entry]) => entry !== undefined).sort(([a], [b]) => compareText(a, b)).map((
         [key, entry]
       ) => [key, canonical(entry)])
     )
@@ -117,7 +119,8 @@ export const make = (
  */
 export const write = (baseline: Baseline): string => {
   const records = [...baseline.records].sort((left, right) =>
-    `${left.suite}\u0000${left.case}\u0000${left.scorer}\u0000${left.stepKey}`.localeCompare(
+    compareText(
+      `${left.suite}\u0000${left.case}\u0000${left.scorer}\u0000${left.stepKey}`,
       `${right.suite}\u0000${right.case}\u0000${right.scorer}\u0000${right.stepKey}`
     )
   )

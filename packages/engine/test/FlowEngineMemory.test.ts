@@ -111,6 +111,37 @@ describe("memory engine execution surface", () => {
 })
 
 describe("execution identity", () => {
+  effect("fails a direct self-cycle with the typed cycle path", () => {
+    const flow = Flow.make("Memory/self-cycle", {
+      payload: { id: Schema.String },
+      success: Schema.Void,
+      body: () => Node.succeed(undefined)
+    })
+    const layer = Interpreter.layer(flow).pipe(
+      Layer.provideMerge(Action.layerImplementations),
+      Layer.provideMerge(FlowEngine.layerMemory)
+    )
+    return Effect.gen(function*() {
+      const engine = yield* FlowRuntime.FlowRuntime
+      const exit = yield* engine.execute(flow, {
+        executionId: "self-cycle",
+        payload: { id: "x" },
+        discard: true
+      }).pipe(
+        Effect.provideService(FlowRuntime.FlowInstance, {
+          executionId: "self-cycle",
+          interrupted: false
+        } as FlowRuntime.FlowInstance["Service"]),
+        Effect.exit
+      )
+      expect(Exit.isFailure(exit)).toBe(true)
+      if (Exit.isSuccess(exit)) return
+      const failure = Cause.squash(exit.cause)
+      expect(failure).toBeInstanceOf(FlowRuntime.FlowCycleDetected)
+      expect((failure as FlowRuntime.FlowCycleDetected).path).toEqual(["self-cycle"])
+    }).pipe(Effect.provide(layer))
+  })
+
   // An execution id names one run of ONE flow declaration. Reusing the id
   // under a DIFFERENT declaration used to silently join the other flow's
   // fiber and answer its result under this flow's declared schemas;

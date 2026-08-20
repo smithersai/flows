@@ -89,11 +89,20 @@ export const make = (
     const send = (operation: string, request: HttpClientRequest.HttpClientRequest) =>
       client.execute(authorize(request)).pipe(Effect.mapError((cause) => transportFailure(operation, cause)))
 
-    const get: CacheStore.Service["get"] = Effect.fn("RemoteCacheStore.get")((keyDigest: string) =>
+    const get: CacheStore.Service["get"] = Effect.fn("RemoteCacheStore.get")((keyDigest, getOptions) =>
       Effect.gen(function*() {
         yield* Effect.annotateCurrentSpan({ keyDigest })
         yield* CacheStore.validateKey(keyDigest)
-        const response = yield* send("a lookup", HttpClientRequest.get(acUrl(keyDigest)))
+        yield* CacheStore.validateFence(getOptions?.recordedBy)
+        const recordedBy = getOptions?.recordedBy
+        const lookup = HttpClientRequest.get(acUrl(keyDigest))
+        const request = recordedBy === undefined
+          ? lookup
+          : HttpClientRequest.setUrlParams(lookup, {
+            recordedRunId: recordedBy.runId,
+            recordedEventSeq: String(recordedBy.eventSeq)
+          })
+        const response = yield* send("a lookup", request)
         if (response.status === 404) return Option.none()
         if (!isOk(response.status)) return yield* Effect.fail(unexpectedStatus("a lookup", response.status))
         const body = yield* response.json.pipe(
@@ -135,16 +144,19 @@ export const make = (
             })
           )
         )
-        // `bodyJsonUnsafe` throws for a value `JSON.stringify` cannot represent
-        // and silently drops an `undefined` member, so the entry's two unknown
-        // fields are checked for a canonical JSON form first — the same refusal
-        // `CacheStore.put` makes — and a malformed entry fails as a typed
-        // invalid_cache before any request, never as a defect.
+        // The wire bytes are the canonical form itself. Besides refusing
+        // values JSON cannot represent, this gives structurally equal entries
+        // identical bytes on every host regardless of object insertion order.
+        // Validate the two unknown fields before encoding the struct because
+        // a struct encoder may omit an `undefined` member.
         yield* CacheStore.encodeCanonical(entry.result, "result")
         yield* CacheStore.encodeCanonical(entry.meta, "meta")
+        const body = yield* CacheStore.encodeCanonical(encoded, "cache entry")
         const response = yield* send(
           "a publication",
-          HttpClientRequest.put(acUrl(entry.keyDigest)).pipe(HttpClientRequest.bodyJsonUnsafe(encoded))
+          HttpClientRequest.put(acUrl(entry.keyDigest)).pipe(
+            HttpClientRequest.bodyText(body, "application/json")
+          )
         )
         if (response.status === 409) return { _tag: "Conflict" } as const
         if (!isOk(response.status)) return yield* Effect.fail(unexpectedStatus("a publication", response.status))

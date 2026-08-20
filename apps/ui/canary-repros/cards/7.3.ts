@@ -57,6 +57,9 @@ const badges = await page.$$eval("[data-kind]", (cards) =>
 );
 
 const rows = badges.filter((row): row is NonNullable<typeof row> => row !== null);
+const expectedKinds = ["balance", "issue-list", "branches", "env"];
+const renderedKinds = new Set(rows.map((row) => row.kind));
+const missingKinds = expectedKinds.filter((kind) => !renderedKinds.has(kind));
 for (const row of rows) {
 	console.log(`${row.kind}: pill "${row.text}" needs ${row.needs}px, gets ${row.gets}px`);
 }
@@ -65,6 +68,10 @@ const truncated = rows.filter((row) => row.needs > row.gets + 1);
 await page.screenshot({ path: "/tmp/canary-cards-7.3-narrow.png", fullPage: true });
 await context.close();
 
+if (missingKinds.length > 0) {
+	console.error(`SETUP 7.3: expected card kinds did not render with readable badges: ${missingKinds.join(", ")}`);
+	process.exit(2);
+}
 if (truncated.length > 0) {
 	console.error(
 		`FAIL 7.3: ${truncated.length} card status pill(s) are clipped at 390px — ${truncated

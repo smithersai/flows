@@ -33,9 +33,15 @@
  *   bun allowlist-revocation.ts   exit 1 while the bug is present, 0 once it is fixed.
  */
 import { chromium } from "playwright";
+import { withVerifiedRestoration } from "../../scripts/canary-restoration";
 import { BASE, ensureSignedIn, PROFILE, report, seam, session } from "./_lib";
 
 const LOGIN = process.env.CANARY_LOGIN ?? "codeplanesmithers";
+const IDENTITY = process.env.IDENTITY_UPSTREAM_URL ?? "https://smithers-cloud-identity.willcory10.workers.dev";
+const ADMIN_TOKEN = process.env.IDENTITY_ADMIN_TOKEN ?? "";
+if (ADMIN_TOKEN === "") {
+	throw new Error("IDENTITY_ADMIN_TOKEN is required so restoration is independent of the session being revoked");
+}
 
 const context = await chromium.launchPersistentContext(PROFILE, {
 	headless: true,
@@ -59,20 +65,36 @@ if (before?.admin !== true || before?.allowlisted !== true) {
 const selfRemove = await seam(page, "POST", "/api/admin/allowlist", { login: LOGIN, action: "remove" });
 console.log(`POST /api/admin/allowlist {"login":"${LOGIN}","action":"remove"} -> ${selfRemove.status} ${selfRemove.body}`);
 if (selfRemove.status === 201 || selfRemove.status === 200) {
-	// It went through. Put it straight back before asserting anything else —
-	// the session that could restore it is the one that was just revoked.
-	const restore = await seam(page, "POST", "/api/admin/allowlist", { login: LOGIN, action: "add" });
-	console.log(`emergency restore: ${restore.status} ${restore.body.slice(0, 200)}`);
-	failures.push(
-		`an admin removed its OWN login from the allowlist (HTTP ${selfRemove.status}) — the one write that revokes the door that could undo it`,
+	await withVerifiedRestoration(
+		async () => {
+			failures.push(
+				`an admin removed its OWN login from the allowlist (HTTP ${selfRemove.status}) — the one write that revokes the door that could undo it`,
+			);
+		},
+		async () => {
+			const restore = await fetch(new URL("/api/identity/admin/allowlist", IDENTITY), {
+				method: "POST",
+				headers: { "content-type": "application/json", "x-smithers-admin-token": ADMIN_TOKEN },
+				body: JSON.stringify({
+					login: LOGIN,
+					action: "add",
+					requester: "uicanaries-allowlist-recovery",
+					timestamp: new Date().toISOString(),
+				}),
+			});
+			const body = await restore.text();
+			console.log(`out-of-band restore: ${restore.status} ${body.slice(0, 200)}`);
+			if (!restore.ok) throw new Error(`identity restore answered HTTP ${restore.status}: ${body.slice(0, 200)}`);
+		},
+		async () => {
+			await page.reload({ waitUntil: "domcontentloaded" });
+			const restored = (await session(page)) as { allowlisted?: boolean; admin?: boolean } | null;
+			if (restored?.allowlisted !== true || restored?.admin !== true) {
+				throw new Error(`session still has the wrong claims: ${JSON.stringify(restored)}`);
+			}
+		},
+		`POST ${IDENTITY}/api/identity/admin/allowlist for ${LOGIN} with an identity ADMIN_SERVICE_TOKEN`,
 	);
-	if (restore.status !== 201 && restore.status !== 200) {
-		console.error(
-			`RESTORE FAILED — ${LOGIN} is de-allowlisted. Re-add it with identity's ADMIN_SERVICE_TOKEN: ` +
-				`POST https://smithers-cloud-identity.willcory10.workers.dev/api/identity/admin/allowlist ` +
-				`{"login":"${LOGIN}","action":"add","requester":"<operator>","timestamp":"<now>"}`,
-		);
-	}
 } else if (selfRemove.status !== 409) {
 	failures.push(`the self-removal answered HTTP ${selfRemove.status}; the honest refusal is a 409 that names why`);
 } else if (!selfRemove.body.includes("your own login")) {

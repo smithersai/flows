@@ -174,12 +174,13 @@ export const createIssuesSeam = (ctx: SeamContext): IssuesSeam => {
 			return readErrorMessage(response, `Listing issues for ${repo} failed (${response.status})`);
 		}
 		const body: unknown = await response.json().catch(() => null);
-		const issues = Array.isArray(body)
-			? body.flatMap((entry) => {
+		if (!Array.isArray(body)) {
+			return `The backend answered issues for ${repo} with an unreadable payload`;
+		}
+		const issues = body.flatMap((entry) => {
 					const parsed = parseGithubListRow(entry);
 					return parsed === null ? [] : [parsed];
-				})
-			: [];
+				});
 		upsert({
 			id: `issues-${repo}`,
 			kind: "issue-list",
@@ -283,12 +284,13 @@ export const createIssuesSeam = (ctx: SeamContext): IssuesSeam => {
 				return readErrorMessage(response, `Listing issues for ${repo} failed (${response.status})`);
 			}
 			const body: unknown = await response.json().catch(() => null);
-			const issues = Array.isArray(body)
-				? body.flatMap((entry) => {
+			if (!Array.isArray(body)) {
+				return `The backend answered issues for ${repo} with an unreadable payload`;
+			}
+			const issues = body.flatMap((entry) => {
 						const parsed = parseListRow(entry);
 						return parsed === null ? [] : [parsed];
-					})
-				: [];
+					});
 			upsert({
 				id: `issues-${repo}`,
 				kind: "issue-list",

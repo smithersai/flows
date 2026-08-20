@@ -125,7 +125,8 @@ export const worldviewEntries = (store: AppStore): ReadonlyArray<Catalog.Entry> 
 				typeof record.path === "string" && record.path.trim() !== ""
 					? record.path.trim()
 					: sanitizePath(title);
-			return Effect.sync(() => {
+			return Effect.tryPromise({
+				try: async () => {
 				const existing = [...store.collections.worldDocuments.values()].find(
 					(document) => document.path === path,
 				);
@@ -146,7 +147,7 @@ export const worldviewEntries = (store: AppStore): ReadonlyArray<Catalog.Entry> 
 				if (existing !== undefined && !sources.includes("chain-remember")) {
 					sources.push("chain-remember");
 				}
-				store.dispatch({
+				await store.dispatch({
 					type: "world.document.upserted",
 					actor: "smithers",
 					select: false,
@@ -160,8 +161,14 @@ export const worldviewEntries = (store: AppStore): ReadonlyArray<Catalog.Entry> 
 						sources,
 						confidence,
 					},
-				});
+				}).isPersisted.promise;
 				return { id, path };
+				},
+				catch: (cause) =>
+					new Catalog.CallError({
+						name: "remember",
+						message: `remember could not persist: ${cause instanceof Error ? cause.message : String(cause)}`,
+					}),
 			});
 		},
 	},

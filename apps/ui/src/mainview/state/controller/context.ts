@@ -66,6 +66,7 @@ export interface ControllerContext {
 	readonly runPumps: Map<string, { stopped: boolean }>;
 	activeTurn: ActiveTurn | undefined;
 	commandActor: "user" | "smithers";
+	accountEpoch: number;
 	identityChanged: () => void;
 	authReprobeAt: number;
 	loadSession: () => Promise<void>;
@@ -129,6 +130,7 @@ export const createControllerContext = (
 		runPumps: new Map<string, { stopped: boolean }>(),
 		activeTurn: undefined,
 		commandActor: "user",
+		accountEpoch: 0,
 		identityChanged: () => {},
 		authReprobeAt: 0,
 		loadSession: async () => {},

@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: blocked
 anchor: head
 priority: p1
 ---
@@ -96,3 +96,61 @@ engine-store 681/681, engine-harness 124/124 (the pre-existing coverage
 threshold red at the baseline is acceptable), and
 `pnpm --recursive --if-present run check` green. Note origin/main has
 advanced past the lane parent; rebase at land.
+
+Round 3 (re-queued 2026-08-20 after verify run-1787185269037). Round 2
+CLOSED all five findings above: journal, run-store, engine-store and flows
+are green on check/lint/circular/test at 100% coverage, the vault gate is
+clean, and verify confirmed the tests are substantive (ConsensusConformance
+runs one body against both strategies with the R3 pin; JournalTransaction's
+"rolls an R6 ownership transition back with the enclosing transaction"
+genuinely pins the round-2 deadlock fix). Round 2's work is COMMITTED on the
+lane as `46965ad8` on top of `a1697a56f` and `c31aa352`. CONTINUE FROM THE
+LANE, do not restart, and do not redo anything listed as closed.
+
+Round 2 was rejected because the R6 transition events broke two packages
+that are NOT in the diff. `docs/specs/Concepts/Journal Consensus.md` (outer
+main `9ecb8aadf`) now carries the normative answer to both under "Stage 1,
+round 3 — what the composed system taught about R6"; read it first. Fix:
+
+1. BLOCKER — R6 entries carry no `meta`, so they belong to no lineage.
+   `RunStore.recordTransition` emits `new JournalEvent.Input({runId,
+   sourceId, eventType, payload})` with no `meta`, so `entry.meta` is null.
+   `@smthrs/time-travel` dereferences `entry.meta.lineageId` and throws
+   (test/EngineIntegration.test.ts:217), and the unlineaged entries land in
+   live/archived sets, moving rewind and archive boundaries
+   (RewindCrashRecovery, RewindInFlight, TimeTravelRewind e2e: extra seq
+   2,3 and seq 21; `archive.archived` 2 instead of 0). Per the note, an
+   entry that belongs to no lineage is not admissible: give R6 appends the
+   same lineage meta every other durable append carries. Fix the product,
+   not the assertions.
+2. BLOCKER — `flows.consensus.*` displaces `control.run.*` in a stream a
+   consumer reads positionally. `@smthrs/control`
+   test/SqlControlRuntime.test.ts (via test/ControlContract.ts:364) expected
+   ["control.run.accepted","control.run.running"] and received
+   ["flows.consensus.claimed","flows.consensus.activated"]. Per the note,
+   `flows.consensus.*` is a reserved namespace and a channel projection
+   selects by namespace rather than assuming the run stream carries only its
+   own events. Make control's projection select correctly; adding a
+   namespace to the journal must not be a breaking change for a consumer
+   that selects properly. If instead you conclude the two event families are
+   duplicates, STOP and report — the note logs that as an open question and
+   it is not yours to settle.
+3. MINOR — `RunStore.heartbeat` returns `Updated` unconditionally once the
+   strategy answers `Renewed`; the mirroring `UPDATE flows_runs ... WHERE
+   status='running' AND owner_*` lost its RETURNING check, so a lease/row
+   disagreement reports success while writing nothing where the old code
+   returned `FenceLost`/`NotFound`. run-store's README still claims the loop
+   behaves "exactly as before" — make one of the two true.
+4. MINOR — `Consensus.makeLocal` is public but missing from the journal
+   README's `Consensus` row.
+5. MINOR — `RunStore.layerWith` and `RunStore.layer` are the same
+   `Layer.effect(RunStore, make)` with a widened requirement type; nothing
+   enforces that a `Consensus` was provided, it silently falls back to
+   `SqlConsensus`. Either enforce it or document the fallback.
+
+Round 3 landing gate: the round-2 gate PLUS `@smthrs/control` and
+`@smthrs/time-travel` fully green. Run those two package suites FIRST — they
+are the ones that failed — before re-running the wide gates. Note: the
+90-minute node timeout killed round 2's attempt 2 during
+`pnpm --recursive --if-present run check`; run targeted package gates first
+and do not leave the wide check for last.

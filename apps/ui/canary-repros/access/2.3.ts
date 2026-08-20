@@ -22,6 +22,7 @@
  *   GH_PW=… bun 2.3.ts   exit 1 while the bug is present, 0 once it is fixed.
  */
 import { chromium } from "playwright";
+import { withVerifiedRestoration } from "../../scripts/canary-restoration";
 import { BASE, ensureSignedIn, PROFILE, report, resetOrigin, session } from "./_lib";
 
 const CLIENT_ID = process.env.CANARY_CLIENT_ID ?? "Iv23liwHER62HVHMWcGS";
@@ -40,7 +41,8 @@ const sudo = async (): Promise<void> => {
 };
 
 const failures: Array<string> = [];
-try {
+await withVerifiedRestoration(
+	async () => {
 	await page.goto(`https://github.com/settings/connections/applications/${CLIENT_ID}`, { waitUntil: "domcontentloaded" });
 	await page.waitForTimeout(2500);
 	await sudo();
@@ -57,8 +59,7 @@ try {
 	await page.waitForTimeout(7000);
 	console.log("consent url:", page.url());
 	if (!page.url().startsWith("https://github.com/login/oauth/authorize")) {
-		console.error("precondition failed: no consent screen — the revoke did not take");
-		process.exit(2);
+		throw new Error("precondition failed: no consent screen — the revoke did not take");
 	}
 
 	await page.locator('button:has-text("Cancel"), a:has-text("Cancel")').first().click();
@@ -77,13 +78,28 @@ try {
 	}
 	const backToApp = await page.locator('a:has-text("Back to Smithers"), [data-flow="auth.sign-in"]').count();
 	if (backToApp === 0) failures.push("the cancelled sign-in offers no way back into the app");
-} finally {
-	await page.goto(BASE, { waitUntil: "domcontentloaded" });
-	await page.waitForTimeout(5000);
-	console.log("restoring the authorization…");
-	console.log("session restored:", JSON.stringify(await ensureSignedIn(page)));
-	console.log("final session:", JSON.stringify(await session(page)));
-}
+	},
+	async () => {
+		await page.goto(BASE, { waitUntil: "domcontentloaded" });
+		await page.waitForTimeout(5000);
+		console.log("restoring the authorization…");
+		await ensureSignedIn(page);
+	},
+	async () => {
+		const restoredSession = await session(page);
+		console.log("final session:", JSON.stringify(restoredSession));
+		if (restoredSession === null || JSON.stringify(restoredSession).includes('"signedIn":false')) {
+			throw new Error(`the product session was not restored: ${JSON.stringify(restoredSession)}`);
+		}
+		await page.goto(`https://github.com/settings/connections/applications/${CLIENT_ID}`, { waitUntil: "domcontentloaded" });
+		await page.waitForTimeout(2500);
+		await sudo();
+		if (!(await page.locator('summary:has-text("Revoke access"), button:has-text("Revoke access")').first().isVisible().catch(() => false))) {
+			throw new Error("GitHub does not show Revoke access, so the App authorization was not restored");
+		}
+	},
+	"reauthorize the Smithers GitHub App for codeplanesmithers and sign the product session back in",
+);
 
 await context.close();
 report(failures);

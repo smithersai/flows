@@ -17,7 +17,7 @@ score() {
     --work "$S/fixtures/work" \
     --patches "$S/fixtures/patches" \
     --timings "$S/fixtures/timings" \
-    --reports "$S/fixtures" \
+    --report "$S/fixtures/flows-cell-harness.mirror.json" \
     --out "$S/fixtures" \
     --instances "$(node -e '
       const rows=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));

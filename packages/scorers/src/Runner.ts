@@ -22,7 +22,7 @@ export interface Job {
   readonly identity: string
   readonly observation: Pick<ObservationBase, "targetStepKey" | "scorerKey">
   readonly score: Effect.Effect<ScorerResult, unknown>
-  readonly at?: number | undefined
+  readonly at: number
 }
 
 /**
@@ -101,6 +101,6 @@ export const inconclusive = (job: Job, cause: unknown): Observation => {
     ...job.observation,
     kind: "inconclusive",
     reason: failure.message,
-    at: job.at ?? Date.now()
+    at: job.at
   }
 }

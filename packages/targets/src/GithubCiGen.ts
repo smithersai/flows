@@ -644,20 +644,26 @@ export const toolchainSteps = (attrs: Attrs, job: Job): ReadonlyArray<RenderedSt
  * @since 0.1.0
  */
 export const artifactSteps = (upload: CiToolchain.ArtifactUpload): ReadonlyArray<RenderedStep> => {
-  const root = `"$RUNNER_TEMP/${upload.artifact}"`
-  const copies = upload.sources.map((source) =>
-    `cp -R ${source.from} ${
-      source.as === undefined ? root : `"$RUNNER_TEMP/${upload.artifact}/${source.as}"`
-    } 2>/dev/null || true`
-  )
+  const artifact = path(upload.artifact, "artifact name")
+  const root = `"$RUNNER_TEMP/${artifact}"`
+  const copies = upload.sources.map((source) => {
+    const from = path(source.from, "artifact source")
+      .split("*")
+      .map((part) => `'${part}'`)
+      .join("*")
+    const destination = source.as === undefined
+      ? root
+      : `"$RUNNER_TEMP/${artifact}/${path(source.as, "artifact destination")}"`
+    return `cp -R -- ${from} ${destination}`
+  })
   return [
     { name: `Collect ${upload.artifact}`, run: [`mkdir -p ${root}`, ...copies].join("\n") },
     {
       name: `Upload ${upload.artifact}`,
       uses: actions.uploadArtifact,
       with: {
-        name: upload.artifact,
-        path: `\${{ runner.temp }}/${upload.artifact}`,
+        name: artifact,
+        path: `\${{ runner.temp }}/${artifact}`,
         "if-no-files-found": "ignore"
       }
     }

@@ -22,6 +22,10 @@ import {
   ShareCapability
 } from "./BranchProtocol.ts"
 import { SyncError } from "./SyncError.ts"
+import { SyncAuth } from "./SyncRpcs.ts"
+
+/** Maximum lifetime the branch bootstrap may mint. */
+export const maximumBranchTtlMs = 24 * 60 * 60 * 1000
 
 /**
  * Schema for a capability-bearing command submission.
@@ -106,16 +110,17 @@ export type RosterPayload = typeof RosterPayload.Type
 /**
  * Schema for a request to open a new shared branch.
  *
- * The requester is the local workspace owner: creating a branch needs no
- * capability because the branch does not exist yet to have one. What the
- * requester receives is the branch's first write capability — every later
- * participant arrives through a link minted from it.
+ * The RPC authentication middleware must establish the workspace principal
+ * before the handler mints the first write capability.
  *
  * @category schemas
  * @since 0.1.0
  */
 export const CreateBranchPayload = Schema.Struct({
-  ttlMs: Schema.Int.check(Schema.isGreaterThan(0))
+  ttlMs: Schema.Int.check(
+    Schema.isGreaterThan(0),
+    Schema.isLessThanOrEqualTo(maximumBranchTtlMs)
+  )
 })
 
 /**
@@ -209,4 +214,4 @@ export const BranchRpcs = RpcGroup.make(
     error: SyncError
   }),
   Rpc.make("Branch.WatchRoster", { payload: RosterPayload, success: RosterFrame, error: SyncError, stream: true })
-)
+).middleware(SyncAuth)

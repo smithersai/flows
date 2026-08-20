@@ -21,6 +21,8 @@ import * as BranchPresence from "./BranchPresence.ts"
 import type { BranchId } from "./BranchProtocol.ts"
 import { BranchRpcs } from "./BranchRpcs.ts"
 import * as BranchShare from "./BranchShare.ts"
+import { SyncError } from "./SyncError.ts"
+import * as SyncPrincipal from "./SyncPrincipal.ts"
 
 /**
  * Provides the branch RPC handlers over the branch services.
@@ -51,6 +53,13 @@ export const layerHandlers: Layer.Layer<
     return BranchRpcs.of({
       "Branch.CreateBranch": ({ ttlMs }) =>
         Effect.gen(function*() {
+          const principal = yield* SyncPrincipal.SyncPrincipal
+          if (!SyncPrincipal.isWorkspace(principal)) {
+            return yield* new SyncError({
+              code: "unauthorized",
+              message: "Creating a branch requires an authenticated workspace principal"
+            })
+          }
           const capability = yield* share.mint({
             branchId: (yield* ids.fresh) as BranchId,
             capabilityId: yield* ids.fresh,

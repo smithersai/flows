@@ -43,7 +43,8 @@ export interface Dependencies {
   readonly scheduleResume: (
     flowName: string,
     executionId: string,
-    reason: ResumeReason
+    reason: ResumeReason,
+    sourceId?: string | undefined
   ) => Effect.Effect<void>
   /**
    * Redispatch policy for a durable clock whose fire failed. Defaults to
@@ -332,7 +333,12 @@ export const make = (
               dependencies.scheduleResume(
                 address.flowName,
                 address.executionId,
-                "deferred"
+                "deferred",
+                `${dependencies.journalSource}:wake:${JSON.stringify([
+                  address.flowName,
+                  address.executionId,
+                  address.deferredName
+                ])}`
               ),
             { discard: true }
           )

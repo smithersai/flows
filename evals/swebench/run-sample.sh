@@ -21,10 +21,13 @@ const s=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
 process.stdout.write(s.instances.slice(0,Number(process.argv[2])).join(" "));
 ' "$S/sample.json" "$COUNT")"
 
+STATUS=0
 for ID in $IDS; do
+  node "$S/lib/validate-instance.mjs" "${SWB_DATASET:-$S/swb-verified.json}" "$ID" >/dev/null || exit $?
   if [ "$HARNESS" = "codex" ]; then
-    "$S/run-instance-codex.sh" "$ID" ${BUDGET:+"$BUDGET"}
+    "$S/run-instance-codex.sh" "$ID" ${BUDGET:+"$BUDGET"} || STATUS=$?
   else
-    "$S/run-instance.sh" "$ID" "${SWB_SEAT:-openai:gpt-5.6-sol}" ${BUDGET:+"$BUDGET"}
+    "$S/run-instance.sh" "$ID" "${SWB_SEAT:-openai:gpt-5.6-sol}" ${BUDGET:+"$BUDGET"} || STATUS=$?
   fi
 done
+exit "$STATUS"

@@ -35,7 +35,20 @@ const readJsonBody = (req: IncomingMessage): Promise<unknown> =>
 		const chunks: Buffer[] = [];
 		let size = 0;
 		let overflowed = false;
-		req.on("data", (chunk: Buffer) => {
+		let settled = false;
+		const cleanup = (): void => {
+			req.off("data", onData);
+			req.off("end", onEnd);
+			req.off("error", onError);
+			req.off("aborted", onAborted);
+		};
+		const finish = (result: { readonly value: unknown } | { readonly error: Error }): void => {
+			if (settled) return;
+			settled = true;
+			cleanup();
+			"error" in result ? reject(result.error) : resolve(result.value);
+		};
+		const onData = (chunk: Buffer): void => {
 			if (overflowed) return;
 			size += chunk.length;
 			if (size > MAX_BODY_BYTES) {
@@ -45,19 +58,24 @@ const readJsonBody = (req: IncomingMessage): Promise<unknown> =>
 				return;
 			}
 			chunks.push(chunk);
-		});
-		req.on("end", () => {
+		};
+		const onEnd = (): void => {
 			if (overflowed) {
-				reject(new BodyTooLargeError());
+				finish({ error: new BodyTooLargeError() });
 				return;
 			}
 			try {
-				resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+				finish({ value: JSON.parse(Buffer.concat(chunks).toString("utf8")) });
 			} catch {
-				reject(new Error("Request body must be valid JSON."));
+				finish({ error: new Error("Request body must be valid JSON.") });
 			}
-		});
-		req.on("error", reject);
+		};
+		const onError = (error: Error): void => finish({ error });
+		const onAborted = (): void => finish({ error: new Error("Request body was aborted.") });
+		req.on("data", onData);
+		req.on("end", onEnd);
+		req.on("error", onError);
+		req.on("aborted", onAborted);
 	});
 
 const isStartTurnRequest = (value: unknown): value is StartAgentTurnRequest =>

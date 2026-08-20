@@ -7,7 +7,7 @@
  *
  * @since 0.1.0
  */
-import { Context, Effect, Layer, Ref, type Schema } from "effect"
+import { Context, Effect, Layer, Ref, Semaphore, type Schema } from "effect"
 import { Control } from "./Control.ts"
 import { type ControlError, type InvalidInput, type Unauthorized, Unavailable } from "./ControlError.ts"
 import type { FlowId, IdempotencyKey, Receipt, RunId, RunSummary, SignalPayload } from "./ControlSchema.ts"
@@ -150,6 +150,7 @@ export const make = Effect.gen(function*() {
   const channels = yield* Ref.make(new Map<string, Channel>())
   const deliveries = yield* Ref.make(new Map<string, Delivery>())
   const applied = yield* Ref.make(new Set<string>())
+  const ingestion = yield* Semaphore.make(1)
   const control = yield* Control
 
   const lookup = Effect.fn("Channels.lookup")(function*(name: string): Effect.fn.Return<Channel, Unavailable> {
@@ -170,40 +171,44 @@ export const make = Effect.gen(function*() {
       })
     ),
     lookup,
-    ingest: Effect.fn("Channels.ingest")(function*(request) {
+    ingest: Effect.fn("Channels.ingest")((request) => ingestion.withPermits(1)(Effect.gen(function*() {
       const channel = yield* lookup(request.channel)
       // This ordering is intentional: signature verification is the
       // amplification guard and must happen before decode or Control access.
       yield* channel.verify(request.raw)
       const payload = yield* channel.decode(request.raw)
       const mapped = yield* channel.map(payload)
-      const replay = yield* Ref.modify(applied, (keys) => {
-        if (keys.has(String(request.raw.idempotencyKey))) return [true, keys] as const
-        const next = new Set(keys)
-        next.add(String(request.raw.idempotencyKey))
-        return [false, next] as const
-      })
+      const key = String(request.raw.idempotencyKey)
+      const replay = yield* Ref.get(applied).pipe(Effect.map((keys) => keys.has(key)))
       if (replay) return { _tag: "AlreadyApplied", receiptId: String(request.raw.idempotencyKey) }
+      let receipt: Receipt
       if (mapped._tag === "Signal") {
-        return yield* control.signal({
+        receipt = yield* control.signal({
           runId: mapped.runId,
           signal: mapped.signal,
           idempotencyKey: request.raw.idempotencyKey
         })
+      } else {
+        const plan = yield* control.plan({
+          flowId: mapped.flowId,
+          input: mapped.input,
+          idempotencyKey: request.raw.idempotencyKey
+        })
+        receipt = yield* control.run({
+          _tag: "Plan",
+          planId: plan.planId,
+          digest: plan.digest,
+          envelope: plan.envelope,
+          idempotencyKey: request.raw.idempotencyKey
+        })
       }
-      const plan = yield* control.plan({
-        flowId: mapped.flowId,
-        input: mapped.input,
-        idempotencyKey: request.raw.idempotencyKey
+      yield* Ref.update(applied, (keys) => {
+        const next = new Set(keys)
+        next.add(key)
+        return next
       })
-      return yield* control.run({
-        _tag: "Plan",
-        planId: plan.planId,
-        digest: plan.digest,
-        envelope: plan.envelope,
-        idempotencyKey: request.raw.idempotencyKey
-      })
-    }),
+      return receipt
+    })),
     project: Effect.fn("Channels.project")(function*(request) {
       const channel = yield* lookup(request.channel)
       const key = deliveryKey(request.channel, request.run)

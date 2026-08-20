@@ -42,22 +42,41 @@ import { z } from "zod/v4";
 
 const CASE_TIMEOUT_MS = 30 * 60_000;
 const DEFAULT_MAX_CONCURRENCY = 4;
+const evalCaseId = z.string().trim().min(1).max(120).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/, "case id must be a safe identifier");
 
 const evalCaseInputSchema = z.object({
-  id: z.string(),
+  id: evalCaseId,
   name: z.string().optional(),
   input: z.any(),
   expected: z.any().optional(),
 });
 
-const suiteSchema = z.object({
+export const suiteSchema = z.object({
   suiteId: z.string().trim().min(1),
   name: z.string(),
   workflowKey: z.string(),
   workflowPath: z.string(),
   workflowRoot: z.string(),
   cases: z.array(evalCaseInputSchema),
+}).superRefine((suite, ctx) => {
+  const seen = new Map<string, number>();
+  suite.cases.forEach((item, index) => {
+    const prior = seen.get(item.id);
+    if (prior !== undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["cases", index, "id"],
+        message: `duplicate case id ${JSON.stringify(item.id)} (first used at index ${prior})`,
+      });
+    } else {
+      seen.set(item.id, index);
+    }
+  });
 });
+
+export function evalCaseIdentity(caseId: string, index: number): string {
+  return `${index}-${caseId}`;
+}
 
 const caseResultSchema = z.object({
   caseId: z.string(),
@@ -107,17 +126,20 @@ export default smithers((ctx) => {
       <Sequence>
         <Task id="plan" output={outputs.suite} timeoutMs={2 * 60_000}>
           {async () => {
-            const loaded = await readEvalSuite(db, ctx.input.suiteId);
-            if (!loaded) {
+            const rawLoaded = await readEvalSuite(db, ctx.input.suiteId);
+            if (!rawLoaded) {
               throw new Error(`Unknown eval suite: ${ctx.input.suiteId}`);
             }
+            // Parse before writing queued rows: duplicate/unsafe ids must not
+            // collide in persisted rows, task ids, React keys, or child runs.
+            const loaded = suiteSchema.parse(rawLoaded);
             // Seed one `queued` row per case up front — the results table is
             // live from second zero, and an unstarted case still joins in
             // multi's canvas instead of appearing as a silent gap.
             await Promise.all(
               loaded.cases.map((c, index) =>
                 writeEvalCaseRow(db, {
-                  id: `${ctx.runId}:${c.id}`,
+                  id: `${ctx.runId}:${evalCaseIdentity(c.id, index)}`,
                   evalRunId: ctx.runId,
                   suiteId: loaded.suiteId,
                   caseId: c.id,
@@ -138,8 +160,8 @@ export default smithers((ctx) => {
             ? null
             : cases.map((c, index) => (
                 <Task
-                  key={c.id}
-                  id={`case-${c.id}`}
+                  key={evalCaseIdentity(c.id, index)}
+                  id={`case-${evalCaseIdentity(c.id, index)}`}
                   output={outputs.caseResult}
                   groundTruth={c.expected}
                   scorers={{ assertions: { scorer: evalAssertionScorer(), sampling: { type: "all" } } }}
@@ -147,8 +169,9 @@ export default smithers((ctx) => {
                   timeoutMs={CASE_TIMEOUT_MS}
                 >
                   {async () => {
-                    const rowId = `${ctx.runId}:${c.id}`;
-                    const caseRunId = evalCaseRunId(suite.suiteId, c.id, ctx.runId);
+                    const identity = evalCaseIdentity(c.id, index);
+                    const rowId = `${ctx.runId}:${identity}`;
+                    const caseRunId = evalCaseRunId(suite.suiteId, identity, ctx.runId);
                     const startedAtMs = Date.now();
                     await writeEvalCaseRow(db, {
                       id: rowId,
@@ -240,13 +263,16 @@ export default smithers((ctx) => {
               ))}
         </Parallel>
 
-        <Task id="verdict" output={outputs.verdict} dependsOn={cases.map((c) => `case-${c.id}`)}>
+        <Task id="verdict" output={outputs.verdict} dependsOn={cases.map((c, index) => `case-${evalCaseIdentity(c.id, index)}`)}>
           {() => {
-            const results = cases.map((c) => ctx.outputMaybe(outputs.caseResult, { nodeId: `case-${c.id}` }));
+            const results = cases.map((c, index) =>
+              ctx.outputMaybe(outputs.caseResult, { nodeId: `case-${evalCaseIdentity(c.id, index)}` }),
+            );
             const total = results.length;
+            const complete = results.every((result, index) => result?.caseId === cases[index]?.id);
             const passed = results.filter((r) => r?.passed === true).length;
             const inconclusive = results.filter((r) => Boolean(r?.inconclusive)).length;
-            const pass = total > 0 && passed === total;
+            const pass = total > 0 && complete && passed === total;
             const suiteName = suite?.name ?? ctx.input.suiteId;
             // Inconclusive cases are harness/environment faults: name them so
             // a driving loop repairs the harness instead of the workflow.

@@ -155,7 +155,7 @@ export const make: Effect.Effect<
       writer.write(
         Effect.gen(function*() {
           const claimed = yield* sql`INSERT INTO flows_score_jobs (identity, created_at_ms)
-            VALUES (${identity}, ${Date.now()})
+            VALUES (${identity}, ${observation.at})
             ON CONFLICT (identity) DO NOTHING`.raw
           if (changes(claimed) === 0) return false
           yield* insert(observation)

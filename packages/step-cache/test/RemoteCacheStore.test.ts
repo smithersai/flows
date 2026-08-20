@@ -82,6 +82,19 @@ describe("lookups", () => {
       expect(tier.calls[0]!.headers["authorization"]).toBe("Bearer secret")
     }))
 
+  it.effect("carries the recorded provenance fence as query parameters", () =>
+    Effect.gen(function*() {
+      const tier = tierOf(() => new Response(JSON.stringify(entry), { status: 200 }))
+      yield* (
+        Effect.flatMap(
+          tier.store,
+          (store) => store.get(entry.keyDigest, { recordedBy: { runId: "run-1", eventSeq: 3 } })
+        )
+      )
+      expect(tier.calls[0]!.url).toContain("recordedRunId=run-1")
+      expect(tier.calls[0]!.url).toContain("recordedEventSeq=3")
+    }))
+
   it.effect("reports a miss on 404", () =>
     Effect.gen(function*() {
       const tier = tierOf(() => new Response(null, { status: 404 }))
@@ -165,6 +178,9 @@ describe("publications", () => {
         .toEqual({ _tag: "Inserted" })
       expect(tier.calls[0]!.method).toBe("PUT")
       expect(JSON.parse(tier.calls[0]!.body)).toEqual(entry)
+      expect(tier.calls[0]!.body).toBe(
+        '{"createdAtMs":7,"keyDigest":"key-digest","meta":{"tier":"sealed"},"recordedEventSeq":3,"recordedRunId":"run-1","result":{"ok":true}}'
+      )
     }))
 
   it.effect("reports ExistingSame on any other 2xx", () =>

@@ -11,7 +11,7 @@ import * as Fs from "node:fs/promises"
 import * as NodePath from "node:path"
 import { describe, expect, it } from "vitest"
 import * as CiToolchain from "../src/CiToolchain.ts"
-import { Attrs, Gate, GithubCiGen, Job, render, TargetStep } from "../src/GithubCiGen.ts"
+import { artifactSteps, Attrs, Gate, GithubCiGen, Job, render, TargetStep } from "../src/GithubCiGen.ts"
 import { parseWorkflow as parseStrictWorkflow } from "../src/GithubWorkflow.ts"
 import * as RustToolchain from "../src/RustToolchain.ts"
 import { Secret } from "../src/Secret.ts"
@@ -581,7 +581,9 @@ describe("render", () => {
     expect(rendered).toContain("          if [ ! -x /usr/bin/google-chrome ]; then\n")
     expect(rendered).toContain("          /usr/bin/google-chrome --version\n")
     expect(rendered).toContain("          mkdir -p \"$RUNNER_TEMP/e2e-artifacts\"\n")
-    expect(rendered).toContain("          cp -R /tmp/shot-*.png \"$RUNNER_TEMP/e2e-artifacts\" 2>/dev/null || true\n")
+    expect(rendered).toContain("          cp -R -- '/tmp/shot-'*'.png' \"$RUNNER_TEMP/e2e-artifacts\"\n")
+    expect(rendered).toContain("          cp -R -- 'apps/reports' \"$RUNNER_TEMP/e2e-artifacts/reports\"\n")
+    expect(rendered).not.toContain("2>/dev/null || true")
     expect(rendered).toContain("          if-no-files-found: ignore\n")
     // Issue #176: the generated workflow carries no step condition at all, so
     // nobody has to adjudicate in review which conditions are load-bearing.
@@ -607,6 +609,13 @@ describe("render", () => {
         }]
       }))
     ).toThrow(/not usable as a generated diagnostic/)
+  })
+
+  it("validates artifact values again at the rendering boundary", () => {
+    expect(() => artifactSteps({ artifact: "artifacts; touch pwned", sources: [] })).toThrow(/artifact name/)
+    expect(() => artifactSteps({ artifact: "artifacts", sources: [{ from: "$(touch pwned)" }] })).toThrow(
+      /artifact source/
+    )
   })
 
   it("maps a declared secret onto the repository secret of the same name", () => {

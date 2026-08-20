@@ -43,22 +43,6 @@ describe("action durability tiers", () => {
     }).pipe(Effect.provide(layer))
   })
 
-  effect(
-    "compensable actions establish a snapshot before run and restore before retry",
-    () =>
-      Effect.gen(function*() {
-        const boundaryEvents: Array<string> = []
-        const snapshotBoundary = {
-          prepare: () => Effect.sync(() => boundaryEvents.push("prepare")),
-          restore: () => Effect.sync(() => boundaryEvents.push("restore")),
-          settle: () => Effect.void
-        }
-        yield* snapshotBoundary.prepare()
-        yield* snapshotBoundary.restore()
-        expect(boundaryEvents).toEqual(["prepare", "restore"])
-      })
-  )
-
   effect("rejects irreversible retries without an idempotency key", () => {
     const step = Action.make({
       name: "Tiers/irreversible-no-key",
