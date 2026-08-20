@@ -527,7 +527,12 @@ Run the flow, read the card, resize the window, switch theme, and reload.
       Look specifically at code blocks, diffs, status pills, disabled controls,
       and any row that fills itself when selected — the repo chooser, the
       workflow picker, the slash menu — where the fill must not swallow the
-      text on top of it.
+      text on top of it. Read the row's SMALL text, not just its name: the
+      chooser's freshness and issue-count columns are 13px muted text, and
+      they were still under AA after the name had been fixed.
+      state/Palette.test.ts holds all 18 variants to 4.5:1 for both, so what
+      is left here is the judgement a ratio cannot make — whether the
+      highlighted row still reads as the one under the cursor.
 - [ ] **20.4** The theme choice survives a reload and applies before first
       paint (no flash of the wrong theme).
 - [ ] **20.5** The OS `prefers-color-scheme` default is respected before the
