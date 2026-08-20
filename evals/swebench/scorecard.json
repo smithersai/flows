@@ -1,17 +1,17 @@
 {
   "aggregate": {
     "instances": 5,
-    "flowsResolved": 3,
+    "flowsResolved": 4,
     "codexResolved": 4,
     "flowsWins": 0,
-    "codexWins": 1,
-    "bothPass": 3,
+    "codexWins": 0,
+    "bothPass": 4,
     "bothFail": 1,
-    "flowsWallClockSeconds": 2564,
+    "flowsWallClockSeconds": 2063,
     "codexWallClockSeconds": 529,
-    "flowsTokens": 543720,
+    "flowsTokens": 1044762,
     "codexTokens": 195987,
-    "flowsUsd": 3.127,
+    "flowsUsd": 6.1904,
     "codexUsdFloor": 0.9799,
     "perCallLatency": "journaled"
   },
@@ -20,28 +20,28 @@
       "instanceId": "astropy__astropy-8707",
       "quality": {
         "verdict": "resolved",
-        "patchBytes": 1057,
+        "patchBytes": 837,
         "status": "completed",
-        "editsAttempted": 2,
+        "editsAttempted": 1,
         "editsSucceeded": 1
       },
       "speed": {
-        "wallClockSeconds": 494,
-        "journalSeconds": 465,
+        "wallClockSeconds": 127,
+        "journalSeconds": 125,
         "budgetSeconds": 1200,
-        "turns": 20,
-        "modelCalls": 20,
-        "flowCalls": 24,
-        "flowCallsRefused": 1,
-        "meanCallLatencyMs": 13448,
+        "turns": 11,
+        "modelCalls": 11,
+        "flowCalls": 15,
+        "flowCallsRefused": 0,
+        "meanCallLatencyMs": 9640,
         "perCallLatency": "journaled"
       },
       "cost": {
         "model": "openai:gpt-5.6-sol",
-        "inputTokens": 147041,
-        "cachedInputTokens": 62945,
-        "outputTokens": 17094,
-        "usd": 0.9648,
+        "inputTokens": 75911,
+        "cachedInputTokens": 32769,
+        "outputTokens": 6477,
+        "usd": 0.4264,
         "priceSource": "OpenAI API list price, verified 2026-08-19"
       },
       "baseline": {
@@ -63,27 +63,27 @@
       "quality": {
         "verdict": "resolved",
         "patchBytes": 643,
-        "status": "completed",
-        "editsAttempted": 1,
-        "editsSucceeded": 1
+        "status": "failed",
+        "editsAttempted": 7,
+        "editsSucceeded": 5
       },
       "speed": {
-        "wallClockSeconds": 240,
-        "journalSeconds": 238,
+        "wallClockSeconds": 794,
+        "journalSeconds": 792,
         "budgetSeconds": 1200,
-        "turns": 10,
-        "modelCalls": 10,
-        "flowCalls": 15,
-        "flowCallsRefused": 0,
-        "meanCallLatencyMs": 7668,
+        "turns": 43,
+        "modelCalls": 42,
+        "flowCalls": 54,
+        "flowCallsRefused": 2,
+        "meanCallLatencyMs": 15544,
         "perCallLatency": "journaled"
       },
       "cost": {
         "model": "openai:gpt-5.6-sol",
-        "inputTokens": 53201,
-        "cachedInputTokens": 11569,
-        "outputTokens": 4451,
-        "usd": 0.3475,
+        "inputTokens": 275165,
+        "cachedInputTokens": 113369,
+        "outputTokens": 39382,
+        "usd": 2.0471,
         "priceSource": "OpenAI API list price, verified 2026-08-19"
       },
       "baseline": {
@@ -110,22 +110,22 @@
         "editsSucceeded": 1
       },
       "speed": {
-        "wallClockSeconds": 420,
-        "journalSeconds": 399,
+        "wallClockSeconds": 121,
+        "journalSeconds": 119,
         "budgetSeconds": 1200,
-        "turns": 13,
-        "modelCalls": 13,
-        "flowCalls": 16,
+        "turns": 11,
+        "modelCalls": 11,
+        "flowCalls": 18,
         "flowCallsRefused": 0,
-        "meanCallLatencyMs": 8164,
+        "meanCallLatencyMs": 8549,
         "perCallLatency": "journaled"
       },
       "cost": {
         "model": "openai:gpt-5.6-sol",
-        "inputTokens": 95655,
-        "cachedInputTokens": 22121,
-        "outputTokens": 5988,
-        "usd": 0.5584,
+        "inputTokens": 83378,
+        "cachedInputTokens": 30274,
+        "outputTokens": 5501,
+        "usd": 0.4457,
         "priceSource": "OpenAI API list price, verified 2026-08-19"
       },
       "baseline": {
@@ -145,29 +145,29 @@
     {
       "instanceId": "pytest-dev__pytest-6197",
       "quality": {
-        "verdict": "unresolved",
-        "patchBytes": 569,
-        "status": "failed",
-        "editsAttempted": 3,
-        "editsSucceeded": 3
+        "verdict": "resolved",
+        "patchBytes": 1493,
+        "status": "completed",
+        "editsAttempted": 1,
+        "editsSucceeded": 1
       },
       "speed": {
-        "wallClockSeconds": 1134,
-        "journalSeconds": 1122,
+        "wallClockSeconds": 198,
+        "journalSeconds": 196,
         "budgetSeconds": 1200,
-        "turns": 30,
-        "modelCalls": 29,
-        "flowCalls": 47,
+        "turns": 6,
+        "modelCalls": 6,
+        "flowCalls": 15,
         "flowCallsRefused": 0,
-        "meanCallLatencyMs": 8740,
+        "meanCallLatencyMs": 30051,
         "perCallLatency": "journaled"
       },
       "cost": {
         "model": "openai:gpt-5.6-sol",
-        "inputTokens": 180631,
-        "cachedInputTokens": 48928,
-        "outputTokens": 13130,
-        "usd": 1.0769,
+        "inputTokens": 88235,
+        "cachedInputTokens": 23886,
+        "outputTokens": 11082,
+        "usd": 0.6661,
         "priceSource": "OpenAI API list price, verified 2026-08-19"
       },
       "baseline": {
@@ -178,7 +178,7 @@
         "usd": 0.322,
         "priceSource": "OpenAI API list price, verified 2026-08-19"
       },
-      "callout": "codex win",
+      "callout": "both pass",
       "runIds": [
         "plan:plan-1",
         "run-1"
@@ -188,28 +188,28 @@
       "instanceId": "sphinx-doc__sphinx-11445",
       "quality": {
         "verdict": "unresolved",
-        "patchBytes": 442,
-        "status": "failed",
-        "editsAttempted": 0,
-        "editsSucceeded": 0
+        "patchBytes": 832,
+        "status": "waiting-approval",
+        "editsAttempted": 8,
+        "editsSucceeded": 6
       },
       "speed": {
-        "wallClockSeconds": 276,
-        "journalSeconds": 270,
+        "wallClockSeconds": 823,
+        "journalSeconds": 821,
         "budgetSeconds": 1200,
-        "turns": 5,
-        "modelCalls": 4,
-        "flowCalls": 7,
-        "flowCallsRefused": 0,
-        "meanCallLatencyMs": 13180,
+        "turns": 52,
+        "modelCalls": 52,
+        "flowCalls": 78,
+        "flowCallsRefused": 2,
+        "meanCallLatencyMs": 14484,
         "perCallLatency": "journaled"
       },
       "cost": {
         "model": "openai:gpt-5.6-sol",
-        "inputTokens": 23908,
-        "cachedInputTokens": 4162,
-        "outputTokens": 2621,
-        "usd": 0.1794,
+        "inputTokens": 415424,
+        "cachedInputTokens": 177389,
+        "outputTokens": 44207,
+        "usd": 2.6051,
         "priceSource": "OpenAI API list price, verified 2026-08-19"
       },
       "baseline": {

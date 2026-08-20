@@ -1,0 +1,8 @@
+{
+  "instance_id": "pytest-dev__pytest-6197",
+  "seat": "openai:gpt-5.6-sol",
+  "budgetSeconds": 1200,
+  "startedAt": 1787188878000,
+  "endedAt": 1787190012000,
+  "wallClockSeconds": 1134
+}

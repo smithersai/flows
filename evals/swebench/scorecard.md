@@ -1,40 +1,40 @@
 # SWE-bench Verified scorecard
 
-Instances: 5 · flows resolved **3/5** · codex resolved **4/5** · flows wins **0** · codex wins 1 · both pass 3 · both fail 1
+Instances: 5 · flows resolved **4/5** · codex resolved **4/5** · flows wins **0** · codex wins 0 · both pass 4 · both fail 1
 
 ## Quality
 
 | Instance | flows | codex | Bucket | Patch bytes | Edits ok/tried |
 | --- | --- | --- | --- | --- | --- |
-| astropy__astropy-8707 | resolved | resolved | both pass | 1,057 | 1/2 |
-| django__django-16612 | resolved | resolved | both pass | 643 | 1/1 |
+| astropy__astropy-8707 | resolved | resolved | both pass | 837 | 1/1 |
+| django__django-16612 | resolved | resolved | both pass | 643 | 5/7 |
 | pydata__xarray-7393 | resolved | resolved | both pass | 658 | 1/1 |
-| pytest-dev__pytest-6197 | unresolved | resolved | codex win | 569 | 3/3 |
-| sphinx-doc__sphinx-11445 | unresolved | unresolved | both fail | 442 | 0/0 |
+| pytest-dev__pytest-6197 | resolved | resolved | both pass | 1,493 | 1/1 |
+| sphinx-doc__sphinx-11445 | unresolved | unresolved | both fail | 832 | 6/8 |
 
 ## Speed
 
 | Instance | flows wall clock | codex wall clock | Turns | Model calls | Mean call latency |
 | --- | --- | --- | --- | --- | --- |
-| astropy__astropy-8707 | 494s | 101s | 20 | 20 | 13448 ms |
-| django__django-16612 | 240s | 82s | 10 | 10 | 7668 ms |
-| pydata__xarray-7393 | 420s | 81s | 13 | 13 | 8164 ms |
-| pytest-dev__pytest-6197 | 1,134s | 183s | 30 | 29 | 8740 ms |
-| sphinx-doc__sphinx-11445 | 276s | 82s | 5 | 4 | 13180 ms |
+| astropy__astropy-8707 | 127s | 101s | 11 | 11 | 9640 ms |
+| django__django-16612 | 794s | 82s | 43 | 42 | 15544 ms |
+| pydata__xarray-7393 | 121s | 81s | 11 | 11 | 8549 ms |
+| pytest-dev__pytest-6197 | 198s | 183s | 6 | 6 | 30051 ms |
+| sphinx-doc__sphinx-11445 | 823s | 82s | 52 | 52 | 14484 ms |
 
-Totals: flows 2564s · codex 529s.
+Totals: flows 2063s · codex 529s.
 Per-call latency is journaled for this wave.
 
 ## Cost
 
 | Instance | Input | Cached | Output | flows USD | codex tokens | codex USD (floor) |
 | --- | --- | --- | --- | --- | --- | --- |
-| astropy__astropy-8707 | 147,041 | 62,945 | 17,094 | $0.9648 | 37,867 | $0.1893 |
-| django__django-16612 | 53,201 | 11,569 | 4,451 | $0.3475 | 30,840 | $0.1542 |
-| pydata__xarray-7393 | 95,655 | 22,121 | 5,988 | $0.5584 | 34,894 | $0.1745 |
-| pytest-dev__pytest-6197 | 180,631 | 48,928 | 13,130 | $1.0769 | 64,398 | $0.3220 |
-| sphinx-doc__sphinx-11445 | 23,908 | 4,162 | 2,621 | $0.1794 | 27,988 | $0.1399 |
+| astropy__astropy-8707 | 75,911 | 32,769 | 6,477 | $0.4264 | 37,867 | $0.1893 |
+| django__django-16612 | 275,165 | 113,369 | 39,382 | $2.0471 | 30,840 | $0.1542 |
+| pydata__xarray-7393 | 83,378 | 30,274 | 5,501 | $0.4457 | 34,894 | $0.1745 |
+| pytest-dev__pytest-6197 | 88,235 | 23,886 | 11,082 | $0.6661 | 64,398 | $0.3220 |
+| sphinx-doc__sphinx-11445 | 415,424 | 177,389 | 44,207 | $2.6051 | 27,988 | $0.1399 |
 
-Totals: flows $3.1270 · codex $0.9799 (floor).
+Totals: flows $6.1904 · codex $0.9799 (floor).
 
 Prices come from the committed table in `prices.ts`. The codex figure is a floor: the committed baseline records one total token count per instance, with no input/output split, so it is priced entirely at the input rate.

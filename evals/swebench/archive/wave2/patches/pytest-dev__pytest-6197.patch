@@ -1,0 +1,12 @@
+diff --git a/src/_pytest/main.py b/src/_pytest/main.py
+index 3c205027d..14752398e 100644
+--- a/src/_pytest/main.py
++++ b/src/_pytest/main.py
+@@ -532,6 +532,7 @@ class Session(nodes.FSCollector):
+                     # Collect packages first.
+                     seen_dirs.add(dirpath)
+                     pkginit = dirpath.join("__init__.py")
++                    # Only collect the package if its __init__.py is a test file.
+                     if pkginit.exists():
+                         for x in self._collectfile(pkginit):
+                             yield x

@@ -1,0 +1,8 @@
+{
+  "instance_id": "astropy__astropy-8707",
+  "seat": "openai:gpt-5.6-sol",
+  "budgetSeconds": 1200,
+  "startedAt": 1787187871000,
+  "endedAt": 1787188365000,
+  "wallClockSeconds": 494
+}
