@@ -3,6 +3,13 @@
 	"main": "src/index.ts",
 	"compatibility_date": "2026-08-01",
 	"compatibility_flags": ["nodejs_compat"],
+	// The asset fallback's guarded `import("@tanstack/react-start/server-entry")`
+	// resolves only inside Vite's Cloudflare Start build (which defines
+	// __SMITHERS_START__ and serves its own virtual manifest). A plain wrangler
+	// bundle still resolves the specifier, so it is aliased to a local stub the
+	// guard keeps unreachable. The Start build ships prebuilt output
+	// (no_bundle), so this alias never touches it.
+	"alias": { "@tanstack/react-start/server-entry": "./src/start-entry-stub.ts" },
 	// Wave 7: this Worker IS the canary. The custom domain was repointed from
 	// the flows/ui POC worker `smithers-ui-canary` (rollback: redeploy that
 	// worker from ~/flows/ui — `bun x wrangler deploy` — and the domain
