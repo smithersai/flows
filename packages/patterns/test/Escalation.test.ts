@@ -1,5 +1,5 @@
 import { describe, it } from "@effect/vitest"
-import { Flow, Node } from "@smthrs/core"
+import { Flow, Graph, Node } from "@smthrs/core"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import { expect } from "vitest"
@@ -18,6 +18,14 @@ describe("Escalation", () => {
 
     expect(Flow.isFlow(escalation)).toBe(true)
     expect(escalation.body?.("request").ast._tag).toBe("AndThen")
+    const graph = Graph.build(escalation, "request")
+    const calls = Graph.nodes(graph).filter((node) => node.kind === "FlowCall")
+    expect(calls).toHaveLength(4)
+    expect(calls[1]?.keyMaterial.inputs).toContainEqual({
+      _tag: "Ref",
+      from: "root.andThen",
+      path: []
+    })
   })
 
   it("rejects an empty ladder", () => {

@@ -1,5 +1,5 @@
 import { describe, it } from "@effect/vitest"
-import { Flow, Node } from "@smthrs/core"
+import { Flow, Graph, Node } from "@smthrs/core"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import { expect } from "vitest"
@@ -18,6 +18,13 @@ describe("ReviewLoop", () => {
 
     expect(Flow.isFlow(loop)).toBe(true)
     expect(loop.body?.("draft").ast._tag).toBe("AndThen")
+    const graph = Graph.build(loop, "draft")
+    const calls = Graph.nodes(graph).filter((node) => node.kind === "FlowCall")
+    expect(calls).toHaveLength(4)
+    expect(calls[2]?.keyMaterial.inputs).toEqual(expect.arrayContaining([
+      { _tag: "Ref", from: "root.andThen", path: [] },
+      { _tag: "Ref", from: "root.then.andThen", path: [] }
+    ]))
   })
 
   it("rejects a zero-round loop", () => {

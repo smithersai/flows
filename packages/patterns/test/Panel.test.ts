@@ -1,5 +1,5 @@
 import { describe, it } from "@effect/vitest"
-import { Flow, Node } from "@smthrs/core"
+import { Flow, Graph, Node } from "@smthrs/core"
 import * as Schema from "effect/Schema"
 import { expect } from "vitest"
 import * as Panel from "../src/Panel.ts"
@@ -20,6 +20,14 @@ describe("Panel", () => {
 
     expect(Flow.isFlow(panel)).toBe(true)
     expect(panel.body?.("topic").ast._tag).toBe("AndThen")
+    const graph = Graph.build(panel, "topic")
+    expect(Graph.nodes(graph).filter((node) => node.kind === "FlowCall")).toHaveLength(3)
+    expect(Graph.nodes(graph).filter((node) => node.kind === "All")).toHaveLength(1)
+    expect(Graph.nodes(graph).find((node) => node.id === "root.then")?.keyMaterial.inputs).toContainEqual({
+      _tag: "Ref",
+      from: "root.andThen",
+      path: []
+    })
   })
 
   it("rejects an empty panel", () => {
