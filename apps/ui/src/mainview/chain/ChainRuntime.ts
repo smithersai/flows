@@ -561,12 +561,15 @@ export const createChainRuntime = (options: ChainRuntimeOptions): NativeAgent =>
 			emit({
 				runId: request.runId,
 				type: "done",
-				// A model that streamed no words is the product's one empty-answer
-				// state, whatever backend produced it — same sentence as the turn
-				// seam's (§3.9), so honesty copy does not fork per wire.
+				// The product's one sentence per failure shape, whatever backend
+				// produced it (§3.9, §14.1) — honesty copy does not fork per wire.
+				// "aborted" is the author stream dying mid-flight: EOF with no
+				// terminal frame, the client-side signature of a dropped wire.
 				error: cause.includes("no visible text")
 					? "Smithers Cloud returned an empty response."
-					: `The chain failed: ${cause}`,
+					: cause.includes('stopReason "aborted"')
+						? "The response stream ended before Smithers finished the turn."
+						: `The chain failed: ${cause}`,
 			});
 		});
 		return { status: "started" } as const;

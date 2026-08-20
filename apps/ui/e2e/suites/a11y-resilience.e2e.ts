@@ -1134,17 +1134,27 @@ export default defineSuite({
 					);
 
 					/*
-					 * A paced script, so the streaming half of E13.2 is observable: the
-					 * default script finishes in ~30ms and the pending bubble would be gone
-					 * before the first read.
+					 * A paced script, so the streaming half of E13.2 is observable: an
+					 * instant answer would drop the pending bubble before the first
+					 * read. On the chain wire the paced stream is the AUTHORED script
+					 * itself — the answer lands whole through say() once the author
+					 * finishes reading — so the script streams in eight slow chunks
+					 * and the pending state is what the reader sees in between.
 					 */
+					const keyboardAnswer = Array.from({ length: 8 }, (_unused, index) => `keyboard turn part ${index}`).join(" ");
+					const keyboardScript =
+						"```flow\n" +
+						`await ctx.call("say", { text: ${JSON.stringify(keyboardAnswer)} })\n` +
+						"return done({ ok: true })\n```";
+					const chunk = Math.ceil(keyboardScript.length / 8);
 					stack.chat.script({
+						raw: true,
 						gapMs: 220,
 						frames: [
 							...Array.from({ length: 8 }, (_unused, index) => ({
 								type: "delta",
 								kind: "text",
-								text: `keyboard turn part ${index} `,
+								text: keyboardScript.slice(index * chunk, (index + 1) * chunk),
 							})),
 							{ type: "done", reason: "stop" },
 						],
@@ -1432,13 +1442,32 @@ export default defineSuite({
 			// ------------------------------------------------------------------
 			let beforeDrop = "";
 			const dropShown = await section("E14.1 (dropped stream)", async () => {
-				stack.chat.script({
-					gapMs: 150,
-					frames: [
-						{ type: "delta", kind: "text", text: "partial answer before the drop" },
-						{ type: "delta", kind: "text", text: " and a little more" },
-					],
-				});
+				/*
+				 * On the chain wire the model's raw stream is the authored script,
+				 * not the transcript text — a user-visible partial exists only
+				 * once a say() landed. So the drop is staged where a real drop
+				 * bites: link 1 says the partial and asks for its successor; the
+				 * successor's author stream dies (EOF, no terminal frame).
+				 */
+				stack.chat.script([
+					{
+						raw: true,
+						frames: [
+							{
+								type: "delta",
+								kind: "text",
+								text: [
+									"```flow",
+									'await ctx.call("say", { text: "partial answer before the drop and a little more" })',
+									'return to(await ctx.call("author", { context: ["continue"] }))',
+									"```",
+								].join("\n"),
+							},
+							{ type: "done", reason: "stop" },
+						],
+					},
+					{ raw: true, gapMs: 150, frames: [{ type: "delta", kind: "text", text: "the wire dies he" }] },
+				]);
 				beforeDrop = await evaluate<string>(`document.querySelector('[data-slot="chat-transcript"]').innerText`);
 				await evaluate(`(() => { const input = document.querySelector(".smithers-composer textarea"); input.focus(); input.select(); return true; })()`);
 				await page.type("answer this before the wire dies");
