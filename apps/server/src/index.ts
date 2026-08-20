@@ -398,6 +398,33 @@ const json = (status: number, body: unknown): Response =>
 		headers: { "content-type": "application/json", ...ISOLATION_HEADERS },
 	});
 
+/*
+ * §14.3: the served DOCUMENT is what a deploy must be able to replace, so the
+ * server-rendered shell answers with max-age=0/must-revalidate and an ETag the
+ * browser can revalidate against — a stale index.html pinning purged chunks is
+ * how a deploy white-screens returning users. Static assets keep the policy
+ * the build's _headers states; this touches only the SSR'd HTML.
+ */
+const withDocumentCachePolicy = async (request: Request, response: Response): Promise<Response> => {
+	if (!(response.headers.get("content-type") ?? "").includes("text/html") || response.status !== 200) {
+		return response;
+	}
+	const body = await response.text();
+	const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(body));
+	const etag = `W/"${[...new Uint8Array(digest)]
+		.slice(0, 16)
+		.map((byte) => byte.toString(16).padStart(2, "0"))
+		.join("")}"`;
+	const headers = new Headers(response.headers);
+	headers.set("cache-control", "public, max-age=0, must-revalidate");
+	headers.set("etag", etag);
+	if (request.headers.get("if-none-match") === etag) {
+		headers.delete("content-length");
+		return new Response(null, { status: 304, headers });
+	}
+	return new Response(body, { status: response.status, statusText: response.statusText, headers });
+};
+
 const isStartTurnRequest = (value: unknown): value is StartAgentTurnRequest =>
 	typeof value === "object" &&
 	value !== null &&
@@ -2574,6 +2601,21 @@ export default {
 		// admin surface answers non-admins with, so nothing is enumerable.
 		if (url.pathname.startsWith("/api/")) return notFound();
 		/*
+		 * §14.3: a request reaching the Worker for /assets/* means the assets
+		 * binding already MISSED — the chunk was purged by a deploy. Answering
+		 * it with the SPA shell makes the browser parse HTML as a module and
+		 * white-screens the app until the user clears their cache by hand; the
+		 * honest answer is a plain 404 nothing may cache.
+		 */
+		if (url.pathname.startsWith("/assets/")) {
+			return withIsolationHeaders(
+				new Response("Not found", {
+					status: 404,
+					headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
+				}),
+			);
+		}
+		/*
 		 * Vite replaces this guarded import in the Cloudflare Start build. Bun's
 		 * unit tests and a plain Wrangler invocation retain the asset fallback,
 		 * so the API Worker remains importable without Start's virtual manifest.
@@ -2585,7 +2627,7 @@ export default {
 			const sessionRequest = new Request(new URL(AUTH_SESSION_PATH, request.url), request);
 			const sessionResponse = await probeAuthSession(sessionRequest, env);
 			const response = await start.fetch(await withStartSessionHandoff(request, sessionResponse));
-			return withIsolationHeaders(response);
+			return withIsolationHeaders(await withDocumentCachePolicy(request, response));
 		}
 		return withIsolationHeaders(await env.ASSETS.fetch(request));
 	},
