@@ -12,6 +12,7 @@ import { capability, envelope } from "./internal/Declaration.ts"
 import * as Exec from "./internal/Exec.ts"
 import { withinEnvelope } from "./internal/Paths.ts"
 import { MAX_SHELL_OUTPUT_BYTES, truncateBytes } from "./internal/Text.ts"
+import * as Probe from "./Probe.ts"
 import * as StdError from "./StdError.ts"
 
 /**
@@ -24,6 +25,10 @@ export const name = "bash"
 
 /**
  * Model-facing description of the bash flow.
+ *
+ * Capped at 200 characters and read every frame, which is why the
+ * invalid-probe contract is not restated here: the cell contract teaches it
+ * once, and a result that has one explains itself.
  *
  * @category descriptions
  * @since 0.1.0
@@ -85,6 +90,11 @@ export type Input = typeof Input.Type
 /**
  * Output schema for the bash flow.
  *
+ * `invalidProbe` is the one field that is not a fact about the process. It is
+ * present only when the exit code describes the command rather than the code
+ * the command was meant to check, which is the distinction an exit code alone
+ * cannot carry. See `Probe`.
+ *
  * @category schemas
  * @since 0.1.0
  */
@@ -95,7 +105,13 @@ export const Output = Schema.Struct({
   stdoutTruncated: Schema.Boolean.annotate({ description: "Whether stdout exceeded the capture limit" }),
   stderrTruncated: Schema.Boolean.annotate({ description: "Whether stderr exceeded the capture limit" }),
   stdoutDroppedBytes: Schema.Number.annotate({ description: "UTF-8 bytes omitted from the start of stdout" }),
-  stderrDroppedBytes: Schema.Number.annotate({ description: "UTF-8 bytes omitted from the start of stderr" })
+  stderrDroppedBytes: Schema.Number.annotate({ description: "UTF-8 bytes omitted from the start of stderr" }),
+  invalidProbe: Schema.optional(
+    Probe.InvalidProbe.annotate({
+      description:
+        "Present when the command named something that does not exist, so the non-zero exit is about the command and not about the code under test"
+    })
+  )
 })
 
 /**
@@ -335,6 +351,10 @@ export const run = Effect.fn("Bash.run")(function*(
   }).pipe(Effect.mapError((error) => hostError(input.command, error)))
   const stdout = truncateBytes(result.stdout, MAX_SHELL_OUTPUT_BYTES, { keep: "tail" })
   const stderr = truncateBytes(result.stderr, MAX_SHELL_OUTPUT_BYTES, { keep: "tail" })
+  // Classified against the text this call returns rather than the text it
+  // captured, so the evidence line is always quotable from what the caller can
+  // read. Truncation keeps the tail, which is where a runner prints its refusal.
+  const probe = Probe.classify({ exitCode: result.exitCode, stdout: stdout.text, stderr: stderr.text })
   return {
     exitCode: result.exitCode,
     stdout: stdout.text,
@@ -342,6 +362,7 @@ export const run = Effect.fn("Bash.run")(function*(
     stdoutTruncated: stdout.truncated,
     stderrTruncated: stderr.truncated,
     stdoutDroppedBytes: stdout.droppedBytes,
-    stderrDroppedBytes: stderr.droppedBytes
+    stderrDroppedBytes: stderr.droppedBytes,
+    ...(probe === undefined ? {} : { invalidProbe: probe })
   }
 })

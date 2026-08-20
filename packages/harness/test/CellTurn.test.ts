@@ -875,6 +875,91 @@ describe("CellTurn completion audit", () => {
     expect(of(events, "completion-audited")[0]?.detail).toContain("made no declared write")
   })
 
+  it("refuses a baseline failure that was the command's own, not the code's", async () => {
+    // The wave-3 django trap. The reproduction named a test method the class
+    // does not define, so it exited 1 before the edit and would exit 1 after
+    // it. An exit code alone cannot tell those apart; the flow's own
+    // `invalidProbe` can, and the audit refuses to treat one as a regression.
+    const { events } = await run({
+      state: regressionAudited(),
+      flows: [check, auditEditor],
+      script: [
+        emits(
+          `await ctx.call("bash", { command: "pytest -q tests/test_admin.py::Basic::test_absent" })
+           await ctx.call("edit", { path: "src/bug.py", text: "fixed" })
+           return { intent: "complete", state: {}, output: "fixed it" }`
+        ),
+        emits(
+          `return {
+             intent: "complete", state: {}, output: "fixed it",
+             verify: { flow: "bash", input: { command: "pytest -q tests/test_admin.py::Basic::test_absent" } }
+           }`
+        ),
+        emits(`return { intent: "continue", state: {}, context: [] }`),
+        emits(`return { intent: "continue", state: {}, context: [] }`)
+      ],
+      calls: [
+        {
+          _tag: "Success",
+          value: {
+            exitCode: 1,
+            stdout: "",
+            invalidProbe: {
+              reason: "unknown-test",
+              evidence: "AttributeError: type object 'Basic' has no attribute 'test_absent'",
+              message: "This command never ran a check: the test runner could not find the test that was named."
+            }
+          }
+        },
+        { _tag: "Success", value: { edited: true } },
+        { _tag: "Success", value: { exitCode: 0, stdout: "1 passed" } }
+      ]
+    })
+
+    expect(of(events, "completion-audited")[0]).toMatchObject({ accepted: false })
+    expect(of(events, "completion-audited")[0]?.detail).toContain("never ran on the baseline")
+  })
+
+  it("refuses a re-run that reports it never ran the check at all", async () => {
+    const { events } = await run({
+      state: audited(),
+      flows: [check],
+      script: [
+        emits(
+          `await ctx.call("bash", { command: "pytest -q" })
+           return { intent: "complete", state: {}, output: "done" }`
+        ),
+        emits(
+          `return {
+             intent: "complete", state: {}, output: "done",
+             verify: { flow: "bash", input: { command: "pytest -q" } }
+           }`
+        ),
+        emits(`return { intent: "continue", state: {}, context: [] }`),
+        emits(`return { intent: "continue", state: {}, context: [] }`)
+      ],
+      calls: [
+        { _tag: "Success", value: { exitCode: 1, stdout: "1 failed" } },
+        {
+          _tag: "Success",
+          // Exit 0 on a probe that ran nothing is the worst case: it would sail
+          // through the exit-code check and resolve the run on no evidence.
+          value: {
+            exitCode: 0,
+            invalidProbe: {
+              reason: "unknown-path",
+              evidence: "ERROR: file or directory not found: tests/absent.py",
+              message: "This command never ran a check: the file or directory that was named does not exist."
+            }
+          }
+        }
+      ]
+    })
+
+    expect(of(events, "completion-audited")[0]).toMatchObject({ accepted: false })
+    expect(of(events, "completion-audited")[0]?.detail).toContain("did not run a check (unknown-path)")
+  })
+
   it("refuses a completion citing a call the run never made", async () => {
     const { engine, events } = await run({
       state: audited(),
@@ -1017,6 +1102,142 @@ const readCells = (count: number): ReadonlyArray<ScriptedModel.Step> =>
 
 const successes = (count: number): ReadonlyArray<ScriptedEngine.CallStep> =>
   Array.from({ length: count }, () => ({ _tag: "Success", value: ["alpha.md"] }) as const)
+
+describe("CellTurn invalid probes", () => {
+  const brokenCheck = {
+    _tag: "Success",
+    value: {
+      exitCode: 1,
+      stdout: "",
+      invalidProbe: {
+        reason: "unknown-test",
+        evidence: "AttributeError: type object 'Basic' has no attribute 'test_absent'",
+        message: "This command never ran a check: the test runner could not find the test that was named."
+      }
+    }
+  } as const
+
+  const probing = (summary: string) =>
+    emits(
+      `await ctx.call("bash", { command: "pytest -q tests/test_admin.py::Basic::test_absent" })
+       return { intent: "continue", state: {}, context: [{ role: "user", text: ${JSON.stringify(summary)} }] }`
+    )
+
+  it("contradicts a cell that read a broken probe as the bug reproducing", async () => {
+    // The cell chooses the context its successor sees, so a wrong reading
+    // travels forward unopposed unless the controller states the fact itself.
+    const { model } = await run({
+      state: state({ maxFrames: 3, envelope: ["proc:spawn:*"] }),
+      flows: [check],
+      script: [
+        probing("The test still fails, so the bug is unfixed."),
+        emits(`return { intent: "complete", state: {}, output: "done" }`)
+      ],
+      calls: [brokenCheck]
+    })
+
+    const next = JSON.stringify(model.recorder.requests[1]?.messages)
+    expect(next).toContain("The test still fails, so the bug is unfixed.")
+    expect(next).toContain("Invalid probe")
+    expect(next).toContain("unknown-test")
+    expect(next).toContain("reads identically on a broken tree and on a fixed one")
+  })
+
+  it("counts every broken probe in the frame, not just the first", async () => {
+    const { model } = await run({
+      state: state({ maxFrames: 3, envelope: ["proc:spawn:*"] }),
+      flows: [check],
+      script: [
+        emits(
+          `await ctx.call("bash", { command: "pytest -q tests/a.py::Basic::test_absent" })
+           await ctx.call("bash", { command: "pytest -q tests/b.py::Basic::test_absent" })
+           return { intent: "continue", state: {}, context: [{ role: "user", text: "both fail" }] }`
+        ),
+        emits(`return { intent: "complete", state: {}, output: "done" }`)
+      ],
+      calls: [brokenCheck, brokenCheck]
+    })
+
+    expect(JSON.stringify(model.recorder.requests[1]?.messages)).toContain("Invalid probe — 2 calls")
+  })
+
+  it("ignores a declaration that is not the shape the contract states", async () => {
+    // The key is a wire contract with whatever flow the host bound, so a
+    // result that carries something else under it is read as an ordinary
+    // result rather than trusted or refused.
+    const { model } = await run({
+      state: state({ maxFrames: 3, envelope: ["proc:spawn:*"] }),
+      flows: [check],
+      script: [
+        probing("ran the check"),
+        emits(
+          `await ctx.call("bash", { command: "pytest -q tests/test_admin.py::Basic::test_absent" })
+           return { intent: "continue", state: {}, context: [{ role: "user", text: "again" }] }`
+        ),
+        emits(`return { intent: "complete", state: {}, output: "done" }`)
+      ],
+      calls: [
+        { _tag: "Success", value: { exitCode: 1, invalidProbe: "unknown-test" } },
+        { _tag: "Success", value: { exitCode: 1, invalidProbe: { reason: "unknown-test", message: 7 } } }
+      ]
+    })
+
+    expect(JSON.stringify(model.recorder.requests[1]?.messages)).not.toContain("Invalid probe")
+    expect(JSON.stringify(model.recorder.requests[2]?.messages)).not.toContain("Invalid probe")
+  })
+
+  it("says nothing when the frame's failing check actually ran", async () => {
+    const { model } = await run({
+      state: state({ maxFrames: 3, envelope: ["proc:spawn:*"] }),
+      flows: [check],
+      script: [
+        probing("One test failed, as expected."),
+        emits(`return { intent: "complete", state: {}, output: "done" }`)
+      ],
+      calls: [{ _tag: "Success", value: { exitCode: 1, stdout: "1 failed" } }]
+    })
+
+    expect(JSON.stringify(model.recorder.requests[1]?.messages)).not.toContain("Invalid probe")
+  })
+
+  it("carries the notice out through a frame that threw before returning a transition", async () => {
+    const { model } = await run({
+      state: state({ maxFrames: 3, envelope: ["proc:spawn:*"] }),
+      flows: [check],
+      script: [
+        emits(
+          `await ctx.call("bash", { command: "pytest -q tests/test_admin.py::Basic::test_absent" })
+           throw new Error("half-written cell")`
+        ),
+        emits(`return { intent: "complete", state: {}, output: "done" }`)
+      ],
+      calls: [brokenCheck]
+    })
+
+    const next = JSON.stringify(model.recorder.requests[1]?.messages)
+    expect(next).toContain("half-written cell")
+    expect(next).toContain("Invalid probe")
+  })
+
+  it("names the broken probe on the completion bounce, next to the audit demand", async () => {
+    const { model } = await run({
+      state: audited({ maxFrames: 3 }),
+      flows: [check],
+      script: [
+        emits(
+          `await ctx.call("bash", { command: "pytest -q tests/test_admin.py::Basic::test_absent" })
+           return { intent: "complete", state: {}, output: "the reproduction still fails" }`
+        ),
+        emits(`return { intent: "continue", state: {}, context: [] }`)
+      ],
+      calls: [brokenCheck]
+    })
+
+    const next = JSON.stringify(model.recorder.requests[1]?.messages)
+    expect(next).toContain("Completion review")
+    expect(next).toContain("Invalid probe")
+  })
+})
 
 describe("CellTurn read-only cap", () => {
   it("demands a write or a justification once the cap is reached", async () => {

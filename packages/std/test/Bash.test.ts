@@ -279,4 +279,59 @@ describe("Bash", () => {
       writes: []
     })
   })
+
+  it("separates a probe that never ran from a check that failed", async () => {
+    // The django wave-3 result, at the boundary the model reads: exit 1, and
+    // nothing whatsoever about the code under test.
+    const broken = await execute(Effect.provide(
+      Bash.run({ mode: "unhermetic", command: "python -m pytest tests/admin_views" }),
+      layer({
+        commands: {
+          "python -m pytest tests/admin_views": {
+            stderr:
+              "AttributeError: type object 'AdminViewBasicTest' has no attribute 'test_catch_all_view_append_slash'",
+            exitCode: 1
+          }
+        }
+      })
+    ))
+    expect(broken.exitCode).toBe(1)
+    expect(broken.invalidProbe).toMatchObject({ reason: "unknown-test" })
+    expect(broken.invalidProbe?.evidence).toContain("test_catch_all_view_append_slash")
+
+    // The same exit code, from a check that actually ran.
+    const ran = await execute(Effect.provide(
+      Bash.run({ mode: "unhermetic", command: "python -m pytest tests/admin_views" }),
+      layer({
+        commands: {
+          "python -m pytest tests/admin_views": { stdout: "1 failed, 412 passed", exitCode: 1 }
+        }
+      })
+    ))
+    expect(ran.exitCode).toBe(1)
+    expect(ran.invalidProbe).toBeUndefined()
+  })
+
+  it("omits the invalid-probe key entirely from an ordinary result", async () => {
+    const result = await execute(Effect.provide(
+      Bash.run({ mode: "unhermetic", command: "true" }),
+      layer({ commands: { true: { stdout: "", exitCode: 0 } } })
+    ))
+
+    expect(Object.hasOwn(result, "invalidProbe")).toBe(false)
+  })
+
+  it("classifies against the truncated text the caller receives", async () => {
+    // Truncation keeps the tail, which is where a runner prints its refusal, so
+    // the evidence line is always quotable from the returned output.
+    const stderr = `${"padding\n".repeat(6_000)}ERROR: file or directory not found: tests/absent.py`
+    const result = await execute(Effect.provide(
+      Bash.run({ mode: "unhermetic", command: "pytest tests/absent.py" }),
+      layer({ commands: { "pytest tests/absent.py": { stderr, exitCode: 4 } } })
+    ))
+
+    expect(result.stderrTruncated).toBe(true)
+    expect(result.invalidProbe?.reason).toBe("unknown-path")
+    expect(result.stderr).toContain(result.invalidProbe?.evidence ?? "unreachable")
+  })
 })

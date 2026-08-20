@@ -201,6 +201,16 @@ export class State extends Schema.Class<State>("flows/harness/CellTurn/State")({
   verificationHistory: Schema.Array(Schema.Struct({
     signature: Schema.String,
     passed: Schema.Boolean,
+    /**
+     * Whether the call ran a check at all.
+     *
+     * A command that named a test, path, module, environment, or program that
+     * does not exist fails without reaching any code. It is recorded so the
+     * regression audit can refuse it: without this field an invalid probe is
+     * a `passed: false` entry like any other, and citing one as the baseline
+     * failure proves nothing that a correct fix would change.
+     */
+    valid: Schema.Boolean,
     mutationEpoch: NonNegativeSafeInt
   })).pipe(
     Schema.withConstructorDefault(Effect.succeed([])),
@@ -505,7 +515,7 @@ const clip = (text: string, width: number): string => text.length > width ? `${t
  * completion is bounced, and again whenever a declared check does not hold up.
  */
 const verifyContract =
-  `Declare the check as data, not prose: { intent: "complete", state, output, verify: { flow: "<the flow you called>", input: <the identical input> } }. The harness calls that flow with that input itself and accepts the completion only if it passes. A missing verify block, a flow this run never called with that exact input, a failed call, or a non-zero exit code is a refusal.`
+  `Declare the check as data, not prose: { intent: "complete", state, output, verify: { flow: "<the flow you called>", input: <the identical input> } }. The harness calls that flow with that input itself and accepts the completion only if it passes. A missing verify block, a flow this run never called with that exact input, a failed call, a non-zero exit code, or a command that never ran the check it named is a refusal.`
 
 const completionAudit = (claimed: string): string =>
   `Completion review — this run does not accept a completion on its first attempt, and it does not accept quoted output as evidence. Re-run the check that proves the task is done (for a code change, the project's own test or build command, run AFTER your edit), then return complete again. ${verifyContract} Your claimed output was: ${
@@ -514,6 +524,33 @@ const completionAudit = (claimed: string): string =>
 
 const verificationRefused = (detail: string): string =>
   `Completion refused — the check you declared was not accepted. ${detail} ${verifyContract} Fix the work, run the check yourself so the harness has a call to re-run, and complete again citing it.`
+
+/**
+ * States, unambiguously, that a call this frame failed about itself.
+ *
+ * The whole defect this closes is that `exitCode: 1` reads the same whether the
+ * bug reproduced or the command named a test that does not exist. The flow that
+ * ran the command is the only party that can tell, so it says so in its result;
+ * this turns that into a sentence the next frame cannot summarise away.
+ */
+const invalidProbeNotice = (
+  calls: ReadonlyArray<{
+    readonly flow: string
+    readonly invalidProbe: { readonly reason: string; readonly message: string } | undefined
+  }>
+): string | undefined => {
+  const lines = calls.flatMap((call) =>
+    call.invalidProbe === undefined
+      ? []
+      : [`- ${call.flow} (${call.invalidProbe.reason}): ${call.invalidProbe.message}`]
+  )
+  if (lines.length === 0) return undefined
+  return `Invalid probe — ${lines.length} call${
+    lines.length === 1 ? "" : "s"
+  } this frame failed about the command, not about the code:\n${
+    lines.join("\n")
+  }\nThat result is not a reproduction and is not a regression: it reads identically on a broken tree and on a fixed one, so it can neither prove the bug nor prove the repair. Repair the command before editing anything — find the real names first — and do not cite it in verify.`
+}
 
 const readOnlyDemand = (cap: number, frames: number): string =>
   `Read-only discipline — ${frames} consecutive frames have made no call that declares a write, and this run's read-only budget is ${cap}. The next cell must do one of two things: call a flow that writes (an edit, a write, a patch — reading, searching, and running read-only commands do not count), or return { intent: "continue", state, context, justification: "<why an edit is still impossible, and the exact call that will make one possible>" }. A justification is recorded and buys ${cap} quiet frames; it does not reset this counter. At ${
@@ -573,6 +610,29 @@ const exitCodeOf = (value: Schema.Json): number | undefined => {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return undefined
   const code = (value as Record<string, unknown>).exitCode
   return typeof code === "number" ? code : undefined
+}
+
+/**
+ * The reserved key a flow reports an invalid probe under.
+ *
+ * The loop reads exactly two conventions off an otherwise opaque call result:
+ * the `exitCode` a command reported, and this. Neither is a shared type — the
+ * controller must not depend on the tool library — so both are documented wire
+ * keys. `@smthrs/std/Probe` is the producing half and owns the taxonomy; the
+ * controller only has to know that a result carrying this key is a result whose
+ * failure was about the command.
+ */
+const invalidProbeKey = "invalidProbe"
+
+/** What a settled call declared about whether it ran a check at all. */
+const invalidProbeOf = (
+  value: Schema.Json
+): { readonly reason: string; readonly message: string } | undefined => {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return undefined
+  const declared = (value as Record<string, unknown>)[invalidProbeKey]
+  if (declared === null || typeof declared !== "object" || Array.isArray(declared)) return undefined
+  const { message, reason } = declared as Record<string, unknown>
+  return typeof reason === "string" && typeof message === "string" ? { reason, message } : undefined
 }
 
 /** What the controller concluded about one completion claim. */
@@ -694,14 +754,22 @@ const verifyCompletion = (options: {
     }
     if (options.requireRegressionEvidence) {
       const signature = callSignature(verification.flow, verification.input)
+      // A baseline failure only counts if it was a failure of the code. A
+      // command that never found what it named fails identically on a fixed
+      // tree, so accepting one would let the audit be satisfied by a probe
+      // that can never change.
       const failedOnBaseline = options.verificationHistory.some(
-        (entry) => entry.signature === signature && !entry.passed && entry.mutationEpoch === 0
+        (entry) => entry.signature === signature && !entry.passed && entry.valid && entry.mutationEpoch === 0
       )
       if (!failedOnBaseline) {
+        const brokenOnBaseline = options.verificationHistory.some(
+          (entry) => entry.signature === signature && !entry.valid && entry.mutationEpoch === 0
+        )
         return {
           accepted: false,
-          detail:
-            "The identical check did not fail before the first write and cannot prove the bug changed. Run a targeted reproduction on the baseline, edit, then cite that exact command."
+          detail: brokenOnBaseline
+            ? "The identical check never ran on the baseline: it named something that does not exist, so its failure was the command's and not the code's. Repair the command, watch it fail for the right reason, edit, then cite that exact command."
+            : "The identical check did not fail before the first write and cannot prove the bug changed. Run a targeted reproduction on the baseline, edit, then cite that exact command."
         }
       }
       if (options.mutationEpoch === 0) {
@@ -726,6 +794,15 @@ const verifyCompletion = (options: {
       }
     }
     const rendered = clip(JSON.stringify(result.value) ?? "null", 600)
+    // Checked before the exit code, because an invalid probe's exit code is the
+    // one piece of the result that means nothing.
+    const probe = invalidProbeOf(result.value)
+    if (probe !== undefined) {
+      return {
+        accepted: false,
+        detail: `Re-running ${verification.flow} did not run a check (${probe.reason}): ${clip(probe.message, 400)}`
+      }
+    }
     const exitCode = exitCodeOf(result.value)
     if (exitCode !== undefined && exitCode !== 0) {
       return { accepted: false, detail: `Re-running ${verification.flow} exited ${exitCode}: ${rendered}` }
@@ -944,6 +1021,8 @@ const frame = (
       /** The signature a later completion may cite this call by. */
       readonly signature: string
       readonly passed: boolean
+      /** What the flow said about its own failure, when it said it ran nothing. */
+      readonly invalidProbe: { readonly reason: string; readonly message: string } | undefined
       readonly mutationEpoch: number
     }> = []
     let mutationEpoch = state.mutationEpoch
@@ -958,6 +1037,7 @@ const frame = (
             const doesMutate = descriptor !== undefined && mutating(descriptor, invocation.input)
             if (doesMutate) mutationEpoch++
             const exitCode = result.outcome === "success" ? exitCodeOf(result.value) : undefined
+            const probe = result.outcome === "success" ? invalidProbeOf(result.value) : undefined
             observedCalls.push({
               flow: invocation.flow,
               ok: result.outcome === "success",
@@ -965,6 +1045,7 @@ const frame = (
               mutates: doesMutate,
               signature: callSignature(invocation.flow, invocation.input),
               passed: result.outcome === "success" && (exitCode === undefined || exitCode === 0),
+              invalidProbe: probe,
               mutationEpoch
             })
           })
@@ -993,9 +1074,15 @@ const frame = (
       ...observedCalls.map((call) => ({
         signature: call.signature,
         passed: call.passed,
+        valid: call.invalidProbe === undefined,
         mutationEpoch: call.mutationEpoch
       }))
     ].slice(-executedCallsRemembered)
+    // The frame's own broken probes, stated once and delivered through every
+    // exit. A cell chooses the context its successor sees, so a frame that
+    // summarised "the test still fails" would otherwise carry the wrong belief
+    // forward with nothing to contradict it.
+    const probeNotice = invalidProbeNotice(observedCalls)
 
     if (outcome._tag !== "settled") {
       if (state.pendingReadOnlyDemand !== undefined) {
@@ -1014,9 +1101,10 @@ const frame = (
         : `\nCalls this cell already completed (their results are durable; use them instead of redoing the work):\n${
           observedCalls.map((call) => `- ${call.flow} -> ${call.ok ? "ok" : "FAILED"}: ${call.summary}`).join("\n")
         }`
+      const alert = probeNotice === undefined ? "" : `\n\n${probeNotice}`
       const note = outcome._tag === "raised"
-        ? `The cell threw ${outcome.name}: ${outcome.message}. Emit a corrected cell.${salvage}`
-        : `${outcome.message}${salvage}`
+        ? `The cell threw ${outcome.name}: ${outcome.message}. Emit a corrected cell.${salvage}${alert}`
+        : `${outcome.message}${salvage}${alert}`
       // A frame that never settled a transition does not advance the
       // read-only counter — it produced no decision to judge — but an edit it
       // did land before throwing still clears it.
@@ -1126,7 +1214,13 @@ const frame = (
           _tag: "Continue",
           state: advance(state, {
             frame: state.frame + 1,
-            contextWindow: observed(state, settled.message, completionAudit(transition.output)),
+            contextWindow: observed(
+              state,
+              settled.message,
+              probeNotice === undefined
+                ? completionAudit(transition.output)
+                : `${completionAudit(transition.output)}\n\n${probeNotice}`
+            ),
             agentState: transition.state,
             completionChallenged: true,
             readOnlyFrames,
@@ -1281,7 +1375,8 @@ const frame = (
     const demand = demanded && !justified
       ? [ModelRequest.Message.user(readOnlyDemand(cap, readOnlyFrames))]
       : []
-    const context = projected(state, transition.context, [...drained.inserts, ...demand])
+    const alerts = probeNotice === undefined ? [] : [ModelRequest.Message.user(probeNotice)]
+    const context = projected(state, transition.context, [...drained.inserts, ...alerts, ...demand])
     return {
       _tag: "Continue",
       state: advance(state, {

@@ -56,6 +56,12 @@ export * as NativeSearch from "./NativeSearch.ts"
 export * as Bash from "./Bash.ts"
 
 /**
+ * @category classification
+ * @since 0.1.0
+ */
+export * as Probe from "./Probe.ts"
+
+/**
  * @category flows
  * @since 0.1.0
  */
