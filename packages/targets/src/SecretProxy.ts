@@ -51,7 +51,12 @@ export class SecretUnavailable extends Error {
   }
 }
 
-/** Parses and validates an HTTP CONNECT authority. */
+/**
+ * Parses and validates an HTTP CONNECT authority.
+ *
+ * @category parsing
+ * @since 0.1.0
+ */
 export const parseConnectAuthority = (
   authority: string
 ): { readonly host: string; readonly port: number } | undefined => {

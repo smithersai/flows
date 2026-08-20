@@ -267,7 +267,12 @@ export const Rust = (options: {
  */
 export const pathShape = /^[A-Za-z0-9_./*-][A-Za-z0-9_./*-]*$/
 
-/** Validates one declared path, or throws naming what rejected it. */
+/**
+ * Validates one declared path, or throws naming what rejected it.
+ *
+ * @category validation
+ * @since 0.1.0
+ */
 export const validatePath = (value: string, what: string): string => {
   if (!pathShape.test(value) || value.includes("..")) {
     throw new Error(`CiToolchain: ${JSON.stringify(value)} is not a usable ${what}`)
