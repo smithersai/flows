@@ -1,9 +1,10 @@
 # GithubCiGen
 
 Generates the GitHub Actions CI workflow from declared jobs. The workflow is a
-generated root file on the same terms as `pnpm-workspace.yaml` and
-`tsconfig.json`: BUILD.ts is the only description of the pipeline, `write`
-renders it, and `check` — the default — fails on drift.
+generated root file on the same terms as `tsconfig.json`: BUILD.ts is the only
+description of the pipeline, `write` renders it, and `check` — the default —
+fails on drift. By contrast, `pnpm-workspace.yaml` is a hand-written planner
+input because pnpm may add settings outside the target schema.
 
 **A job declares what it requires and which targets it runs. Nothing in the
 declaration is a command.** There is no `run`, no `uses`, no `command`, and no

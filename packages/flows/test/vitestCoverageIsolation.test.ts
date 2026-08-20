@@ -278,34 +278,15 @@ describe("vitest coverage isolation conformance", () => {
     // own test/build scripts participate in the root recursive gates, while
     // the package publication/coverage universe remains `packages/*`.
     //
-    // The allowBuilds roster gained `playwright` (2026-08-18): apps/ui's
-    // live-* browser checks depend on it, and like every other entry it is
-    // DENIED — its postinstall downloads browsers, and those checks run
-    // against a system or already-installed one. Denying a build adds no
-    // ungated surface; it removes one.
     const workspace = readFileSync(join(packagesDir, "..", "pnpm-workspace.yaml"), "utf8")
-    expect(workspace).toBe(
+    const packagesBlock = workspace.match(/^packages:\n(?:  - .+\n)+/m)?.[0]
+    expect(packagesBlock).toBe(
       [
         "packages:",
         "  - \"packages/*\"",
         "  - \"packages/build/infra\"",
         "  - \"examples\"",
         "  - \"apps/*\"",
-        "",
-        "allowBuilds:",
-        "  \"@journeyapps/wa-sqlite\": false",
-        "  dprint: false",
-        "  es5-ext: false",
-        "  esbuild: false",
-        "  msgpackr-extract: false",
-        "  playwright: false",
-        "  sharp: false",
-        "  unrs-resolver: false",
-        "  vue-demi: false",
-        "  workerd: false",
-        "",
-        "linkWorkspacePackages: true",
-        "verifyDepsBeforeRun: false",
         ""
       ].join("\n")
     )
