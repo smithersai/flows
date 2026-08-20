@@ -12,7 +12,7 @@
  */
 import type { Card } from "../AppState";
 import { resolveTargetRepo } from "../RepoContext";
-import { readErrorMessage } from "./SeamContext";
+import { notReadyYet, readErrorMessage } from "./SeamContext";
 import type { SeamContext } from "./SeamContext";
 
 export interface FilesSeam {
@@ -121,7 +121,7 @@ export const createFilesSeam = (ctx: SeamContext): FilesSeam => {
 	const explain404 = async (response: Response, repo: string, fallback: string): Promise<string> => {
 		const message = await readErrorMessage(response, fallback);
 		if (/path not found/i.test(message)) return message;
-		return `${repo} isn't ready yet — try again shortly`;
+		return notReadyYet(repo);
 	};
 
 	return {

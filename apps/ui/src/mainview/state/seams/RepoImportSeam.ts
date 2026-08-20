@@ -12,6 +12,19 @@ import { readErrorMessage } from "./SeamContext";
 
 export interface RepoImportSeam {
 	readonly importRepository: (repo?: string, options?: RepoImportOptions) => Promise<string | void>;
+	/**
+	 * Resolves when the repository's mirror stops being in flight: true the
+	 * moment the import reaches `done`, false when it fails or stops being
+	 * trackable.
+	 *
+	 * A silent import renders nothing (directive 5), so the frame that started
+	 * one has no other way to learn the mirror landed. It holds this and re-runs
+	 * the read that degraded on readiness. With no import recorded for the
+	 * repository the promise simply never settles — the caller is an
+	 * already-detached retry, and inventing a verdict it has no evidence for
+	 * would be worse than waiting.
+	 */
+	readonly importSettled: (repo: string) => Promise<boolean>;
 }
 
 /**
@@ -100,6 +113,38 @@ export const createRepoImportSeam = (ctx: SeamContext): RepoImportSeam => {
 	const epochs = new Map<string, number>();
 
 	/*
+	 * Readiness waiters, and the terminal verdict each repository's last import
+	 * reached. Both are settled by the one `upsert` below, so the card path and
+	 * the silent collection path answer a waiter identically, and a verdict
+	 * already reached is answered without waiting for an import that is over.
+	 */
+	const waiters = new Map<string, Array<(ready: boolean) => void>>();
+	const verdicts = new Map<string, boolean>();
+
+	const settle = (repo: string, ready: boolean): void => {
+		verdicts.set(repo, ready);
+		const pending = waiters.get(repo);
+		if (pending === undefined) return;
+		waiters.delete(repo);
+		for (const resolve of pending) resolve(ready);
+	};
+
+	const importSettled = (repo: string): Promise<boolean> => {
+		const verdict = verdicts.get(repo);
+		if (verdict !== undefined) return Promise.resolve(verdict);
+		const background = ctx.store.collections.repoImports.get(repo);
+		const card = ctx.store.collections.cards.get(`repo-import-${repo}`);
+		const phase = background?.phase ?? (card?.kind === "repo-import" ? card.payload.phase : undefined);
+		if (phase === "done") return Promise.resolve(true);
+		if (phase === "failed") return Promise.resolve(false);
+		return new Promise<boolean>((resolve) => {
+			const pending = waiters.get(repo);
+			if (pending === undefined) waiters.set(repo, [resolve]);
+			else pending.push(resolve);
+		});
+	};
+
+	/*
 	 * One progress writer, two destinations. A silent import writes readiness to
 	 * the `repoImports` collection — real state, in the store, rendered by
 	 * nothing. An explicit import writes the card it always wrote.
@@ -113,6 +158,14 @@ export const createRepoImportSeam = (ctx: SeamContext): RepoImportSeam => {
 		detail: string | null,
 		silent: boolean,
 	): void => {
+		/*
+		 * Readiness is a fact about the mirror, not about how the import is
+		 * presented, so both destinations settle the waiters the same way. A
+		 * lost stream is a `running` phase nothing will follow up — the waiter
+		 * is told the read cannot be retried rather than left hanging.
+		 */
+		if (phase === "done") settle(repo, true);
+		else if (phase === "failed" || detail === REPO_IMPORT_LOST_STREAM_DETAIL) settle(repo, false);
 		if (silent) {
 			const state: RepoImportState = { id: repo, jobId, phase, detail, updatedAt: Date.now() };
 			ctx.dispatch({ type: "repo.import.progress", actor: ctx.actor(), state });
@@ -202,6 +255,8 @@ export const createRepoImportSeam = (ctx: SeamContext): RepoImportSeam => {
 		const createdAt = Date.now();
 		const epoch = (epochs.get(repo) ?? 0) + 1;
 		epochs.set(repo, epoch);
+		// A fresh run replaces the last run's verdict: this one is in flight again.
+		verdicts.delete(repo);
 		upsert(repo, ordinal, createdAt, null, "starting", null, silent);
 
 		let response: Response;
@@ -253,5 +308,5 @@ export const createRepoImportSeam = (ctx: SeamContext): RepoImportSeam => {
 		return undefined;
 	};
 
-	return { importRepository };
+	return { importRepository, importSettled };
 };

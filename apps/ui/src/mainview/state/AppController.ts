@@ -60,6 +60,7 @@ import type { RepoCandidate } from "./seams/RepoCatalogSeam";
 import { createRepoImportSeam } from "./seams/RepoImportSeam";
 import type { RepoImportSeam } from "./seams/RepoImportSeam";
 import type { SeamContext } from "./seams/SeamContext";
+import { isNotReadyYet } from "./seams/SeamContext";
 import {
 	impossibleAskOf,
 	renderedAskTurnText,
@@ -2844,11 +2845,43 @@ export const createAppController = (
 	 * Flows tab, which used to resolve the watched set instead and so could show
 	 * a different repository's workflows than the one on screen.
 	 */
-	const readRepositoryTab = (tab: Session["repositoryTab"], repo: string): void => {
-		if (tab === "files") void filesSeam.listFiles("", repo);
-		if (tab === "issues") void issuesSeam.listIssues("open", repo);
-		if (tab === "pulls") void landingsSeam.listLandings(repo);
-		if (tab === "flows") void listWorkspaceWorkflows(repo);
+	const readRepositoryTab = (
+		tab: Session["repositoryTab"],
+		repo: string,
+	): Promise<string | void | { readonly value: string }> => {
+		if (tab === "issues") return issuesSeam.listIssues("open", repo);
+		if (tab === "pulls") return landingsSeam.listLandings(repo);
+		if (tab === "flows") return listWorkspaceWorkflows(repo);
+		return filesSeam.listFiles("", repo);
+	};
+
+	/*
+	 * The silent import and the frame's first read race each other.
+	 *
+	 * A repository the account has not mirrored yet answers a Files read with
+	 * `notReadyYet` — the whole `/api/repos/{o}/{r}/**` namespace 404s until the
+	 * import lands. Directive 5 made that import invisible, so nothing tells the
+	 * user to try again: without this, a first open sat empty until they retried
+	 * by hand, which is the implementation detail leaking out as broken browsing.
+	 *
+	 * So the frame reads now and — ONLY when that read degraded on readiness —
+	 * reads again the moment the import reports ready. One retry, driven by the
+	 * import's own outcome rather than a timer, and only into a frame still
+	 * showing the repository that asked for it: the user may have changed tabs,
+	 * opened another repository, or closed the pane while the mirror cloned.
+	 * The re-read resolves the tab at call time for the same reason.
+	 */
+	const readWithImport = async (
+		repo: string,
+		read: () => Promise<string | void | { readonly value: string }>,
+	): Promise<void> => {
+		void repoImportSeam.importRepository(repo, { silent: true });
+		if (!isNotReadyYet(await read())) return;
+		if (!(await repoImportSeam.importSettled(repo))) return;
+		const session = store.session();
+		if (session.selectedRepository !== repo) return;
+		if (session.surface !== "github" && session.surface !== "files") return;
+		void read();
 	};
 
 	const openRepository = (repo: string): void => {
@@ -2858,17 +2891,16 @@ export const createAppController = (
 		// the job runs, its readiness is kept, and NOTHING is rendered for it —
 		// the user is browsing GitHub, not watching a mirror job they never asked
 		// for. Reads retain their existing honest degradation meanwhile.
-		void repoImportSeam.importRepository(repo, { silent: true });
 		// Opening a repository is asking to see it: the section on screen reads
 		// itself rather than waiting for the user to press its own tab.
-		readRepositoryTab(store.session().repositoryTab, repo);
+		void readWithImport(repo, () => readRepositoryTab(store.session().repositoryTab, repo));
 	};
 
 	const selectRepositoryTab = (tab: Session["repositoryTab"]): void => {
 		store.dispatch({ type: "repository.tab.changed", actor: commandActor, tab });
 		const repo = store.session().selectedRepository;
 		if (repo === null) return;
-		readRepositoryTab(tab, repo);
+		void readWithImport(repo, () => readRepositoryTab(store.session().repositoryTab, repo));
 	};
 
 	/*
@@ -2900,8 +2932,7 @@ export const createAppController = (
 		void loadRepoCatalog();
 		if (repo === null) return;
 		/* Directive 5 again: the Files frame imports in the background, silently. */
-		void repoImportSeam.importRepository(repo, { silent: true });
-		void filesSeam.listFiles("", repo);
+		void readWithImport(repo, () => filesSeam.listFiles("", repo));
 	};
 
 	const maximizeCard = (id: string): string | void => {
