@@ -20,7 +20,7 @@
  * inside an ordinary flow, with a declared output schema the answer must
  * satisfy. {@link runAgent} drives the `Agent` service directly inside a real
  * flow execution, which is how a scenario reaches an option `AgentAction` does
- * not forward, such as the completion audit.
+ * not forward, such as `readOnlyCap`.
  *
  * Imports reach the workspace packages by relative path because the repository
  * root does not depend on `@smthrs/agent`; pnpm resolves each package's
