@@ -445,10 +445,24 @@
 	margin-top: 8px;
 }
 
+/*
+ * Top-right, under the chrome that is already there (will, 2026-08-19: "the
+ * toasts are showing up in the bottom right corner of screen when they should
+ * be in top right corner of screen").
+ *
+ * The offset is load-bearing, not decoration. Two things own that corner before
+ * a toast does: `.corner-chrome` above (top 12px, 30px tall) and, whenever a
+ * pane is open, `.surface-header` (min-height 62px in surfaces.css), whose
+ * back-to-conversation button sits in exactly this corner at exactly this
+ * inset. 70px clears the taller of the two by 8px, so a toast can never land on
+ * a control the user is reaching for — the same rule E9.5 holds the chat chrome
+ * to. Wave13Toasts.test.tsx recomputes the clearance from those rules rather
+ * than trusting the number written here.
+ */
 .toast-stack {
 	position: fixed;
+	top: 70px;
 	right: 16px;
-	bottom: 16px;
 	z-index: 40;
 	display: flex;
 	flex-direction: column;
@@ -462,7 +476,8 @@
 	gap: 8px;
 	background: var(--surface);
 	box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
-	animation: view-in var(--dur) var(--ease-current);
+	/* Downward, because the stack hangs from the top now. `view-in` rises. */
+	animation: toast-in var(--dur) var(--ease-current);
 }
 
 .toast-stack .toast-spinner {

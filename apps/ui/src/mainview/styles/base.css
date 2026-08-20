@@ -72,3 +72,19 @@ textarea {
 		transform: none;
 	}
 }
+
+/*
+ * The toast stack hangs from the top of the window (chat.css `.toast-stack`),
+ * so its members arrive from above. `view-in` rises from below, which read as a
+ * toast falling out of the stack instead of into it.
+ */
+@keyframes toast-in {
+	from {
+		opacity: 0;
+		transform: translateY(-6px);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}

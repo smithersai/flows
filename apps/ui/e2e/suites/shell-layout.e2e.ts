@@ -1,6 +1,6 @@
 /*
- * E9.1–E9.7 — the chat-first shell: panes, node identity, the responsive
- * contract, and the toast law.
+ * E9.1–E9.8 — the chat-first shell: panes, node identity, the responsive
+ * contract, and the toast law (including where the stack sits).
  *
  * This is the port of apps/ui/scripts/web-chat-shell-e2e.ts onto the hermetic
  * harness, so the proof finally runs unattended. The standalone script stays
@@ -60,12 +60,15 @@ interface Box {
 
 interface ShellProbe {
 	readonly innerWidth: number;
+	readonly innerHeight: number;
 	readonly matchesNarrow: boolean;
 	readonly pane: string;
 	readonly paneClass: string | null;
 	readonly column: Box | null;
 	readonly paneBox: Box | null;
 	readonly corner: Box | null;
+	readonly toastBox: Box | null;
+	readonly paneHeaderBox: Box | null;
 	readonly transcriptBox: Box | null;
 	readonly composerBox: Box | null;
 	readonly headerButtonsCovered: ReadonlyArray<string>;
@@ -126,12 +129,15 @@ const SHELL_PROBE = `
 	const shell = document.querySelector(".app-shell");
 	return {
 		innerWidth: window.innerWidth,
+		innerHeight: window.innerHeight,
 		matchesNarrow: window.matchMedia("(max-width: ${NARROW_MAX_WIDTH}px)").matches,
 		pane: frame === null ? "no-frame" : (frame.getAttribute("data-pane") || "none"),
 		paneClass: pane === null ? null : pane.className,
 		column: box(".chat-column"),
 		paneBox: box(".embedded-pane"),
 		corner: box(".corner-chrome"),
+		toastBox: box(".toast-stack"),
+		paneHeaderBox: box(".embedded-pane .surface-header"),
 		transcriptBox: box(".smithers-transcript"),
 		composerBox: box(".smithers-composer"),
 		headerButtonsCovered: covered,
@@ -380,7 +386,8 @@ const under = (pane: Box, column: Box): boolean =>
 
 export default defineSuite({
 	id: "E9",
-	title: "the chat shell embeds panes without unmounting the conversation, lays them out responsively, and obeys the toast law",
+	title:
+		"the chat shell embeds panes without unmounting the conversation, lays them out responsively, and obeys the toast law from the top-right corner",
 	browser: true,
 	order: 20,
 	run: async ({ stack, report, browser }) => {
@@ -779,6 +786,72 @@ export default defineSuite({
 		report.check(
 			survived !== null && survived.status === "failed",
 			`the failure toast vanished on its own within ${TOAST_AUTO_DISMISS_MS * 1.5}ms`,
+		);
+
+		// -------------------------------------------------------------------
+		// E9.8 — the stack hangs from the TOP-right, clear of what is already
+		// in that corner.
+		//
+		// will, 2026-08-19: "the toasts are showing up in the bottom right
+		// corner of screen when they should be in top right corner of screen."
+		//
+		// Measured on the failure toast because it is the only one that stays
+		// put: a running toast is a three-second window, and the pane round
+		// trip below does not fit inside it. What has to hold is the same rule
+		// E9.5 holds the chat chrome to — a floating surface may not land on a
+		// control someone is reaching for — and moving to the top is exactly
+		// what puts a toast on top of the corner chrome and, with a pane open,
+		// on the pane's own back-to-conversation button.
+		// -------------------------------------------------------------------
+		const measureToast = async (label: string, pane: "none" | "world"): Promise<void> => {
+			const shell = await requireShell(label, pane);
+			report.check(shell.toastBox !== null, `${label}: the toast stack is not on screen`);
+			report.check(shell.corner !== null, `${label}: the corner chrome is not on screen`);
+			const toastBox = shell.toastBox as Box;
+			const corner = shell.corner as Box;
+			report.check(
+				toastBox.top < shell.innerHeight - toastBox.bottom,
+				`${label}: the toast stack sits nearer the bottom of the window than the top ` +
+					`(top ${Math.round(toastBox.top)}, ${Math.round(shell.innerHeight - toastBox.bottom)} left below)`,
+			);
+			report.check(
+				shell.innerWidth - toastBox.right <= 24 + EPS,
+				`${label}: the toast stack is ${Math.round(shell.innerWidth - toastBox.right)}px from the right edge`,
+			);
+			report.check(
+				disjoint(toastBox, corner),
+				`${label}: the toast stack overlays the corner chrome ` +
+					`(toast ${JSON.stringify(toastBox)}, chrome ${JSON.stringify(corner)})`,
+			);
+			if (pane !== "none") {
+				report.check(shell.paneHeaderBox !== null, `${label}: the pane header is not on screen`);
+				report.check(
+					disjoint(toastBox, shell.paneHeaderBox as Box),
+					`${label}: the toast stack overlays the ${pane} pane's header ` +
+						`(toast ${JSON.stringify(toastBox)}, header ${JSON.stringify(shell.paneHeaderBox)})`,
+				);
+			}
+			report.equals(
+				shell.headerButtonsCovered.length,
+				0,
+				`${label}: a toast covers pane chrome: ${shell.headerButtonsCovered.join(", ")}`,
+			);
+		};
+
+		for (const width of [1400, 700]) {
+			await setViewport(width);
+			await measureToast(`${width}px, chat alone, a toast up`, "none");
+			await openSurface(session, report, "world");
+			await waitForPane(session, report, "world");
+			await measureToast(`${width}px, World open, a toast up`, "world");
+			await clickAt(session, report, '.embedded-pane [data-flow="chat"]', `closing World at ${width}px`);
+			await waitForPane(session, report, "none");
+		}
+		await session.send("Emulation.clearDeviceMetricsOverride");
+		await wait(400);
+		report.ok(
+			"E9.8: the toast stack hangs from the window's top-right at both widths, clear of the corner chrome " +
+				"and of an open pane's header, and covers no pane header button.",
 		);
 		await clickAt(
 			session,

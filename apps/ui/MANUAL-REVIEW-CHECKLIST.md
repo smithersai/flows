@@ -425,7 +425,9 @@ Run the flow, read the card, resize the window, switch theme, and reload.
 - [ ] **19.2** `/notifications.read` marks every notification read, and the
       unread indicator clears.
 - [ ] **19.3** Toasts appear for the events that warrant them, stack without
-      overlapping, and auto-dismiss.
+      overlapping, and auto-dismiss. They stack down from the window's
+      top-right corner, below the theme toggle and balance chip, and never
+      cover an open pane's back-to-conversation button.
 - [ ] **19.4** `toast.dismiss` dismisses one toast; several open at once behave.
 - [ ] **19.5** Toasts are announced to assistive technology and do not steal
       focus.
