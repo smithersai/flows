@@ -7,10 +7,21 @@
 # Writes preds-<run-id>.json and the evaluator's own report,
 # <model-name>.<run-id>.json, into this directory. Both are transient and
 # gitignored; the scorecard reads the report.
+#
+# SWB_EVAL_WORKERS sets the evaluator's concurrency (default 3). Grading is
+# per-instance docker work with no shared state, so it parallelizes cleanly;
+# what bounds it is disk and the docker VM's memory, the same limit that caps
+# the wave's own job count. Keep it at 1 when a grading run is being timed, or
+# when free disk is tight.
 set -u
 S="$(cd "$(dirname "$0")" && pwd)"
 RUN_ID="$1"; shift
 HARNESS="${HARNESS:-flows}"
+WORKERS="${SWB_EVAL_WORKERS:-3}"
+
+case "$WORKERS" in
+  ''|*[!0-9]*|0) echo "SWB_EVAL_WORKERS must be a positive integer"; exit 2 ;;
+esac
 
 if [ "$HARNESS" = "codex" ]; then
   PATCHES="$S/patches-codex"; MODEL="codex-cli"
@@ -29,6 +40,6 @@ cd "$S" || exit 1
   --predictions_path "preds-$RUN_ID.json" \
   --run_id "$RUN_ID" \
   --instance_ids "$@" \
-  --max_workers 1 \
+  --max_workers "$WORKERS" \
   --cache_level env \
   --timeout 1800
