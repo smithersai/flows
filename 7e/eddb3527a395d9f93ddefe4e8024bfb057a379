@@ -1,0 +1,236 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "7eeddb3527a395d9f93ddefe4e8024bfb057a379",
+ "tree": "d589ae0527a0a4ae624027820374a1b417bf3255",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 64,
+  "sectionCount": 71
+ },
+ "source": {
+  "commit": "4d322b7ab0ce7e65e7ec808ad580772d66d7757f",
+  "subject": "🐛 fix(ui): give the global transport to the seams, and read the law off the parse",
+  "priorCanonicalCommit": "814b4e3cb3903566ff5a630a5dadf016aa187c7b",
+  "treeEqualToSource": true,
+  "indexOnSourceLine": 64,
+  "sourceLineCount": 71,
+  "subjectRewritten": false,
+  "rewriteReason": null,
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "ui",
+  "epicsTouched": [
+   {
+    "id": "ui",
+    "files": 3
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 902,
+  "globalCount": 909,
+  "purpose": "🐛 fix(ui): give the global transport to the seams, and read the law off the parse",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "025de3ac83878ec1c8317c4d1ba84d30bf3a0583"
+  ],
+  "parent": "025de3ac83878ec1c8317c4d1ba84d30bf3a0583",
+  "sourceImports": [
+   "a6e62e957d45844c923f75337676e02826657a76",
+   "885f642ad3b17ad181797c45ce84842d9f5272d6",
+   "18af46e10e124876f17b6756c5b86313739e61a5",
+   "49f05ad33ae4477ca468fc044d7ccfd9cbfbacab",
+   "3b0c70f67ee7274e2c106e4cb4411598aed405ec",
+   "c7389c8fb2e161d11d7f53dbeea9064f56c9c167",
+   "7b93feb476d964525fe2226252159758a17ff6f9",
+   "23da16401810260196c2e806c37893a9c27e31af",
+   "4ab54ded55c99ce9460013a44fc14a970b5b548d",
+   "746ff1df693a153ac1c85106f82b100289cdf318",
+   "44b739c183d7508f003cbe31250f0a072c216002",
+   "07fdce401c691a30ae825340fac20a707f861379",
+   "d53f1c7c29921bae3320288137261b66d7e6b555",
+   "f030fd5c83668324a56c76c9b9d122ef7c124e91"
+  ],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "025de3ac83878ec1c8317c4d1ba84d30bf3a0583",
+  "next": "1c6ac0f8487ccfacfe36dabe6f75d9056cd9ba69",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "9f4db87e9b528812c207c1054f8c36a09a06c2c7"
+ },
+ "size": {
+  "files": 5,
+  "added": 121,
+  "deleted": 4
+ },
+ "provenance": {
+  "strategy": "verbatim replay of the source commit tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": true,
+  "sourceCommit": "4d322b7ab0ce7e65e7ec808ad580772d66d7757f"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "apps/ui/src/mainview/native/WebAgent.ts",
+   "mode": "100644",
+   "blob": "82c06aaa8e7cea531eb521b6f73c07d5369002c4",
+   "previousBlob": "392d5b3b8e5bc4ee73745783418104963dd6a652",
+   "added": 2,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 3,
+     "oldLines": 0,
+     "newStart": 4,
+     "newLines": 1
+    },
+    {
+     "oldStart": 139,
+     "oldLines": 1,
+     "newStart": 140,
+     "newLines": 1
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "M",
+   "path": "apps/ui/src/mainview/state/AppController.ts",
+   "mode": "100644",
+   "blob": "d957cf408aaf826ff7e12299c4a492696f0dc11d",
+   "previousBlob": "177e2d71505f2e6aa7ea9b30b64fb7221ef0209d",
+   "added": 2,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 63,
+     "oldLines": 0,
+     "newStart": 64,
+     "newLines": 1
+    },
+    {
+     "oldStart": 445,
+     "oldLines": 1,
+     "newStart": 446,
+     "newLines": 1
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "M",
+   "path": "apps/ui/src/mainview/state/ArchitectureLaws.test.ts",
+   "mode": "100644",
+   "blob": "5c070850613aea7d374bc816bcc27ba105af135d",
+   "previousBlob": "96604f1ebca0f39f9b96a99ea9c0cd3aba5fd16c",
+   "added": 94,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 16,
+     "oldLines": 1,
+     "newStart": 16,
+     "newLines": 5
+    },
+    {
+     "oldStart": 20,
+     "oldLines": 0,
+     "newStart": 25,
+     "newLines": 1
+    },
+    {
+     "oldStart": 34,
+     "oldLines": 0,
+     "newStart": 40,
+     "newLines": 54
+    },
+    {
+     "oldStart": 84,
+     "oldLines": 0,
+     "newStart": 144,
+     "newLines": 34
+    }
+   ],
+   "role": "test",
+   "introducedByEpic": null
+  },
+  {
+   "change": "M",
+   "path": "apps/ui/src/mainview/state/controller/context.ts",
+   "mode": "100644",
+   "blob": "da5bebd9e15e8740e51b3298ef85f9f8df3f26f6",
+   "previousBlob": "b91ab00ed3e371fb9fa49d3763c05e7dee10ef83",
+   "added": 2,
+   "deleted": 1,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 0,
+     "newStart": 2,
+     "newLines": 1
+    },
+    {
+     "oldStart": 111,
+     "oldLines": 1,
+     "newStart": 112,
+     "newLines": 1
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/seams/Transport.ts",
+   "mode": "100644",
+   "blob": "b65ebd8334cb5213e8097a02fc3ca6220465401d",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 0,
+     "oldLines": 0,
+     "newStart": 1,
+     "newLines": 21
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": null
+  }
+ ]
+}
