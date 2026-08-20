@@ -110,6 +110,12 @@ const RESOLVES_ELSEWHERE: ReadonlyArray<Excuse> = [
 		reason: "the Submit union's kind (registry.ts `Submit`), compared against a `.kind` that is not a card's",
 	},
 	{
+		literal: "text",
+		file: "e2e/ChatUpstream.ts",
+		reason:
+			"a delta FRAME's kind on the chat wire (text vs reasoning), read off frame.kind while translating fixtures — never a card's kind",
+	},
+	{
 		literal: "data-card-kind",
 		file: "e2e/suites/cards-copy.e2e.ts",
 		reason: "the subject of the assertion: this suite proves Probes.CARD_LEADS' selector matches nothing the app renders",

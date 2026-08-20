@@ -222,6 +222,21 @@ const PLAN_FIX_TITLE = "The corrected plan";
 
 /** Send a prompt and wait for the sentence the scripted turn ends with. */
 const turn = async (page: ProbePage, prompt: string, expected: string): Promise<string> => {
+	/*
+	 * A chain turn runs one authored link per upstream round-trip, so the
+	 * PREVIOUS turn can still be settling its later links while this suite
+	 * reads the page. A send into a live turn is refused by design — wait for
+	 * the composer to say ready before speaking.
+	 */
+	const deadline = now() + TURN_BUDGET_MS;
+	for (;;) {
+		const status = await page.evaluate<string | null>(
+			`document.querySelector('[data-slot="chat-composer"]')?.getAttribute("data-status") ?? null`,
+		);
+		if (status === "ready") break;
+		if (now() >= deadline) throw new SuiteFailure(`the composer never returned to ready before ${JSON.stringify(prompt)}`);
+		await sleep(150);
+	}
 	const before = await sendPrompt(page, prompt);
 	const seen = await waitForText(page, (text) => text.includes(expected), TURN_BUDGET_MS, now, sleep);
 	if (!seen.ok) {

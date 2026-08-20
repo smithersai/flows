@@ -188,6 +188,20 @@ export default defineSuite({
 					{ type: "done", reason: "stop" },
 				],
 			});
+			/*
+			 * The pause notice lands at the END of a click-driven act; the chain
+			 * turn behind /flow.list can still be settling. A send into a live
+			 * turn is refused by design, so wait for ready first.
+			 */
+			await waitUntil(
+				report,
+				"the composer never returned to ready after the workflow pause",
+				async () =>
+					(await zeroBalance.page.evaluate<string | null>(
+						`document.querySelector('[data-slot="chat-composer"]')?.getAttribute("data-status") ?? null`,
+					)) === "ready",
+				15_000,
+			);
 			await sendPrompt(zeroBalance.page, "Can I still chat?");
 			await waitUntil(
 				report,

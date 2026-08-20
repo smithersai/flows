@@ -542,6 +542,9 @@ export const chooserKeyAction = (key: string, filter: string): ChooserKeyAction 
 	return { kind: "none" };
 };
 
+/** How many rows one chooser page shows before scrolling reveals the next. */
+const CHOOSER_PAGE = 50;
+
 /** The chooser's filter, pure: case-insensitive substring on the full name. */
 export const chooserFilter = <C extends { fullName: string }>(
 	candidates: ReadonlyArray<C>,
@@ -569,8 +572,15 @@ const RepoChooserCardBody = ({
 	const { candidates, selected, phase, error } = card.payload;
 	const [filter, setFilter] = useState("");
 	const [highlighted, setHighlighted] = useState(0);
+	/*
+	 * Manual-review 3.10: an account with 200+ repositories must not lock the
+	 * frame. The list renders a PAGE at a time and reveals the next page when
+	 * the reader scrolls to the bottom — an event, never an effect.
+	 */
+	const [revealed, setRevealed] = useState(CHOOSER_PAGE);
 	const saving = phase === "saving";
-	const visibleRows = chooserFilter(candidates, filter);
+	const matchingRows = chooserFilter(candidates, filter);
+	const visibleRows = matchingRows.slice(0, revealed);
 	const highlightedIndex = Math.min(highlighted, Math.max(visibleRows.length - 1, 0));
 
 	const onFilterKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
@@ -607,10 +617,22 @@ const RepoChooserCardBody = ({
 				onChange={(event) => {
 					setFilter(event.target.value);
 					setHighlighted(0);
+					setRevealed(CHOOSER_PAGE);
 				}}
 				onKeyDown={onFilterKeyDown}
 			/>
-			<ul className="repo-chooser-list" role="listbox" aria-multiselectable aria-label="Your repositories">
+			<ul
+				className="repo-chooser-list"
+				role="listbox"
+				aria-multiselectable
+				aria-label="Your repositories"
+				onScroll={(event) => {
+					const list = event.currentTarget;
+					if (list.scrollTop + list.clientHeight < list.scrollHeight - 48) return;
+					if (revealed >= matchingRows.length) return;
+					setRevealed(revealed + CHOOSER_PAGE);
+				}}
+			>
 				{visibleRows.map((candidate, index) => {
 					const checked = selected.includes(candidate.fullName);
 					return (

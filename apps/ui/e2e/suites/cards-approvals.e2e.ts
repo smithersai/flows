@@ -364,17 +364,22 @@ export default defineSuite({
 		report.equals(embedded.pane, null, "the agent's invocation moved the surface into a takeover pane");
 		report.ok("the agent's surface command rendered the embedded card and never moved the surface.");
 
+		/*
+		 * On the chain, card.maximize is simply NOT in the model's catalog
+		 * (user-only), so the refusal is the gate's: the visible line is the
+		 * in-character course change, and the row's DETAIL names the call it
+		 * reached for (will, 2026-08-19: act rows carry their detail).
+		 */
 		report.includes(
 			embedded.text,
-			"Smithers tried /card.maximize",
-			"the user-only refusal of card.maximize never reached the transcript",
+			"Smithers adjusted its approach",
+			"the refused card.maximize left no visible course-change row",
 		);
-		report.includes(
-			embedded.text,
-			"maximizing a card is the human's explicit act — your invocation renders the embedded card",
-			"the refusal did not name the visible alternative",
+		const refusalDetails = await page.evaluate<string>(
+			`(() => Array.from(document.querySelectorAll(".tool-act-line .tool-act-toggle")).map((node) => node.getAttribute("title") ?? "").join(" | "))()`,
 		);
-		report.ok("the agent's card.maximize was refused out loud, naming the human's affordance instead.");
+		report.includes(refusalDetails, "card.maximize", "no act row's detail names the refused card.maximize");
+		report.ok("the agent's card.maximize was refused in character, the act row's detail naming the call.");
 
 		report.equals(connect.maximizeButtons, 1, "the embedded card offers the human no maximize affordance");
 		report.equals(connect.minimizeButtons, 0, "the embedded card is already offering minimize, so it is not embedded");

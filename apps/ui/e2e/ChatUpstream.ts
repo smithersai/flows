@@ -168,28 +168,57 @@ const translatable = (frames: ReadonlyArray<Record<string, unknown>>): boolean =
 	return true;
 };
 
-const chainAuthored = (frames: ReadonlyArray<Record<string, unknown>>): string => {
-	const lines: Array<string> = [];
+const authorLink = (calls: ReadonlyArray<string>, terminal: string): ChatTurnScript => ({
+	requireTools: true,
+	frames: [
+		{ type: "delta", kind: "text", text: "```flow\n" + [...calls, terminal].join("\n") + "\n```" },
+		{ type: "done", reason: "stop" },
+	],
+});
+
+const CONTINUE = `return to(await ctx.call("author", { context: ["continue"] }))`;
+const DONE = `return done({ ok: true })`;
+
+/**
+ * One proxy-shaped entry becomes a SEQUENCE of authored links, one content
+ * frame per link. This is load-bearing for the drop-safety fixtures: on the
+ * chain a rejected call ABORTS its link (Chain.ts LinkAborted) and the next
+ * authoring continues — so an invalid card must not share a link with the
+ * valid content that follows it, or the fixture silently swallows the rest
+ * of the turn. Each non-final link asks the author for its successor, which
+ * is exactly what arms the stub's next expansion step per upstream request.
+ */
+const expandProxyEntry = (script: ChatTurnScript): ReadonlyArray<ChatTurnScript> => {
+	if (
+		script.raw === true ||
+		script.gapMs !== undefined ||
+		script.status !== undefined ||
+		script.framesFor !== undefined ||
+		!translatable(script.frames)
+	) {
+		return [script];
+	}
+	const calls: Array<string> = [];
 	let saying: Array<string> = [];
 	const flushSay = (): void => {
 		if (saying.length === 0) return;
-		lines.push(`await ctx.call("say", { text: ${JSON.stringify(saying.join(""))} })`);
+		calls.push(`await ctx.call("say", { text: ${JSON.stringify(saying.join(""))} })`);
 		saying = [];
 	};
 	let continues = false;
-	for (const frame of frames) {
+	for (const frame of script.frames) {
 		if (frame.type === "delta" && frame.kind === "text" && typeof frame.text === "string") {
 			saying.push(frame.text);
 			continue;
 		}
 		if (frame.type === "card") {
 			flushSay();
-			lines.push(`await ctx.call("card.show", { card: ${JSON.stringify(frame.card)} })`);
+			calls.push(`await ctx.call("card.show", { card: ${JSON.stringify(frame.card)} })`);
 			continue;
 		}
 		if (frame.type === "card.update") {
 			flushSay();
-			lines.push(
+			calls.push(
 				`await ctx.call("card.update", { id: ${JSON.stringify(frame.id)}, patch: ${JSON.stringify(frame.patch)} })`,
 			);
 			continue;
@@ -212,18 +241,18 @@ const chainAuthored = (frames: ReadonlyArray<Record<string, unknown>>): string =
 			} catch {
 				// A malformed fixture reaches the catalog as an empty payload.
 			}
-			lines.push(`await ctx.call(${JSON.stringify(name)}, ${JSON.stringify(payload)})`);
+			calls.push(`await ctx.call(${JSON.stringify(name)}, ${JSON.stringify(payload)})`);
 			continue;
 		}
 		if (frame.type === "done" && frame.reason === "tool_call") continues = true;
+		// Every other frame type (card.remove, unknowns) is what the old wire
+		// silently ignored; the translation ignores it the same way.
 	}
 	flushSay();
-	lines.push(
-		continues
-			? `return to(await ctx.call("author", { context: ["continue"] }))`
-			: `return done({ ok: true })`,
+	if (calls.length === 0) return [script];
+	return calls.map((call, index) =>
+		authorLink([call], index < calls.length - 1 || continues ? CONTINUE : DONE),
 	);
-	return "```flow\n" + lines.join("\n") + "\n```";
 };
 
 const SLOW_SCRIPT: ChatTurnScript = {
@@ -249,7 +278,8 @@ export const createChatUpstream = (): ChatUpstream => {
 		scripts[Math.min(index, scripts.length - 1)] ?? DEFAULT_CHAT_SCRIPT;
 
 	const setScript = (next: ChatTurnScript | ReadonlyArray<ChatTurnScript>): void => {
-		scripts = Array.isArray(next) ? (next as ReadonlyArray<ChatTurnScript>) : [next as ChatTurnScript];
+		const entries = Array.isArray(next) ? (next as ReadonlyArray<ChatTurnScript>) : [next as ChatTurnScript];
+		scripts = entries.flatMap(expandProxyEntry);
 		turn = 0;
 	};
 
@@ -300,16 +330,7 @@ export const createChatUpstream = (): ChatUpstream => {
 				return new Response(script.body ?? "", { status: script.status });
 			}
 
-			const scripted = script.framesFor?.(record) ?? script.frames;
-			// A paced script (gapMs) is a STREAM under test — kill/steer suites
-			// need the wire to stay open — so pacing opts out of translation.
-			const frames =
-				script.raw !== true && script.gapMs === undefined && translatable(scripted)
-					? [
-							{ type: "delta", kind: "text", text: chainAuthored(scripted) },
-							{ type: "done", reason: "stop" },
-						]
-					: scripted;
+			const frames = script.framesFor?.(record) ?? script.frames;
 			const gapMs = script.gapMs ?? 10;
 			const encoder = new TextEncoder();
 			return new Response(
