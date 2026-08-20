@@ -86,7 +86,9 @@ const GRAMMAR: Readonly<Record<string, (args: string | undefined) => Parsed>> = 
 	"flow.run.stop": (args) => required("cardId", args, "flow.run.stop needs the card id"),
 	"flow.run.retry": (args) => required("cardId", args, "flow.run.retry needs the card id"),
 	"flow.run": (args) => {
-		const [name, repo] = tokensOf(args);
+		const tokens = tokensOf(args);
+		if (tokens.length > 2) return no("flow.run takes a workflow name and optionally an owner/repo");
+		const [name, repo] = tokens;
 		if (name === undefined) {
 			return no("flow.run needs a workflow name: /flow.run create-workflow");
 		}
@@ -210,7 +212,9 @@ const GRAMMAR: Readonly<Record<string, (args: string | undefined) => Parsed>> = 
 	"admin.allowlist.remove": (args) =>
 		required("login", args, "admin.allowlist.remove needs a login"),
 	"admin.grant": (args) => {
-		const [amountRaw, login] = tokensOf(args);
+		const tokens = tokensOf(args);
+		if (tokens.length > 2) return no("admin.grant takes an amount in dollars and a login");
+		const [amountRaw, login] = tokens;
 		const amountUsd = Number(amountRaw);
 		if (
 			amountRaw === undefined ||
