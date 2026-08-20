@@ -1,0 +1,1063 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "a4f7aff120e6dc4b87454d7f2a9010ef78f5da9f",
+ "tree": "449e09b91df1b5ffb8c619b9859f04bfd358d0d4",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 60,
+  "sectionCount": 83
+ },
+ "source": {
+  "commit": "53763406bd3080ae963d4798c9c23ccc5c34b031",
+  "subject": "🔥 chore(ui): untrack the hand-probe scratch surfaces the tree should never have held",
+  "priorCanonicalCommit": "4de82de7826f4ec94fad8b82b9ad618941365de8",
+  "treeEqualToSource": true,
+  "indexOnSourceLine": 48,
+  "sourceLineCount": 71,
+  "subjectRewritten": false,
+  "rewriteReason": null,
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true,
+  "rebuild": {
+   "reason": "rebuilt onto the 13-commit split of canonical commit 2632c05da63099666add6437c743f4c5b3922f59",
+   "priorCanonicalCommit": "4de82de7826f4ec94fad8b82b9ad618941365de8",
+   "treePreserved": true,
+   "tree": "449e09b91df1b5ffb8c619b9859f04bfd358d0d4"
+  }
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "ui",
+  "epicsTouched": [
+   {
+    "id": "ui",
+    "files": 41
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 898,
+  "globalCount": 921,
+  "purpose": "🔥 chore(ui): untrack the hand-probe scratch surfaces the tree should never have held",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "42a2d6238b172069102b74ce82856773c9909407"
+  ],
+  "parent": "42a2d6238b172069102b74ce82856773c9909407",
+  "sourceImports": [],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "42a2d6238b172069102b74ce82856773c9909407",
+  "next": "11bbb993e5243845fd9829a076c42278545fc5ae",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "6fe6857b28247375ab46b0d79cba15e74754ebd6"
+ },
+ "size": {
+  "files": 41,
+  "added": 5,
+  "deleted": 866
+ },
+ "provenance": {
+  "strategy": "verbatim replay of the source commit tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": true,
+  "sourceCommit": "53763406bd3080ae963d4798c9c23ccc5c34b031"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "apps/ui/.gitignore",
+   "mode": "100644",
+   "blob": "728772170c5d286df342a21bda1712652d6cd61b",
+   "previousBlob": "98d6228c7757ba15f7527d7776cceba9de99cb55",
+   "added": 5,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 29,
+     "oldLines": 0,
+     "newStart": 30,
+     "newLines": 5
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/adminprobe.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "e2fc87962e7469af2eb50809a36b5d8f53bcb464",
+   "added": 0,
+   "deleted": 9,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 9,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/drv.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "5e87b3a331b60bc9445c8ebd11d58ab8a5f10144",
+   "added": 0,
+   "deleted": 38,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 38,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p101.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "9a354b8d1b3f862e7a60aca0b4cda63dd1ecc1f6",
+   "added": 0,
+   "deleted": 10,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 10,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p101b.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "20f948d15cd62539a812c589c7fdefeaa928896b",
+   "added": 0,
+   "deleted": 25,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 25,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p101c.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "6caf71a116ceabc6cd4e97da00dcdf97a56388c9",
+   "added": 0,
+   "deleted": 25,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 25,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p102.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "a75f9b45b501c5fbfcaf25f303c960478aaab37f",
+   "added": 0,
+   "deleted": 29,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 29,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p103.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "2234272bf01c216f4363d5a19ed733fb59aada14",
+   "added": 0,
+   "deleted": 28,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 28,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p104.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "74c597f47707d92f983a7d6eee695dd78c6af0fc",
+   "added": 0,
+   "deleted": 48,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 48,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p104b.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "759815407475bec2af5e3ecc25481c13342fa781",
+   "added": 0,
+   "deleted": 17,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 17,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p104c.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "c70656e7f46430974b1f212dea1cea66af63bf16",
+   "added": 0,
+   "deleted": 54,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 54,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p105.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "e254ad162a3edc216716d3d8486a3065541c60fe",
+   "added": 0,
+   "deleted": 36,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 36,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p106.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "fce5e8eb1a01ac26740e25d98447eb069d672944",
+   "added": 0,
+   "deleted": 35,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 35,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p106b.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "40561948308dccea9aa8cfa0a518749b14b241b9",
+   "added": 0,
+   "deleted": 32,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 32,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p107.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "ee72186d8431bded8581cba2e7753e5850c07f47",
+   "added": 0,
+   "deleted": 32,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 32,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p108.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "62d2aa76696d65876476c3c6e32a650bc54a1ddf",
+   "added": 0,
+   "deleted": 27,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 27,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p108b.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "3f638a75aaf83458bd37ff28042f9401a9a46c80",
+   "added": 0,
+   "deleted": 27,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 27,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p108c.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "73a3b5882dba67b644e158eddd1133906a7c3969",
+   "added": 0,
+   "deleted": 9,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 9,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p108d.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "7ab21f65dc7c52bae7fa4b989aaf1f95a56b80c5",
+   "added": 0,
+   "deleted": 11,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 11,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p108e.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "3dc78adea48d9828f6760553170a0273d45a13e8",
+   "added": 0,
+   "deleted": 9,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 9,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p108f.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "41e2cce453349086fad3bc03b50c147fced2ef4f",
+   "added": 0,
+   "deleted": 11,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 11,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p108g.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "830f370f0fd1914a14874738896213f43526f74e",
+   "added": 0,
+   "deleted": 23,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 23,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p108h.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "06df2a88da0c8c48f028dca2da95374140f295fb",
+   "added": 0,
+   "deleted": 16,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 16,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p91.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "0e6990a27c43b2c32b2beef633b6189e44557ef0",
+   "added": 0,
+   "deleted": 16,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 16,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p92.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "3f7946f130180940cde7c8dcef152eeb94671af0",
+   "added": 0,
+   "deleted": 33,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 33,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p93.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "7e734b0aa4f780cda84d229bdeedbf26464c3236",
+   "added": 0,
+   "deleted": 28,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 28,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p93b.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "7b4f43fe6462ddfac2d09e08c40cfe7b7743ab3c",
+   "added": 0,
+   "deleted": 36,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 36,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p94.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "0e00ca56e930a7b2ce678ccb0ce515f2a4203395",
+   "added": 0,
+   "deleted": 19,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 19,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p95.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "9433f82a853506547ac36990667414620f429e0b",
+   "added": 0,
+   "deleted": 12,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 12,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p95b.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "07ec07d8316c88bfe854103e87106d8fea99501e",
+   "added": 0,
+   "deleted": 19,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 19,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p96.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "b4880fcfd465b78ceb1805651d61b262e93dd68d",
+   "added": 0,
+   "deleted": 12,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 12,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p96b.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "c3c5370d99130a80081758e86ff60af89a058002",
+   "added": 0,
+   "deleted": 11,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 11,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p96c.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "f9a3a27b18e0326ce8cb3b916ab1acce6d2868f9",
+   "added": 0,
+   "deleted": 15,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 15,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p96d.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "cdb8f0b9bd55553e0d2fb04c9a0b9684bb70a38a",
+   "added": 0,
+   "deleted": 17,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 17,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p97.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "ca17a46ff330e20cd4c67f652f0071f746acf191",
+   "added": 0,
+   "deleted": 16,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 16,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/p98.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "d0ad7d154116f6dc2cdc3519ee59b2708fe6931b",
+   "added": 0,
+   "deleted": 14,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 14,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/pcomposer.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "d1aeb9b1403589353841349e8a8d707d614fd8e4",
+   "added": 0,
+   "deleted": 9,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 9,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/pdbg.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "199c110f9deddf13d4b577b3ad059d9f8804bfbc",
+   "added": 0,
+   "deleted": 20,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 20,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/plandings.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "b6fd0b7ba8a7806e4a8f95a09ad8326568d5fef7",
+   "added": 0,
+   "deleted": 7,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 7,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/probe0.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "557ee3ea84c4df2710e7d0feaa72849125ef7c33",
+   "added": 0,
+   "deleted": 11,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 11,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  },
+  {
+   "change": "D",
+   "path": "apps/ui/.scratch-surfaces/signin.ts",
+   "mode": null,
+   "blob": null,
+   "previousBlob": "0fdb0f3919435c97db95f901875a0674fb3368ea",
+   "added": 0,
+   "deleted": 20,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 1,
+     "oldLines": 20,
+     "newStart": 0,
+     "newLines": 0
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  }
+ ]
+}
