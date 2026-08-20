@@ -1,0 +1,99 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "951cd0153dbfd72d71e8c2c8db5d35283b9314cd",
+ "tree": "246bcdd9eae02bf3c365b52221e7efd8b339172f",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 9,
+  "sectionCount": 71
+ },
+ "source": {
+  "commit": "5c23c573126ce53e501e694f02292da74c18fd22",
+  "subject": "✅ test(ui): measure THE EMBED LAW on the live target too",
+  "priorCanonicalCommit": "c22e064c9719293a6e264845f2ca48c6437a447f",
+  "treeEqualToSource": true,
+  "indexOnSourceLine": 9,
+  "sourceLineCount": 71,
+  "subjectRewritten": false,
+  "rewriteReason": null,
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "ui",
+  "epicsTouched": [
+   {
+    "id": "ui",
+    "files": 1
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 847,
+  "globalCount": 909,
+  "purpose": "✅ test(ui): measure THE EMBED LAW on the live target too",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "44053b9f5f436d435ee9eeac6beba54dbfa3323b"
+  ],
+  "parent": "44053b9f5f436d435ee9eeac6beba54dbfa3323b",
+  "sourceImports": [
+   "6ee5df66db65e929997a2795336b742366b9a8d1"
+  ],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "44053b9f5f436d435ee9eeac6beba54dbfa3323b",
+  "next": "0fc97908798e21358201b0ea3b4509e57e91222a",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "9f4db87e9b528812c207c1054f8c36a09a06c2c7"
+ },
+ "size": {
+  "files": 1,
+  "added": 75,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "verbatim replay of the source commit tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": true,
+  "sourceCommit": "5c23c573126ce53e501e694f02292da74c18fd22"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "apps/ui/src/launch-checklist/Rows.ts",
+   "mode": "100644",
+   "blob": "fd241cf7985995b4fb47a015c944fdb994ded617",
+   "previousBlob": "f589c9ef9b83bfe9c6900391680e1dfaaa7201bf",
+   "added": 75,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 560,
+     "oldLines": 0,
+     "newStart": 561,
+     "newLines": 75
+    }
+   ],
+   "role": "source",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  }
+ ]
+}
