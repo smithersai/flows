@@ -2,10 +2,15 @@
  * The branch collaboration wire contract: the RPC projection of the write
  * and presence paths that complement the read-only {@link SyncRpcs}.
  *
- * Every procedure carries its own share capability and every handler
- * authorizes through {@link BranchShare}, so the group needs no middleware —
- * the capability IS the credential, and cross-branch or expired capabilities
- * are refused by the same service boundary the in-process callers use.
+ * Authorization has two stages. Opening a branch is the bootstrap: no
+ * capability can exist yet, so `CreateBranch` requires an authenticated
+ * workspace principal supplied by the group's {@link SyncAuth} middleware,
+ * and its handler refuses any other principal.
+ *
+ * Every later procedure carries its own share capability and authorizes
+ * through {@link BranchShare}: past the bootstrap the capability IS the
+ * credential, and cross-branch or expired capabilities are refused by the
+ * same service boundary the in-process callers use.
  *
  * @since 0.1.0
  */
