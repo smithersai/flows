@@ -1,0 +1,209 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "76c7092fe026eff3c097ee90c0d3f041249604eb",
+ "tree": "2180cfdf13cd618920f755c32b582789386bb2b5",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 28,
+  "childCount": 43,
+  "head": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9"
+ },
+ "atomic": {
+  "globalIndex": 310,
+  "globalCount": 845,
+  "purpose": "✅ test(fs): cover router/flows, directives/panel, directives/sandboxed and 5 more",
+  "type": "test",
+  "kind": "tests",
+  "scope": "fs",
+  "component": "packages/fs",
+  "unitKey": "test/fixtures/router/flows",
+  "mergedUnitKeys": [
+   "test/fixtures/router/flows",
+   "test/fixtures/router/flows/directives/panel",
+   "test/fixtures/router/flows/directives/sandboxed",
+   "test/fixtures/router/flows/domains",
+   "test/fixtures/router/flows/domains/list",
+   "test/fixtures/router/flows/mixed",
+   "test/fixtures/router/flows/review",
+   "test/fixtures/router/flows/skills/demo",
+   "test/fixtures/three-projections/flows/review"
+  ]
+ },
+ "dependencies": {
+  "parent": "ce556dd6dc71c8a71e149a18632c360f710cf53f",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/registry",
+    "commit": "1ae2f3b78daa4ba33deb87bfe057eee002727dcd"
+   }
+  ]
+ },
+ "related": {
+  "previous": "ce556dd6dc71c8a71e149a18632c360f710cf53f",
+  "next": "9b4f6f2e7198dad6034ad1594d93223654b5fc16",
+  "epicFirst": "f7a85bfa43ff3fa63e2ad6200bd2d4d7ec1397a2",
+  "epicLast": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 12,
+  "added": 69,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/fs/test/fixtures/router/flows/flow.ts",
+   "mode": "100644",
+   "blob": "0b1fb27f47260530410b6abedf1cd4bcc30fe8c4",
+   "previousBlob": null,
+   "added": 3,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/fs/test/fixtures/router/flows/directives/panel/flow.ts",
+   "mode": "100644",
+   "blob": "b1012eeb7ecddef831f62f4191fcd4729d344b83",
+   "previousBlob": null,
+   "added": 5,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/fs/test/fixtures/router/flows/directives/sandboxed/flow.ts",
+   "mode": "100644",
+   "blob": "2cd14abcbbd670de800c4ec8d687a682b8e670e3",
+   "previousBlob": null,
+   "added": 5,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/fs/test/fixtures/router/flows/domains/flow.mdx",
+   "mode": "100644",
+   "blob": "0d8722fb3c47d21a2ad7317893e268073b63b31a",
+   "previousBlob": null,
+   "added": 6,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/fs/test/fixtures/router/flows/domains/list/flow.ts",
+   "mode": "100644",
+   "blob": "3d33df20c4219b439695ee4e2672579ed459c895",
+   "previousBlob": null,
+   "added": 3,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/fs/test/fixtures/router/flows/mixed/flow.mdx",
+   "mode": "100644",
+   "blob": "f3eabdc7ccdb98bbe44d1f71e78da0b38ff3d771",
+   "previousBlob": null,
+   "added": 5,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/fs/test/fixtures/router/flows/mixed/flow.ts",
+   "mode": "100644",
+   "blob": "2d3ff21348bd120b50f2b270455f547fb4c1fc4b",
+   "previousBlob": null,
+   "added": 3,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/fs/test/fixtures/router/flows/review/flow.test.ts",
+   "mode": "100644",
+   "blob": "3ef3de9fdddfd3d7542f83bb67d8f419165eb2a2",
+   "previousBlob": null,
+   "added": 1,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/fs/test/fixtures/router/flows/review/flow.ts",
+   "mode": "100644",
+   "blob": "f6b0a82109815804da7104a18c282c7886fcb44d",
+   "previousBlob": null,
+   "added": 10,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/fs/test/fixtures/router/flows/review/ui.tsx",
+   "mode": "100644",
+   "blob": "5e3d205d6e6add13aef17a42df141ee50ebc8e11",
+   "previousBlob": null,
+   "added": 5,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/fs/test/fixtures/router/flows/skills/demo/SKILL.md",
+   "mode": "100644",
+   "blob": "24ff4cdccc4fd40cdf87792b5b338623487d069d",
+   "previousBlob": null,
+   "added": 6,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/fs/test/fixtures/three-projections/flows/review/flow.ts",
+   "mode": "100644",
+   "blob": "cbe23ba171f25af9556b54e60dac178731561dba",
+   "previousBlob": null,
+   "added": 17,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

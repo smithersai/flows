@@ -1,0 +1,74 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "ffe76c9cba7719982d6016438810facfda9bad6d",
+ "tree": "b7ec0de022933b00ec9b5ec08a2b78eeb7174a05",
+ "epic": {
+  "index": 12,
+  "id": "examples",
+  "name": "Executable learning and evaluation suites",
+  "sourceCommit": "1c0d5bce16fdac649b8f108f4e37eaea58f4933c",
+  "sourceSubject": "📚 docs(examples): add executable learning and evaluation suites",
+  "childIndex": 7,
+  "childCount": 18,
+  "head": "ac7419bdf70373fddd3f14e1eaf511aca20aea7d"
+ },
+ "atomic": {
+  "globalIndex": 617,
+  "globalCount": 845,
+  "purpose": "📝 docs(evals-authoring): document evals-authoring",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "evals-authoring",
+  "component": "evals/authoring",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "b31694f29034dc5f80a5d525d28e931b2782f752",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "b31694f29034dc5f80a5d525d28e931b2782f752",
+  "next": "e0c1791874735b628149d7db096f79365c5411e4",
+  "epicFirst": "f49d638b0d89382d3b7dc40e3aa9372c7294d2d8",
+  "epicLast": "ac7419bdf70373fddd3f14e1eaf511aca20aea7d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 56,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "evals/authoring/README.md",
+   "mode": "100644",
+   "blob": "9eee63d6ebbadf1bf4d28e93d0724cede60cd7f5",
+   "previousBlob": null,
+   "added": 56,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

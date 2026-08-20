@@ -1,0 +1,89 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "dad13c14783cee6c589e63866ca8903a799528a9",
+ "tree": "f935b66c4f3335d51792bd90dd1b71760fc49032",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 64,
+  "childCount": 66,
+  "head": "28962374658aba2757a5405dab6454616510b6b6"
+ },
+ "atomic": {
+  "globalIndex": 389,
+  "globalCount": 845,
+  "purpose": "✨ feat(triggers): export the public triggers surface",
+  "type": "feat",
+  "kind": "index",
+  "scope": "triggers",
+  "component": "packages/triggers",
+  "unitKey": "~index",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "30d40d1a8b71953aa47ffd9872d221427882954e",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [
+   "1b4d3a88a5ae2d5209d557764fc8a2d5ca74c350",
+   "86bdbf29f3173cbb328caa3b1482e576d00139de",
+   "8622297a0d099e92422e3739f7e81c685d00e6cf",
+   "58106a9bedbb363859ab1bd2eb0df16c80f0dc73",
+   "30d40d1a8b71953aa47ffd9872d221427882954e"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/control",
+    "commit": "40bf3f68fb8b79abcb73506a5980f5eaa9e92e36"
+   },
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   }
+  ]
+ },
+ "related": {
+  "previous": "30d40d1a8b71953aa47ffd9872d221427882954e",
+  "next": "8b983f1613cc8f68d3003c71daa9ca084d422de4",
+  "epicFirst": "65dffaa9668923ae816eeaa5bce0901a958729b0",
+  "epicLast": "28962374658aba2757a5405dab6454616510b6b6",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 28,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/triggers/src/index.ts",
+   "mode": "100644",
+   "blob": "d1243c45c409a902f9b3d0fe32ecedf6f44d909a",
+   "previousBlob": null,
+   "added": 28,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,138 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "eb53289a25fc2ec66641afbdfde9a86b69894bc6",
+ "tree": "929cf9987a31fee4d6f36fc1878127d6e703d954",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 107,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 755,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the ui modules (4/6)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/.smithers",
+  "unitKey": "dir:ui",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "32e46c4c2dddca0dca123cfca056de073ef89481",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "32e46c4c2dddca0dca123cfca056de073ef89481"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "commit": "fec516964e3e6a618aace55755a6d0befd72daa8"
+   }
+  ]
+ },
+ "related": {
+  "previous": "32e46c4c2dddca0dca123cfca056de073ef89481",
+  "next": "cdcfd7442f78b542081b07920573a40c92b4bace",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 6,
+  "added": 1440,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/ui/ddd-SpecsTab.tsx",
+   "mode": "100644",
+   "blob": "dfcc1c39048f888068be5f8bb19a92b19acbf813",
+   "previousBlob": null,
+   "added": 331,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/ui/ddd-StartPane.tsx",
+   "mode": "100644",
+   "blob": "9921350b8fcbfdda9250cdbf2cbd76dacbdabab0",
+   "previousBlob": null,
+   "added": 332,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/ui/ddd-ticketsBacklog.generated.ts",
+   "mode": "100644",
+   "blob": "a072e1c3366c77a527780b964fd1c489619410cb",
+   "previousBlob": null,
+   "added": 1,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/ui/ddd-TicketsTab.tsx",
+   "mode": "100644",
+   "blob": "fdb6d86f2b265bc5ff9cb788a30029cd0926fca4",
+   "previousBlob": null,
+   "added": 529,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/ui/ddd-Tutorial.tsx",
+   "mode": "100644",
+   "blob": "817bd5451413b02d00330a7e599cbcf491775b8e",
+   "previousBlob": null,
+   "added": 244,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/ui/ddd-workflowSource.generated.ts",
+   "mode": "100644",
+   "blob": "f243e75996f565dc95ee81814ccb694d91483c9e",
+   "previousBlob": null,
+   "added": 3,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

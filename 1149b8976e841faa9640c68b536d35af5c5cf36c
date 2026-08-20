@@ -1,0 +1,73 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "1149b8976e841faa9640c68b536d35af5c5cf36c",
+ "tree": "38045b2a80043fdaaa57cbee36a71e5a7106f922",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 3,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 515,
+  "globalCount": 845,
+  "purpose": "📦 build(lint): add lint workspace configuration",
+  "type": "build",
+  "kind": "scaffold",
+  "scope": "lint",
+  "component": "lint",
+  "unitKey": "~scaffold",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "c2c7b6c8dcaf7021bff387510fc9885dfd5c5fd5",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "c2c7b6c8dcaf7021bff387510fc9885dfd5c5fd5",
+  "next": "578421225931cf58b3d5b074abe674033fe92e8d",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 120,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "lint/BUILD.ts",
+   "mode": "100644",
+   "blob": "d5a4ede8c06434d1580d051fde79684594753a8b",
+   "previousBlob": null,
+   "added": 120,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  }
+ ]
+}

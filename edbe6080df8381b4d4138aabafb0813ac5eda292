@@ -1,0 +1,188 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "edbe6080df8381b4d4138aabafb0813ac5eda292",
+ "tree": "e99e810c7ece614e1e967b68674f279125bbd724",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 61,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 709,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the github modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/canary-repros",
+  "unitKey": "dir:github",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "6eff48270a4ed703de618dc2b084e5aaa58cd86a",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "83c6b964611cbe36aec55f356648e04e4df61c10"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "6eff48270a4ed703de618dc2b084e5aaa58cd86a",
+  "next": "ec49c9855ebda48f43f027b60910114999c4440e",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 11,
+  "added": 937,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/github/12.2.ts",
+   "mode": "100644",
+   "blob": "5987290e20f6056256eae121612bc62388c29c55",
+   "previousBlob": null,
+   "added": 53,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/github/12.5.ts",
+   "mode": "100644",
+   "blob": "1fca84eb25fa6cff4896df20258f246d7e077f65",
+   "previousBlob": null,
+   "added": 60,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/github/13.3.ts",
+   "mode": "100644",
+   "blob": "c336ab93a653db9d62691e3ba4b493153c8ec1ed",
+   "previousBlob": null,
+   "added": 87,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/github/13.4.ts",
+   "mode": "100644",
+   "blob": "f083a82716029a6b5b8dbc3e22cee76bcb4157aa",
+   "previousBlob": null,
+   "added": 65,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/github/13.5.ts",
+   "mode": "100644",
+   "blob": "4e77422dd311812c229f0b8005ed9a5282937df5",
+   "previousBlob": null,
+   "added": 86,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/github/13.7.ts",
+   "mode": "100644",
+   "blob": "3095367b5d707b4ed5016fede5a8ed3bbd14a22f",
+   "previousBlob": null,
+   "added": 87,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/github/14.3.ts",
+   "mode": "100644",
+   "blob": "1c9a6b9f1223102b82fa0297788af121a48dea76",
+   "previousBlob": null,
+   "added": 101,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/github/14.4.ts",
+   "mode": "100644",
+   "blob": "6e04135f997d09b4f41720e1c5636924effa09fe",
+   "previousBlob": null,
+   "added": 79,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/github/14.5.ts",
+   "mode": "100644",
+   "blob": "3967a84f9bc737c686a92171a1cbc0f0bcbf8057",
+   "previousBlob": null,
+   "added": 103,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/github/14.6.ts",
+   "mode": "100644",
+   "blob": "7cf363de566171610710a4b2fc9789a2eb493247",
+   "previousBlob": null,
+   "added": 142,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/github/_lib.ts",
+   "mode": "100644",
+   "blob": "af26c5d297408d322ec8faf393c0ae9ab1b76152",
+   "previousBlob": null,
+   "added": 74,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

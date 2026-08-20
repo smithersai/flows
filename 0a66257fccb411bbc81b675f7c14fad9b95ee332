@@ -1,0 +1,120 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "0a66257fccb411bbc81b675f7c14fad9b95ee332",
+ "tree": "cfc6f7b059da64c48365b37685a90600f7c32b7c",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 80,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 728,
+  "globalCount": 845,
+  "purpose": "✅ test(ui): cover bun",
+  "type": "test",
+  "kind": "tests",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "bun",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "0c346e68bcbe0769a055954a5eb31a91c1a1a864",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "0c346e68bcbe0769a055954a5eb31a91c1a1a864",
+  "next": "987c4a25a202465de4dbf842c221a741845271a4",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 5,
+  "added": 1027,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/bun/CloudAgent.test.ts",
+   "mode": "100644",
+   "blob": "d8c19f0b29ab89210ff276d8dde3d4c1478b85e9",
+   "previousBlob": null,
+   "added": 117,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/bun/CloudAgentContext.test.ts",
+   "mode": "100644",
+   "blob": "ae0c29a150d81769454fa300484599a1736fe571",
+   "previousBlob": null,
+   "added": 88,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/bun/CloudAgentToolLoop.test.ts",
+   "mode": "100644",
+   "blob": "f1976d6b1ae31b667c88270f66e1a8e3cc7c2997",
+   "previousBlob": null,
+   "added": 146,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/bun/LocalRepository.test.ts",
+   "mode": "100644",
+   "blob": "c5f2da46d79998c21c1f5567095c7a22af6bd7d3",
+   "previousBlob": null,
+   "added": 211,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/bun/Main.test.ts",
+   "mode": "100644",
+   "blob": "8144e67645aa31c38af7f9d190a424ea87ccafbf",
+   "previousBlob": null,
+   "added": 465,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

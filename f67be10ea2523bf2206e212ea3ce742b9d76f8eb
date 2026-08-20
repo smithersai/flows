@@ -1,0 +1,163 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "f67be10ea2523bf2206e212ea3ce742b9d76f8eb",
+ "tree": "ff124c06a55ce0022691783d976da841ef239400",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 36,
+  "childCount": 66,
+  "head": "28962374658aba2757a5405dab6454616510b6b6"
+ },
+ "atomic": {
+  "globalIndex": 361,
+  "globalCount": 845,
+  "purpose": "✨ feat(model): add the Auth, CanonicalJson, Endpoint and 1 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "model",
+  "component": "packages/model",
+  "unitKey": "Auth",
+  "mergedUnitKeys": [
+   "Auth",
+   "CanonicalJson",
+   "Endpoint",
+   "Framing"
+  ]
+ },
+ "dependencies": {
+  "parent": "ca64d244877b29343abe543c1860eefe641dcd48",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [
+   "3c7d5e2fa7baca72bd497508f2d25d5b36dfc901"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "ca64d244877b29343abe543c1860eefe641dcd48",
+  "next": "d7d2db275b3ee72ee4be9674c4a46dd91a7a1ebc",
+  "epicFirst": "65dffaa9668923ae816eeaa5bce0901a958729b0",
+  "epicLast": "28962374658aba2757a5405dab6454616510b6b6",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 8,
+  "added": 660,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/model/src/Auth.ts",
+   "mode": "100644",
+   "blob": "115450d7342f53bcfa86ec217518c4c9a7f99062",
+   "previousBlob": null,
+   "added": 88,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/test/Auth.test.ts",
+   "mode": "100644",
+   "blob": "1202d1a2ba9e3a29d8184234ffef859630ff09b5",
+   "previousBlob": null,
+   "added": 29,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/src/CanonicalJson.ts",
+   "mode": "100644",
+   "blob": "03863185286a32fb9ea5e5fa4cfa35d35c85e47b",
+   "previousBlob": null,
+   "added": 88,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/test/CanonicalJson.test.ts",
+   "mode": "100644",
+   "blob": "4988ccb0d401147e74df7be4b54d62f092a8129d",
+   "previousBlob": null,
+   "added": 113,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/src/Endpoint.ts",
+   "mode": "100644",
+   "blob": "d282200c0f1a7446b9ab78f71ef6c99c6c747ed0",
+   "previousBlob": null,
+   "added": 115,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/test/Endpoint.test.ts",
+   "mode": "100644",
+   "blob": "9facf994f873306830920b7e4c2f40eea5a7790a",
+   "previousBlob": null,
+   "added": 88,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/src/Framing.ts",
+   "mode": "100644",
+   "blob": "f6e9e7c842f1d7aace5d62e5552cdda789b83b41",
+   "previousBlob": null,
+   "added": 72,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/test/Framing.test.ts",
+   "mode": "100644",
+   "blob": "f8d3ba217a40a1ea138bbdf5de65b6f8f1e3c85c",
+   "previousBlob": null,
+   "added": 67,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

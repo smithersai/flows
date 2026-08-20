@@ -1,0 +1,133 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "07fec5329e44178598f92873b7c74f6b442571c9",
+ "tree": "30aa97c8a386c0a1287cb29e0bb5f6c084a66226",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 139,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 787,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the mainview/state modules (5/5)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:mainview/state",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "e0ea030ac10573a07f6acdcf40c6b3fa818b55ef",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "e0ea030ac10573a07f6acdcf40c6b3fa818b55ef"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "e0ea030ac10573a07f6acdcf40c6b3fa818b55ef",
+  "next": "f032649d5f5d191dbd7a7750f056e199d8555921",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 6,
+  "added": 967,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/ClientErrors.ts",
+   "mode": "100644",
+   "blob": "790567e7e9be8a1524ecc9b0a2cf3604cf339330",
+   "previousBlob": null,
+   "added": 201,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/Instructions.ts",
+   "mode": "100644",
+   "blob": "f432b65c4e951a8f63d430cfe793950cc702c516",
+   "previousBlob": null,
+   "added": 177,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/MessageScrub.ts",
+   "mode": "100644",
+   "blob": "267d26f22cf2f22641457cf10de19595195c9738",
+   "previousBlob": null,
+   "added": 135,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/RepoContext.ts",
+   "mode": "100644",
+   "blob": "7328c26ce8726c29a29e0cb2c8f9cc9b9403d91f",
+   "previousBlob": null,
+   "added": 46,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/RunClaims.ts",
+   "mode": "100644",
+   "blob": "e478414eccf7c234fbfb6e36c61f5a597f18f811",
+   "previousBlob": null,
+   "added": 316,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/WorldContext.ts",
+   "mode": "100644",
+   "blob": "09c9ff36f625167811cd32bf97cb06172ef97f85",
+   "previousBlob": null,
+   "added": 92,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

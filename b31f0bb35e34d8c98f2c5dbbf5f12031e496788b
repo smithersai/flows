@@ -1,0 +1,94 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "b31f0bb35e34d8c98f2c5dbbf5f12031e496788b",
+ "tree": "b97ebf64737f3ee81b15a26bd9f3ab7e1acc1859",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 20,
+  "childCount": 43,
+  "head": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9"
+ },
+ "atomic": {
+  "globalIndex": 302,
+  "globalCount": 845,
+  "purpose": "✨ feat(registry): add Registry",
+  "type": "feat",
+  "kind": "module",
+  "scope": "registry",
+  "component": "packages/registry",
+  "unitKey": "Registry",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "aa645dcd0e3c97136961b0daded039fc8be000f2",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [
+   "befa30c0fa098dfb799e49529736dd285712fb98",
+   "aa645dcd0e3c97136961b0daded039fc8be000f2",
+   "537c4daae8df2135857aeea67e9f3d736ede1f57",
+   "ead73b561bfa304507844e05868334fcf67082a5"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "aa645dcd0e3c97136961b0daded039fc8be000f2",
+  "next": "1ae2f3b78daa4ba33deb87bfe057eee002727dcd",
+  "epicFirst": "f7a85bfa43ff3fa63e2ad6200bd2d4d7ec1397a2",
+  "epicLast": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 838,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/registry/src/Registry.ts",
+   "mode": "100644",
+   "blob": "a9c1ede7dc968487d584e8305320f9559a7d183b",
+   "previousBlob": null,
+   "added": 324,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/registry/test/Registry.test.ts",
+   "mode": "100644",
+   "blob": "d78f5324242ccc1a2301d15aac2e870e89b80c04",
+   "previousBlob": null,
+   "added": 514,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

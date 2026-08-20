@@ -1,0 +1,163 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "8d222879944a121d441c2c37d5ed2b7943a88b54",
+ "tree": "e04f945fcb5bf16596bd5b51ae241a627de58d22",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 1,
+  "childCount": 54,
+  "head": "8f2310ef99183d31a7cb6a91238af374d246498b"
+ },
+ "atomic": {
+  "globalIndex": 72,
+  "globalCount": 845,
+  "purpose": "🧹 chore(keys): scaffold the @smthrs/keys package",
+  "type": "chore",
+  "kind": "scaffold",
+  "scope": "keys",
+  "component": "packages/keys",
+  "unitKey": "~scaffold",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "9633d567508a5d82ee51d5ed34014e850f417731",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "commit": "3b57deac5ef23a0e1e2fa660e6bcf9351049a95b"
+   },
+   {
+    "package": "@smthrs/crypto",
+    "commit": "3ac9a18fee84c753c34d31ae7baae150fa503fe6"
+   }
+  ]
+ },
+ "related": {
+  "previous": "9633d567508a5d82ee51d5ed34014e850f417731",
+  "next": "382024e252441bcfd38009f29eb88d52bae02d58",
+  "epicFirst": "8d222879944a121d441c2c37d5ed2b7943a88b54",
+  "epicLast": "8f2310ef99183d31a7cb6a91238af374d246498b",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 9,
+  "added": 331,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/keys/LICENSE",
+   "mode": "100644",
+   "blob": "422a888fe58a4f77514fe407f175499d57fa27be",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/keys/dprint.json",
+   "mode": "100644",
+   "blob": "d477c0cd6d212dfc8308198e5ed2addbcef839b8",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/keys/eslint.config.js",
+   "mode": "100644",
+   "blob": "11277f241313f0dd873e81b6cd4c71c56dcb9c86",
+   "previousBlob": null,
+   "added": 47,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/keys/package.json",
+   "mode": "100644",
+   "blob": "ee79d933587b135080a6cbbfae6178ed1773b7e6",
+   "previousBlob": null,
+   "added": 105,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/keys/scripts/build.mjs",
+   "mode": "100644",
+   "blob": "ca37bbebfb003f47bfdb7364a72f0830e2a25c68",
+   "previousBlob": null,
+   "added": 47,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/keys/scripts/circular.mjs",
+   "mode": "100644",
+   "blob": "145ac66895f826f8862a96f7d6e378ce542c2c98",
+   "previousBlob": null,
+   "added": 9,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/keys/tsconfig.json",
+   "mode": "100644",
+   "blob": "68d742349943a548207aa9f6e838284338f24749",
+   "previousBlob": null,
+   "added": 36,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/keys/tsconfig.test.json",
+   "mode": "100644",
+   "blob": "94fae90f7540fc802b584832d57cdcfc5f8167f3",
+   "previousBlob": null,
+   "added": 12,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/keys/vitest.config.ts",
+   "mode": "100644",
+   "blob": "4a25c4fcd9abc1c17537f986547041b6da8c0ca4",
+   "previousBlob": null,
+   "added": 33,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  }
+ ]
+}

@@ -1,0 +1,86 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "5b67993c06ca466935967b972fa284ca005982ba",
+ "tree": "11fc3364fffd7ed4afdbe40e0ae058ef57e7dd59",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 18,
+  "childCount": 54,
+  "head": "8f2310ef99183d31a7cb6a91238af374d246498b"
+ },
+ "atomic": {
+  "globalIndex": 89,
+  "globalCount": 845,
+  "purpose": "📝 docs(plan): document plan",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "plan",
+  "component": "packages/plan",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "96d40fad8e828c8633b580a1cbcd65e8265f2b24",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   },
+   {
+    "package": "@smthrs/keys",
+    "commit": "e145b0e5dfced2a00c300f9b139b14f6820bf771"
+   }
+  ]
+ },
+ "related": {
+  "previous": "96d40fad8e828c8633b580a1cbcd65e8265f2b24",
+  "next": "a47bfec91c6d2dd346c9408d47af728c65759230",
+  "epicFirst": "8d222879944a121d441c2c37d5ed2b7943a88b54",
+  "epicLast": "8f2310ef99183d31a7cb6a91238af374d246498b",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 131,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/plan/CHANGELOG.md",
+   "mode": "100644",
+   "blob": "f51c3fba70b8e258e8f62a6bda7538f1d1e57cf0",
+   "previousBlob": null,
+   "added": 20,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/plan/README.md",
+   "mode": "100644",
+   "blob": "fb2cc0ccf5b4c22e2ea6e625f3ccd46000a7f4e6",
+   "previousBlob": null,
+   "added": 111,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

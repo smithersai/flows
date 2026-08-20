@@ -1,0 +1,94 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "43de0097a655cbf1b84f9980b1e7c18aa8983b55",
+ "tree": "a34faffd4933804fab8c847aead474722986ee89",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 34,
+  "childCount": 54,
+  "head": "8f2310ef99183d31a7cb6a91238af374d246498b"
+ },
+ "atomic": {
+  "globalIndex": 105,
+  "globalCount": 845,
+  "purpose": "✨ feat(engine): add FlowProxy",
+  "type": "feat",
+  "kind": "module",
+  "scope": "engine",
+  "component": "packages/engine",
+  "unitKey": "FlowProxy",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "cb9816781de49483592c0ea035e45a60b28d5e3c",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/crypto",
+    "commit": "3ac9a18fee84c753c34d31ae7baae150fa503fe6"
+   },
+   {
+    "package": "@smthrs/flow",
+    "commit": "8f2310ef99183d31a7cb6a91238af374d246498b"
+   },
+   {
+    "package": "@smthrs/keys",
+    "commit": "e145b0e5dfced2a00c300f9b139b14f6820bf771"
+   },
+   {
+    "package": "@smthrs/plan",
+    "commit": "a6c062c1ea8185f0a2b743039e577306a8ad4a47"
+   }
+  ]
+ },
+ "related": {
+  "previous": "cb9816781de49483592c0ea035e45a60b28d5e3c",
+  "next": "f7fc224cd4d37beb401f10de40d3cfe4377a9437",
+  "epicFirst": "8d222879944a121d441c2c37d5ed2b7943a88b54",
+  "epicLast": "8f2310ef99183d31a7cb6a91238af374d246498b",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 315,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine/src/FlowProxy.ts",
+   "mode": "100644",
+   "blob": "db45dbaccd85f09186a5575ab10e1d520151d1e3",
+   "previousBlob": null,
+   "added": 237,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine/test/FlowProxy.test.ts",
+   "mode": "100644",
+   "blob": "d86c07fc25d1a8359c16f25bd7092a731cab1418",
+   "previousBlob": null,
+   "added": 78,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

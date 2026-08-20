@@ -1,0 +1,197 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "15570dc96b5be67be09062b7473dcedc4d5b36dc",
+ "tree": "9c1b84fb2c10b99012cb3b6dab778310aed9f81b",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 89,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 601,
+  "globalCount": 845,
+  "purpose": "✨ feat(build-cli): add the GraphOutput, Query, Cli and 4 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "build-cli",
+  "component": "packages/build-cli",
+  "unitKey": "GraphOutput",
+  "mergedUnitKeys": [
+   "GraphOutput",
+   "Query",
+   "Cli",
+   "dbg-query",
+   "dbg-query.mjs",
+   "effect-resolution.d",
+   "main"
+  ]
+ },
+ "dependencies": {
+  "parent": "1ae37b087d8d2c1a4e99b833af5ad363a3685f0f",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [
+   "7f5aba15b5641f247f4817cc20a13e6fa46c55b4",
+   "d49c9f4c00237cc485175099f6f627b1bc9e190f",
+   "f4817599cf9e7b6906d82ba5f2902fb8cd9492b8",
+   "1ae37b087d8d2c1a4e99b833af5ad363a3685f0f",
+   "fefabbd3af081906fdcb4539c6aeef5640b27c3d"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "commit": "3b57deac5ef23a0e1e2fa660e6bcf9351049a95b"
+   },
+   {
+    "package": "@smthrs/crypto",
+    "commit": "3ac9a18fee84c753c34d31ae7baae150fa503fe6"
+   },
+   {
+    "package": "@smthrs/engine",
+    "commit": "b17af994607bc2ef084b62d75c0b2509f8b56d23"
+   },
+   {
+    "package": "@smthrs/flow",
+    "commit": "8f2310ef99183d31a7cb6a91238af374d246498b"
+   },
+   {
+    "package": "@smthrs/keys",
+    "commit": "e145b0e5dfced2a00c300f9b139b14f6820bf771"
+   },
+   {
+    "package": "@smthrs/plan",
+    "commit": "a6c062c1ea8185f0a2b743039e577306a8ad4a47"
+   },
+   {
+    "package": "@smthrs/build",
+    "commit": "5bf1e298eb942dbd7a992794dad1bb0981ae7613"
+   },
+   {
+    "package": "@smthrs/targets",
+    "commit": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+   }
+  ]
+ },
+ "related": {
+  "previous": "1ae37b087d8d2c1a4e99b833af5ad363a3685f0f",
+  "next": "3e0443020a6cf6b451764129ace5aa4a4f2d27d4",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 8,
+  "added": 689,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build-cli/src/GraphOutput.ts",
+   "mode": "100644",
+   "blob": "d59ff8c7119ecac369c3116a7f2a02199d1088e6",
+   "previousBlob": null,
+   "added": 69,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build-cli/src/Query.ts",
+   "mode": "100644",
+   "blob": "8df1c06de05233844aaafd243a62d2c9604cbf65",
+   "previousBlob": null,
+   "added": 73,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build-cli/src/Cli.ts",
+   "mode": "100644",
+   "blob": "2283a3e12e2153b2fb7f477063199e834b5baa65",
+   "previousBlob": null,
+   "added": 440,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build-cli/dbg-query.mjs",
+   "mode": "100644",
+   "blob": "0f4bfe700fb11213f0acd9b633fa455aa6205580",
+   "previousBlob": null,
+   "added": 19,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build-cli/dbg-query.mjs.bak",
+   "mode": "100644",
+   "blob": "816bd775694154da2a2afcde34ed10595348cd7f",
+   "previousBlob": null,
+   "added": 19,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build-cli/src/effect-resolution.d.ts",
+   "mode": "100644",
+   "blob": "ba1f30c2712d4ba1ebc977e7c9f5010e6d43ba77",
+   "previousBlob": null,
+   "added": 17,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build-cli/src/main.js",
+   "mode": "100755",
+   "blob": "8940b4dd8af90e3c320012f021f85aadfaa97bf6",
+   "previousBlob": null,
+   "added": 14,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build-cli/src/main.ts",
+   "mode": "100755",
+   "blob": "0a604de0ba2840ad1746c7afd9aa00a47cb93e6a",
+   "previousBlob": null,
+   "added": 38,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,110 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "b1a4e8a5991a1a81dbd6183022ba666fe261308b",
+ "tree": "8305b37a43e7db80760640610f55c5cc0c52ff92",
+ "epic": {
+  "index": 12,
+  "id": "examples",
+  "name": "Executable learning and evaluation suites",
+  "sourceCommit": "1c0d5bce16fdac649b8f108f4e37eaea58f4933c",
+  "sourceSubject": "📚 docs(examples): add executable learning and evaluation suites",
+  "childIndex": 14,
+  "childCount": 18,
+  "head": "ac7419bdf70373fddd3f14e1eaf511aca20aea7d"
+ },
+ "atomic": {
+  "globalIndex": 624,
+  "globalCount": 845,
+  "purpose": "📝 docs(evals-swebench): document ., reports",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "evals-swebench",
+  "component": "evals/swebench",
+  "unitKey": ".",
+  "mergedUnitKeys": [
+   ".",
+   "reports"
+  ]
+ },
+ "dependencies": {
+  "parent": "55a3230bf393b3edb1fd2557f4f392a24c6606c8",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "55a3230bf393b3edb1fd2557f4f392a24c6606c8",
+  "next": "9a38ef27b0439dcf0f309f6d78ee21074d90cdf3",
+  "epicFirst": "f49d638b0d89382d3b7dc40e3aa9372c7294d2d8",
+  "epicLast": "ac7419bdf70373fddd3f14e1eaf511aca20aea7d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 613,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "evals/swebench/README.md",
+   "mode": "100644",
+   "blob": "395f04731624b2aa5376d97217a5694e8cc625f4",
+   "previousBlob": null,
+   "added": 231,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/scorecard.md",
+   "mode": "100644",
+   "blob": "70638b2ebbd6cba4f805f3c0546493685dece892",
+   "previousBlob": null,
+   "added": 40,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/reports/wave-2-2026-08-19.md",
+   "mode": "100644",
+   "blob": "7d39529a8f9cb8896ee3860b58761f6a407a5ca4",
+   "previousBlob": null,
+   "added": 195,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/reports/wave-2026-08-19.md",
+   "mode": "100644",
+   "blob": "785b1abb6fec0ff31d2fb44bac7c36d567f2fd04",
+   "previousBlob": null,
+   "added": 147,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

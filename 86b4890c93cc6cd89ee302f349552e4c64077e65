@@ -1,0 +1,79 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "86b4890c93cc6cd89ee302f349552e4c64077e65",
+ "tree": "85341da675d525393f452d188a345b62247a67d3",
+ "epic": {
+  "index": 17,
+  "id": "factory",
+  "name": "Repository software factory",
+  "sourceCommit": "e1fbeee4b23399542c5105cb6f89733a14cc1892",
+  "sourceSubject": "✨ feat(factory): add the repository software factory",
+  "childIndex": 17,
+  "childCount": 17,
+  "head": "86b4890c93cc6cd89ee302f349552e4c64077e65"
+ },
+ "atomic": {
+  "globalIndex": 836,
+  "globalCount": 845,
+  "purpose": "📝 docs(factory-core): document factory-core",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "factory-core",
+  "component": "factory",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "0fb2e65f69df8c281b41faf82996458ee7e1badb",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui",
+   "docs-site"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "0fb2e65f69df8c281b41faf82996458ee7e1badb",
+  "next": "fed6cbe14b940882dcae210c48223700336f43b7",
+  "epicFirst": "ba7243c4d5d3b90d5f65b965635c307d1d37ac11",
+  "epicLast": "86b4890c93cc6cd89ee302f349552e4c64077e65",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 24,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "factory/README.md",
+   "mode": "100644",
+   "blob": "22702baacac6f9c8ee9570e7c889da5ec02339e8",
+   "previousBlob": null,
+   "added": 24,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

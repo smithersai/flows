@@ -1,0 +1,95 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "aa645dcd0e3c97136961b0daded039fc8be000f2",
+ "tree": "7bc2615a56c85153b9cddaedf2a91d9c50e31917",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 19,
+  "childCount": 43,
+  "head": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9"
+ },
+ "atomic": {
+  "globalIndex": 301,
+  "globalCount": 845,
+  "purpose": "✨ feat(registry): add Discovery",
+  "type": "feat",
+  "kind": "module",
+  "scope": "registry",
+  "component": "packages/registry",
+  "unitKey": "Discovery",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "537c4daae8df2135857aeea67e9f3d736ede1f57",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [
+   "befa30c0fa098dfb799e49529736dd285712fb98",
+   "cf245c8a6d029e70a60d119c653963bd02ab2b65",
+   "da07325a0d109c3ddff0d08ce585a7604e9e5133",
+   "ead73b561bfa304507844e05868334fcf67082a5",
+   "537c4daae8df2135857aeea67e9f3d736ede1f57"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "537c4daae8df2135857aeea67e9f3d736ede1f57",
+  "next": "b31f0bb35e34d8c98f2c5dbbf5f12031e496788b",
+  "epicFirst": "f7a85bfa43ff3fa63e2ad6200bd2d4d7ec1397a2",
+  "epicLast": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 603,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/registry/src/Discovery.ts",
+   "mode": "100644",
+   "blob": "50d0bc936238eb568169e05c3fe947b42be0baa0",
+   "previousBlob": null,
+   "added": 397,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/registry/test/Discovery.test.ts",
+   "mode": "100644",
+   "blob": "4273cb729e728fb392ef147989712e25f17d0be5",
+   "previousBlob": null,
+   "added": 206,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

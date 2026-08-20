@@ -1,0 +1,88 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "ea1b71863eff1f98c0970e796e5d77dec3e5716b",
+ "tree": "10fce223d12c1f649f033288eb6bf8b7f4739b8d",
+ "epic": {
+  "index": 2,
+  "id": "core",
+  "name": "Canonical leaf contracts",
+  "sourceCommit": "9cd3ac554b7b6acecfceddce69f6a6b6afa257b6",
+  "sourceSubject": "✨ feat(core): add canonical leaf contracts",
+  "childIndex": 8,
+  "childCount": 14,
+  "head": "661ab4abf442fdbc7f5039a9846f9822f28b505a"
+ },
+ "atomic": {
+  "globalIndex": 10,
+  "globalCount": 845,
+  "purpose": "✨ feat(capability): add Permission",
+  "type": "feat",
+  "kind": "module",
+  "scope": "capability",
+  "component": "packages/capability",
+  "unitKey": "Permission",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "c976401e6741011323127c72a26e0b19f0c46ada",
+  "epicPredecessors": [
+   "repo"
+  ],
+  "sourceImports": [
+   "c976401e6741011323127c72a26e0b19f0c46ada"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "c976401e6741011323127c72a26e0b19f0c46ada",
+  "next": "0939949b073e11e8e6015e4bed6d5c9910aeafb1",
+  "epicFirst": "c0c561bff5109eb97831d6eda26e84d1d4aa5583",
+  "epicLast": "661ab4abf442fdbc7f5039a9846f9822f28b505a",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 636,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/capability/src/Permission.ts",
+   "mode": "100644",
+   "blob": "2bba2014c220d3b9be22cdbc505b34be4f565b6b",
+   "previousBlob": null,
+   "added": 305,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/capability/test/Permission.test.ts",
+   "mode": "100644",
+   "blob": "7da77d2ab644488e13e5a407750f1ede54f51f84",
+   "previousBlob": null,
+   "added": 213,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/capability/test/PermissionErrors.test.ts",
+   "mode": "100644",
+   "blob": "b43cf1597faa24113d9fd498a85b0ba8491a1471",
+   "previousBlob": null,
+   "added": 118,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

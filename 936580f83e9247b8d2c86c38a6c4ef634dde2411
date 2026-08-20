@@ -1,0 +1,89 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "936580f83e9247b8d2c86c38a6c4ef634dde2411",
+ "tree": "2146afd9bc81914ac7e10d9c809b4ae5a8dbd358",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 137,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 785,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the mainview/state modules (3/5)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:mainview/state",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "f2f4ea0ef0875dbd9f3a02155990ec55c4bdc224",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "1def8db7eb29e0066f6b01771aeedfe597bf9c53"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "f2f4ea0ef0875dbd9f3a02155990ec55c4bdc224",
+  "next": "e0ea030ac10573a07f6acdcf40c6b3fa818b55ef",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 966,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/Appearance.ts",
+   "mode": "100644",
+   "blob": "ec28749b7a39c9b4e0c948049c7a764c3dbd1989",
+   "previousBlob": null,
+   "added": 39,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/AppState.ts",
+   "mode": "100644",
+   "blob": "3f4ef68c18fcd205737687a4e688a384bcb855cc",
+   "previousBlob": null,
+   "added": 927,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

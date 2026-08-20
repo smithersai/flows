@@ -1,0 +1,316 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "1ca17ad40f58cc06ff1e53a3e6944a3205bbd5f6",
+ "tree": "f940932e260cc70d4be7dbaac1bfd9d200f093bb",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 131,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 779,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the mainview modules (3/4)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:mainview",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "e759260fb56afe1d6f5ce1b9c990cc85dc98f4d2",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "f2f4ea0ef0875dbd9f3a02155990ec55c4bdc224",
+   "9cfafeb8c7dac9762560efdaa95544c3f4556f21",
+   "a701836259f43899fc1445ebce5b9941044812d7",
+   "e759260fb56afe1d6f5ce1b9c990cc85dc98f4d2",
+   "2564c29586d596a1ea144b004044e8da5ce6d143",
+   "936580f83e9247b8d2c86c38a6c4ef634dde2411",
+   "0d238900e44c2ef4f17907336b81dafcb3394d93",
+   "07fec5329e44178598f92873b7c74f6b442571c9"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "e759260fb56afe1d6f5ce1b9c990cc85dc98f4d2",
+  "next": "97fd7160ddf0a9aba7757b6f28f209fa31d44657",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 22,
+  "added": 1500,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/ControllerContext.tsx",
+   "mode": "100644",
+   "blob": "c1377606935bc89c5fc882898d07d2e20084dc58",
+   "previousBlob": null,
+   "added": 22,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/ControllerProvider.tsx",
+   "mode": "100644",
+   "blob": "1fc36a94be76d5543183842dcd09c85d3c676e03",
+   "previousBlob": null,
+   "added": 25,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/DevtoolsPanel.tsx",
+   "mode": "100644",
+   "blob": "906e9ea9f44e916e6033fc7932edaa251699b17f",
+   "previousBlob": null,
+   "added": 241,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/FlowStamp.ts",
+   "mode": "100644",
+   "blob": "dff2f35e16f39d05900834c041885b5062ff40be",
+   "previousBlob": null,
+   "added": 36,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/FocusRing.ts",
+   "mode": "100644",
+   "blob": "f300d277b8af0cadbed76e129d7afc45054e2db9",
+   "previousBlob": null,
+   "added": 77,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/GitHubPane.tsx",
+   "mode": "100644",
+   "blob": "f5e4ea2c0ec230200c0bbb47f5860b1f54e77ddb",
+   "previousBlob": null,
+   "added": 140,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/index.css",
+   "mode": "100644",
+   "blob": "906ee80b3c2b629271ae94a06798e644ece27511",
+   "previousBlob": null,
+   "added": 10,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/index.html",
+   "mode": "100644",
+   "blob": "ee2cf9b3060aa7b2320854046d9f7e3e824ceb88",
+   "previousBlob": null,
+   "added": 48,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/main.tsx",
+   "mode": "100644",
+   "blob": "6c9562aec98b925411f172ad839ca1c9c19ab3c2",
+   "previousBlob": null,
+   "added": 25,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/RepoFilesBrowser.tsx",
+   "mode": "100644",
+   "blob": "a9aea0527f640b724a976f80ad41ec8c902ed773",
+   "previousBlob": null,
+   "added": 50,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/RepositoryList.tsx",
+   "mode": "100644",
+   "blob": "63e5a5d510b4c7b4e702e25ed4423525af32a9c7",
+   "previousBlob": null,
+   "added": 92,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/RichMarkdown.tsx",
+   "mode": "100644",
+   "blob": "98035f4f14ff139d88d437bb2d25d84c469b4ccf",
+   "previousBlob": null,
+   "added": 139,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/router.tsx",
+   "mode": "100644",
+   "blob": "a6aaa3ea1bdd35cfb10e67e62b68f98f74f42e73",
+   "previousBlob": null,
+   "added": 10,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/routeTree.gen.ts",
+   "mode": "100644",
+   "blob": "dceedffdc12c32138e81bb63787cac7ae5d97fcd",
+   "previousBlob": null,
+   "added": 68,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/Session.functions.ts",
+   "mode": "100644",
+   "blob": "6169ea47a24b4720b429184c8d6b0e903e08ac4c",
+   "previousBlob": null,
+   "added": 95,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/SessionShell.tsx",
+   "mode": "100644",
+   "blob": "210a5a83edf9b3c7a6997dd54c139d0bbad027bf",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/StartupBoundary.tsx",
+   "mode": "100644",
+   "blob": "2955a94f69d93966b71fd65ed8adc13f402f9446",
+   "previousBlob": null,
+   "added": 48,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/StartupError.tsx",
+   "mode": "100644",
+   "blob": "0a1a9e8ead7c76ec0db7e8db48ce6b33a41626d9",
+   "previousBlob": null,
+   "added": 63,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/StartupWatchdog.ts",
+   "mode": "100644",
+   "blob": "e1ee7187f4b88067b0c67caf50da569ca31c78fb",
+   "previousBlob": null,
+   "added": 94,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/SurfaceChrome.tsx",
+   "mode": "100644",
+   "blob": "18b3fdd978b126a1a12d1ea8e822e35f846320ad",
+   "previousBlob": null,
+   "added": 103,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/Timestamps.ts",
+   "mode": "100644",
+   "blob": "5d315051da36957bc40981ad91077d842b6f898c",
+   "previousBlob": null,
+   "added": 31,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/ToastStack.tsx",
+   "mode": "100644",
+   "blob": "bb48eabea1b513aababdd6e0b69b8c451d5111a4",
+   "previousBlob": null,
+   "added": 62,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

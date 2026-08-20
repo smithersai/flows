@@ -1,0 +1,158 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "ed423dc7d6acdb3fd19172dc768571944f377b77",
+ "tree": "aa41fce7f1a7d8399ec059c464147bdc7f28ac79",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 18,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 666,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the lib/ddd modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/.smithers",
+  "unitKey": "dir:lib/ddd",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "a2493f854e188738e36451261e0ba22e0fbd002f",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "commit": "fec516964e3e6a618aace55755a6d0befd72daa8"
+   }
+  ]
+ },
+ "related": {
+  "previous": "a2493f854e188738e36451261e0ba22e0fbd002f",
+  "next": "160cb184fe3705cdb674df2b90f24876465ab37d",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 8,
+  "added": 992,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/lib/ddd/auditInputs.ts",
+   "mode": "100644",
+   "blob": "9521ee75cffaf43d61a921039700f22fd2c43d79",
+   "previousBlob": null,
+   "added": 95,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/lib/ddd/build.ts",
+   "mode": "100644",
+   "blob": "faf9c5bfac06eb8e424bb930a0f45c0c3abb7b6e",
+   "previousBlob": null,
+   "added": 29,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/lib/ddd/dddRoot.ts",
+   "mode": "100644",
+   "blob": "e765c02f3d3a355cb747042a28270434af7239c2",
+   "previousBlob": null,
+   "added": 58,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/lib/ddd/featuresSchema.ts",
+   "mode": "100644",
+   "blob": "26cd2c5a28daee64b5a8724819d57d6002bee80b",
+   "previousBlob": null,
+   "added": 100,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/lib/ddd/generateSpecDocs.ts",
+   "mode": "100644",
+   "blob": "836306513f54f80ff4774e14f36f0769c90dfeb1",
+   "previousBlob": null,
+   "added": 269,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/lib/ddd/generateUiModules.ts",
+   "mode": "100644",
+   "blob": "dc29200faafd7c2d6bd8e3575c79a58e0744e626",
+   "previousBlob": null,
+   "added": 258,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/lib/ddd/triageCandidates.ts",
+   "mode": "100644",
+   "blob": "19ed2a959fe2659e99988b878d1fd56f46201c74",
+   "previousBlob": null,
+   "added": 131,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/lib/ddd/validateFeatures.ts",
+   "mode": "100644",
+   "blob": "bf95b8973160ee1a689015bc949496b9c7860964",
+   "previousBlob": null,
+   "added": 52,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

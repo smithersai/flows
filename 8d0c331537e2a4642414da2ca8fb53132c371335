@@ -1,0 +1,101 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "8d0c331537e2a4642414da2ca8fb53132c371335",
+ "tree": "da67b28ee028cabe43680657cbb6afba54a00e35",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 29,
+  "childCount": 96,
+  "head": "c93705a8b036d030082a6877bd6668709293285d"
+ },
+ "atomic": {
+  "globalIndex": 215,
+  "globalCount": 845,
+  "purpose": "✅ test(engine-store): cover engine-store (21/23)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "engine-store",
+  "component": "packages/engine-store/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "b6ac9334c287e91f69fae3f5858debbbe5bd7a70",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "b6ac9334c287e91f69fae3f5858debbbe5bd7a70",
+  "next": "95bf53ec2174cb6a970f9fb5f126cfc8182d7b14",
+  "epicFirst": "eec277e2e1bfd7b6ae08c5d31c63df081ea52207",
+  "epicLast": "c93705a8b036d030082a6877bd6668709293285d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 1068,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/Trampoline.test.ts",
+   "mode": "100644",
+   "blob": "f291b7e391196a697afdad4f3cceb2f43a1d7da5",
+   "previousBlob": null,
+   "added": 635,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/UnregisteredFlowWarning.test.ts",
+   "mode": "100644",
+   "blob": "c07b6d27d2a536cb7358f3faa057c8c905451fc1",
+   "previousBlob": null,
+   "added": 126,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/WaitingReason.test.ts",
+   "mode": "100644",
+   "blob": "5f6bfaa9b46e9a907a7ee76a7ae06b7efcb54960",
+   "previousBlob": null,
+   "added": 188,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/WakeBus.test.ts",
+   "mode": "100644",
+   "blob": "bf8f708eea243917b485293b08b71f88d3b6c64c",
+   "previousBlob": null,
+   "added": 119,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

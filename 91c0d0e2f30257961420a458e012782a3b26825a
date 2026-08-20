@@ -1,0 +1,90 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "91c0d0e2f30257961420a458e012782a3b26825a",
+ "tree": "54eff12ec6c75b670551f4ee4060edd4c8f457c7",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 11,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 659,
+  "globalCount": 845,
+  "purpose": "📝 docs(reports): document wave13, wave13/truth-bar",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "reports",
+  "component": "apps/reports/live-checks",
+  "unitKey": "wave13",
+  "mergedUnitKeys": [
+   "wave13",
+   "wave13/truth-bar"
+  ]
+ },
+ "dependencies": {
+  "parent": "cf298043d6db6bac1180b9c8fe557083f8bdec75",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "cf298043d6db6bac1180b9c8fe557083f8bdec75",
+  "next": "9baaa53860be1b2ffc241ddc0c99ddd92a29f1e0",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 363,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave13/launch-checklist-report.BEFORE.md",
+   "mode": "100644",
+   "blob": "c38e6c467710d6dae0ead266b16d49770c1a77d1",
+   "previousBlob": null,
+   "added": 292,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave13/truth-bar/transcript.md",
+   "mode": "100644",
+   "blob": "8a6b4f305b53cfd1f76f3f90bc0ec0e8b05dfde8",
+   "previousBlob": null,
+   "added": 71,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

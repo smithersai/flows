@@ -1,0 +1,146 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "5c21ab858de83d609a92ccb966d53c6465995f4a",
+ "tree": "a24b7dcbfa88bd25c4c861ef945721143858e92e",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 46,
+  "childCount": 66,
+  "head": "28962374658aba2757a5405dab6454616510b6b6"
+ },
+ "atomic": {
+  "globalIndex": 371,
+  "globalCount": 845,
+  "purpose": "✨ feat(memory): add the migrations, Namespace, Sql modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "memory",
+  "component": "packages/memory",
+  "unitKey": "dir:migrations",
+  "mergedUnitKeys": [
+   "dir:migrations",
+   "Namespace",
+   "internal/Sql"
+  ]
+ },
+ "dependencies": {
+  "parent": "b2f99d0af85053a3013dd927202762d587211d68",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   },
+   {
+    "package": "@smthrs/model",
+    "commit": "5d7f346b5c7d5b6d6470e58b2aed91e31cba613a"
+   },
+   {
+    "package": "@smthrs/patterns",
+    "commit": "9e6c7183c2eb1028fd0b3f8e1736586a353cafd0"
+   }
+  ]
+ },
+ "related": {
+  "previous": "b2f99d0af85053a3013dd927202762d587211d68",
+  "next": "644fe5aa922057552f71ca92b209fcdaba71042a",
+  "epicFirst": "65dffaa9668923ae816eeaa5bce0901a958729b0",
+  "epicLast": "28962374658aba2757a5405dab6454616510b6b6",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 6,
+  "added": 659,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/memory/src/migrations/0001_memory.sql",
+   "mode": "100644",
+   "blob": "c04e9a2c85d2e24ebccb38fcfb88319bd6025f9a",
+   "previousBlob": null,
+   "added": 69,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/memory/src/migrations/0002_memory_fts.sql",
+   "mode": "100644",
+   "blob": "3a5973009a447cc869ef5ea6ed79bfe8fe66fa9f",
+   "previousBlob": null,
+   "added": 9,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/memory/src/migrations/0003_memory_vectors.sql",
+   "mode": "100644",
+   "blob": "028a228a03c1b35f20837aa34aac627b5c228a3d",
+   "previousBlob": null,
+   "added": 24,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/memory/src/Namespace.ts",
+   "mode": "100644",
+   "blob": "e2632c80b2387815273ff85810b1241ebcff65f4",
+   "previousBlob": null,
+   "added": 212,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/memory/test/Namespace.test.ts",
+   "mode": "100644",
+   "blob": "56111afe886809a542da4d672b1336f812e4e888",
+   "previousBlob": null,
+   "added": 59,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/memory/src/internal/Sql.ts",
+   "mode": "100644",
+   "blob": "d8c54ecdb3f2b800fa34b1f51a961a654900451d",
+   "previousBlob": null,
+   "added": 286,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

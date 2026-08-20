@@ -1,0 +1,114 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a7eb088640d91ee27b12868462cd5137b0b1e26b",
+ "tree": "84bdd7b94ab67044328451cdcc6ce5ec943eb85e",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 29,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 677,
+  "globalCount": 845,
+  "purpose": "✅ test(ui): cover ui",
+  "type": "test",
+  "kind": "tests",
+  "scope": "ui",
+  "component": "apps/ui/.smithers",
+  "unitKey": "tests",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "e34d06537c11c364d2bf435fab5614b22f6e5dd1",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "commit": "fec516964e3e6a618aace55755a6d0befd72daa8"
+   }
+  ]
+ },
+ "related": {
+  "previous": "e34d06537c11c364d2bf435fab5614b22f6e5dd1",
+  "next": "0e67ab66905b6b17c2fa23e980bbf59d438559d9",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 1453,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/tests/design-engineering-callouts.test.tsx",
+   "mode": "100644",
+   "blob": "2aafacb2192f09e08fd26787492a78fa015df93a",
+   "previousBlob": null,
+   "added": 120,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/tests/production-readiness-swarm.test.tsx",
+   "mode": "100644",
+   "blob": "f7f060411eaa7bf5ef485b01c511bf591ffe6c1b",
+   "previousBlob": null,
+   "added": 987,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/tests/security-guards.test.tsx",
+   "mode": "100644",
+   "blob": "708f73aeddf08b4c9fa2c4c52f7fa5470e29f45e",
+   "previousBlob": null,
+   "added": 107,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/tests/universal-flow-runtime-swarm.test.tsx",
+   "mode": "100644",
+   "blob": "a9e73da79f295862168a84c2f56aecc08ada1e13",
+   "previousBlob": null,
+   "added": 239,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

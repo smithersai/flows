@@ -1,0 +1,89 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "b422f709ce100ad9a4a0d8607e45a053ee2cc1df",
+ "tree": "7d778f57a3cd6c121e187a5c908f862fad334870",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 42,
+  "childCount": 43,
+  "head": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9"
+ },
+ "atomic": {
+  "globalIndex": 324,
+  "globalCount": 845,
+  "purpose": "✨ feat(plugin): add Kernel",
+  "type": "feat",
+  "kind": "module",
+  "scope": "plugin",
+  "component": "packages/plugin",
+  "unitKey": "Kernel",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "600c1f4aadc4e1276ad332c8aa37b13ec4c102ca",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [
+   "a6af6b175284322f976513df83d400f4690412db",
+   "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9",
+   "600c1f4aadc4e1276ad332c8aa37b13ec4c102ca"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/flow",
+    "commit": "8f2310ef99183d31a7cb6a91238af374d246498b"
+   }
+  ]
+ },
+ "related": {
+  "previous": "600c1f4aadc4e1276ad332c8aa37b13ec4c102ca",
+  "next": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9",
+  "epicFirst": "f7a85bfa43ff3fa63e2ad6200bd2d4d7ec1397a2",
+  "epicLast": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 245,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/plugin/src/Kernel.ts",
+   "mode": "100644",
+   "blob": "bd6c2749e8b480be9e5ffce0cb2ac419f16ea634",
+   "previousBlob": null,
+   "added": 89,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/plugin/test/Kernel.test.ts",
+   "mode": "100644",
+   "blob": "c61471b392cb4c21433f5b7be616090b45e5cd17",
+   "previousBlob": null,
+   "added": 156,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

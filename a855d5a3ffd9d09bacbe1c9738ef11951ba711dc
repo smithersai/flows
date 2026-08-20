@@ -1,0 +1,155 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a855d5a3ffd9d09bacbe1c9738ef11951ba711dc",
+ "tree": "1915b4543fd1059fd83405ce34adeafe2089bb9b",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 34,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 682,
+  "globalCount": 845,
+  "purpose": "📝 docs(ui): document skills, skills/browser-accessibility-visual-e2e and 5 more",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "ui",
+  "component": "apps/ui/.smithers",
+  "unitKey": "skills",
+  "mergedUnitKeys": [
+   "skills",
+   "skills/browser-accessibility-visual-e2e",
+   "skills/jj-git-history-curation",
+   "skills/renderer-neutral-transcript",
+   "skills/tanstack-db-journal",
+   "spec/content",
+   "specs"
+  ]
+ },
+ "dependencies": {
+  "parent": "8b27869c404b7081dfb587c3d4b5dc4cd0137d84",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "commit": "fec516964e3e6a618aace55755a6d0befd72daa8"
+   }
+  ]
+ },
+ "related": {
+  "previous": "8b27869c404b7081dfb587c3d4b5dc4cd0137d84",
+  "next": "b91e3227eeee6fa3890fc29c2a7df90cb1a628fc",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 7,
+  "added": 121,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/skills/production-readiness-swarm.md",
+   "mode": "100644",
+   "blob": "1462448e097cc961ffbb0b90d7d75de06e8307c1",
+   "previousBlob": null,
+   "added": 47,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/skills/browser-accessibility-visual-e2e/SKILL.md",
+   "mode": "100644",
+   "blob": "6cfc4d12f6d4af45a06ef03cd0cc9daeeabd9f1b",
+   "previousBlob": null,
+   "added": 4,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/skills/jj-git-history-curation/SKILL.md",
+   "mode": "100644",
+   "blob": "13fba862c5c4a970046547e18e66cd582152ee82",
+   "previousBlob": null,
+   "added": 4,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/skills/renderer-neutral-transcript/SKILL.md",
+   "mode": "100644",
+   "blob": "41dc03c4a6424fa9dc50947d0cb64e8414e3364f",
+   "previousBlob": null,
+   "added": 4,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/skills/tanstack-db-journal/SKILL.md",
+   "mode": "100644",
+   "blob": "9e5505a7cc761bc9175b4c44e1c85d9d0718cb7c",
+   "previousBlob": null,
+   "added": 4,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/spec/content/overview.md",
+   "mode": "100644",
+   "blob": "3455ac09a43f145598b1d805d608be4782628bd8",
+   "previousBlob": null,
+   "added": 3,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/specs/theme-command.md",
+   "mode": "100644",
+   "blob": "875159615ff4ac835fae503dee5396f69c42562c",
+   "previousBlob": null,
+   "added": 55,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

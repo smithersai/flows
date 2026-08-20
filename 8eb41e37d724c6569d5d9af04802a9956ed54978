@@ -1,0 +1,270 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "8eb41e37d724c6569d5d9af04802a9956ed54978",
+ "tree": "c9ff99ab477bd66e6aea70610ad4e73a3b044e95",
+ "epic": {
+  "index": 12,
+  "id": "examples",
+  "name": "Executable learning and evaluation suites",
+  "sourceCommit": "1c0d5bce16fdac649b8f108f4e37eaea58f4933c",
+  "sourceSubject": "📚 docs(examples): add executable learning and evaluation suites",
+  "childIndex": 17,
+  "childCount": 18,
+  "head": "ac7419bdf70373fddd3f14e1eaf511aca20aea7d"
+ },
+ "atomic": {
+  "globalIndex": 627,
+  "globalCount": 845,
+  "purpose": "✨ feat(examples): add the 06-time-travel-rewind, 07-sync-follower, 08-host-adapters and 2 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "examples",
+  "component": "examples",
+  "unitKey": "06-time-travel-rewind",
+  "mergedUnitKeys": [
+   "06-time-travel-rewind",
+   "07-sync-follower",
+   "08-host-adapters",
+   "09-browser-use",
+   "10-telemetry-export"
+  ]
+ },
+ "dependencies": {
+  "parent": "d53ae30248a8cc8cf0af3626c7e24910b37c6d7c",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build"
+  ],
+  "sourceImports": [
+   "d53ae30248a8cc8cf0af3626c7e24910b37c6d7c"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/agent",
+    "commit": "b0dba50a345f90c5aaa20e5177e68a82df0809a5"
+   },
+   {
+    "package": "@smthrs/artifacts",
+    "commit": "0ee5dee9b13e29707b4089b10c6214d1987c34b4"
+   },
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   },
+   {
+    "package": "@smthrs/engine",
+    "commit": "b17af994607bc2ef084b62d75c0b2509f8b56d23"
+   },
+   {
+    "package": "@smthrs/engine-store",
+    "commit": "c6b3697b9aadd84d656b5f1179422382009e6892"
+   },
+   {
+    "package": "@smthrs/flow",
+    "commit": "8f2310ef99183d31a7cb6a91238af374d246498b"
+   },
+   {
+    "package": "@smthrs/flows",
+    "commit": "2b51cd84706f3813ae6a830e3ab8d472bfad1757"
+   },
+   {
+    "package": "@smthrs/harness",
+    "commit": "6efc2c90189369916690397a40ed7cce75754114"
+   },
+   {
+    "package": "@smthrs/jj",
+    "commit": "a67499b875ddce7aa9fe4a7cc5414fc0ab9eb398"
+   },
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   },
+   {
+    "package": "@smthrs/keys",
+    "commit": "e145b0e5dfced2a00c300f9b139b14f6820bf771"
+   },
+   {
+    "package": "@smthrs/model",
+    "commit": "5d7f346b5c7d5b6d6470e58b2aed91e31cba613a"
+   },
+   {
+    "package": "@smthrs/observability",
+    "commit": "fbdbe67c65198be6195138f47d55bb84d1f9be86"
+   },
+   {
+    "package": "@smthrs/plan",
+    "commit": "a6c062c1ea8185f0a2b743039e577306a8ad4a47"
+   },
+   {
+    "package": "@smthrs/platform-browser",
+    "commit": "ca23816b16d5e35de879f35fe042c979b3f78807"
+   },
+   {
+    "package": "@smthrs/platform-node",
+    "commit": "ee046808e1233898d8f029a65b2f8f9eeb83caeb"
+   },
+   {
+    "package": "@smthrs/registry",
+    "commit": "1ae2f3b78daa4ba33deb87bfe057eee002727dcd"
+   },
+   {
+    "package": "@smthrs/run-store",
+    "commit": "9633d567508a5d82ee51d5ed34014e850f417731"
+   },
+   {
+    "package": "@smthrs/step-cache",
+    "commit": "a907f76614a1aed065dcbdc5b44cc4f4d0e970a0"
+   },
+   {
+    "package": "@smthrs/sync",
+    "commit": "fe2f612d03e13b414eb28e2f50a685d212be384f"
+   },
+   {
+    "package": "@smthrs/time-travel",
+    "commit": "f45494e6a9a4d910a08dca82e8a2c9a48f16c39a"
+   }
+  ]
+ },
+ "related": {
+  "previous": "d53ae30248a8cc8cf0af3626c7e24910b37c6d7c",
+  "next": "ac7419bdf70373fddd3f14e1eaf511aca20aea7d",
+  "epicFirst": "f49d638b0d89382d3b7dc40e3aa9372c7294d2d8",
+  "epicLast": "ac7419bdf70373fddd3f14e1eaf511aca20aea7d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 10,
+  "added": 617,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "examples/src/06-time-travel-rewind.ts",
+   "mode": "100644",
+   "blob": "2937b44109633395e5c4b7b4517510879d83c74f",
+   "previousBlob": null,
+   "added": 139,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "examples/test/06-time-travel-rewind.test.ts",
+   "mode": "100644",
+   "blob": "027b8e54adcd8cbc0da9e93a8b8a9541b0d750f5",
+   "previousBlob": null,
+   "added": 20,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "examples/src/07-sync-follower.ts",
+   "mode": "100644",
+   "blob": "47a5b44c1e33c1b28d23983a63c144d17938d75f",
+   "previousBlob": null,
+   "added": 61,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "examples/test/07-sync-follower.test.ts",
+   "mode": "100644",
+   "blob": "3c88efff89fd37f3421a2e19e2e78e26be0f7716",
+   "previousBlob": null,
+   "added": 9,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "examples/src/08-host-adapters.ts",
+   "mode": "100644",
+   "blob": "512841734623cf7c10ac0eb923558b851dec1389",
+   "previousBlob": null,
+   "added": 66,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "examples/test/08-host-adapters.test.ts",
+   "mode": "100644",
+   "blob": "5ef003922471893546f4aa00faa08316c45ea46a",
+   "previousBlob": null,
+   "added": 10,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "examples/src/09-browser-use.ts",
+   "mode": "100644",
+   "blob": "4e4ecf132acfcf9451d8160caaea141bc328c6e7",
+   "previousBlob": null,
+   "added": 63,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "examples/test/09-browser-use.test.ts",
+   "mode": "100644",
+   "blob": "c88f60cc7d536a9cbe0fdc2dfa59e59b9696be16",
+   "previousBlob": null,
+   "added": 30,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "examples/src/10-telemetry-export.ts",
+   "mode": "100644",
+   "blob": "334be84d34b6d9553458c8cf7ff912d54c36ec7b",
+   "previousBlob": null,
+   "added": 182,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "examples/test/10-telemetry-export.test.ts",
+   "mode": "100644",
+   "blob": "c28efc16aa80ecad4ed05899e2335bd458da0094",
+   "previousBlob": null,
+   "added": 37,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

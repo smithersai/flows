@@ -1,0 +1,151 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "858790b2830a6118f24ca4c991af44c5e822ae14",
+ "tree": "518ff548394f5ec3bbfa4d9827e654f725bf1d99",
+ "epic": {
+  "index": 9,
+  "id": "agent",
+  "name": "Harness, chain, tools and CLI",
+  "sourceCommit": "a8caaa3dc45df0c14d6b10d0db9faf8a7ea7e542",
+  "sourceSubject": "✨ feat(agent): compose the harness, chain, tools, and CLI",
+  "childIndex": 34,
+  "childCount": 85,
+  "head": "012fadccb450058987918de5ef55d315135be71d"
+ },
+ "atomic": {
+  "globalIndex": 425,
+  "globalCount": 845,
+  "purpose": "✨ feat(std): add the Ls, Read, Explore modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "std",
+  "component": "packages/std",
+  "unitKey": "Ls",
+  "mergedUnitKeys": [
+   "Ls",
+   "Read",
+   "Explore"
+  ]
+ },
+ "dependencies": {
+  "parent": "b6053b43d95318e76ff17f61d9810a54a03202e2",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control"
+  ],
+  "sourceImports": [
+   "a6b678804d7b4fd0cff05d4dd88e2de5631bcf8b",
+   "35e5d214a59b4f8b4dfc720b1e86e27dee2f9349",
+   "f71b9d6d4f3080d6008ab664244356e1e180f922"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   },
+   {
+    "package": "@smthrs/control",
+    "commit": "40bf3f68fb8b79abcb73506a5980f5eaa9e92e36"
+   },
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "b6053b43d95318e76ff17f61d9810a54a03202e2",
+  "next": "b31859bbed77b4412bcdac13ccb11a2aa82f682e",
+  "epicFirst": "f86ed77ef384765a9a6a60ef7e3b84bfa04b8ac7",
+  "epicLast": "012fadccb450058987918de5ef55d315135be71d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 6,
+  "added": 694,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/std/src/Ls.ts",
+   "mode": "100644",
+   "blob": "532dd15749263e9afef6fbae3ff4751efd81d033",
+   "previousBlob": null,
+   "added": 165,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/std/test/Ls.test.ts",
+   "mode": "100644",
+   "blob": "99a33c171fbfea924ac096d0a0517b50dbe0c919",
+   "previousBlob": null,
+   "added": 65,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/std/src/Read.ts",
+   "mode": "100644",
+   "blob": "ca2cceed4f8f9c99fe67cb9ee857f8661e570b07",
+   "previousBlob": null,
+   "added": 194,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/std/test/Read.test.ts",
+   "mode": "100644",
+   "blob": "62ee60b58d50042bbcd6d973d3f3caf4c223f169",
+   "previousBlob": null,
+   "added": 92,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/std/src/Explore.ts",
+   "mode": "100644",
+   "blob": "b53187da170da71acc783bddb06bdeaaacf60079",
+   "previousBlob": null,
+   "added": 124,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/std/test/Explore.test.ts",
+   "mode": "100644",
+   "blob": "2808739660934106f5d1d17ab02f13869f88e5da",
+   "previousBlob": null,
+   "added": 54,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

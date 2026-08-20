@@ -1,0 +1,95 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "942c52c3b54e85097f8579ce065ed528ba1a9eff",
+ "tree": "713ce7e5d12e8ae4de0e7711f08110602dd6b976",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 64,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 576,
+  "globalCount": 845,
+  "purpose": "✅ test(targets): cover targets (4/7)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "targets",
+  "component": "packages/targets/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "462973e5a2dc590e610e0fc4de2da236067456b5",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "462973e5a2dc590e610e0fc4de2da236067456b5",
+  "next": "3d7e112975c2b32c3c98cd5d7c2386b19eb08530",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 1499,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/targets/test/Input.test.ts",
+   "mode": "100644",
+   "blob": "655ff9f37496b86c43d5b8f2aaee6f6eaf06b410",
+   "previousBlob": null,
+   "added": 520,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/test/LlmLint.test.ts",
+   "mode": "100644",
+   "blob": "f25138a7138255082a6078e0489144b2ec98edbb",
+   "previousBlob": null,
+   "added": 788,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/test/NewPackage.test.ts",
+   "mode": "100644",
+   "blob": "fc307c116770f9b7030364c937e3d28de38c820b",
+   "previousBlob": null,
+   "added": 191,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

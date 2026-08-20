@@ -1,0 +1,176 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "01641768912d214b058386c5d62eddfb114f3f21",
+ "tree": "078176aea5d55af7788edf908ba1b99b88369e91",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 28,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 540,
+  "globalCount": 845,
+  "purpose": "✨ feat(build): add the examples/docker, modules/cache, cache/migrations modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "build",
+  "component": "packages/build/terraform",
+  "unitKey": "dir:examples/docker",
+  "mergedUnitKeys": [
+   "dir:examples/docker",
+   "dir:modules/cache",
+   "dir:modules/cache/migrations"
+  ]
+ },
+ "dependencies": {
+  "parent": "b6ea6436832301c1107b9e1be9f147361d537e69",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "b6ea6436832301c1107b9e1be9f147361d537e69",
+  "next": "632aebc6c33b4873941e3f3bf808c3eea524a95e",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 10,
+  "added": 633,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build/terraform/examples/docker/.terraform.lock.hcl",
+   "mode": "100644",
+   "blob": "80665a9fe278450c6cf893a0b21e23eaaaf4c609",
+   "previousBlob": null,
+   "added": 23,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/terraform/examples/docker/main.tf",
+   "mode": "100644",
+   "blob": "66c2edf352d940f5b5f4353ee79e4b2e679d967e",
+   "previousBlob": null,
+   "added": 59,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/terraform/examples/docker/outputs.tf",
+   "mode": "100644",
+   "blob": "85ca17677391be344f392581e81b20e0bb74e0f9",
+   "previousBlob": null,
+   "added": 9,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/terraform/examples/docker/versions.tf",
+   "mode": "100644",
+   "blob": "f26af38ca7ed09aeda2fc960aee0fc548438dd01",
+   "previousBlob": null,
+   "added": 16,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/terraform/modules/cache/.terraform.lock.hcl",
+   "mode": "100644",
+   "blob": "80665a9fe278450c6cf893a0b21e23eaaaf4c609",
+   "previousBlob": null,
+   "added": 23,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/terraform/modules/cache/main.tf",
+   "mode": "100644",
+   "blob": "13e52c6786d640608329c5ff2708bf0e17427ec4",
+   "previousBlob": null,
+   "added": 166,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/terraform/modules/cache/outputs.tf",
+   "mode": "100644",
+   "blob": "d9ceb153ad61fee5bf7c4dda54d5a4a0ce44b256",
+   "previousBlob": null,
+   "added": 15,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/terraform/modules/cache/variables.tf",
+   "mode": "100644",
+   "blob": "e92921302f2a25076450cbc19de4e05e3c57c181",
+   "previousBlob": null,
+   "added": 122,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/terraform/modules/cache/versions.tf",
+   "mode": "100644",
+   "blob": "531926dcdaafa0b4fa184b919761f7bf527ed9ca",
+   "previousBlob": null,
+   "added": 14,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/terraform/modules/cache/migrations/0001_initial.sql",
+   "mode": "100644",
+   "blob": "9dfd929f7f150edca83464d4c3f5a6204adb4fda",
+   "previousBlob": null,
+   "added": 186,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

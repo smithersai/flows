@@ -1,0 +1,119 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "1f296ba5f4ecc50de1198dabe2e2bf44d320e338",
+ "tree": "cb0296be0a8767d843dd61fa61f975885318a10f",
+ "epic": {
+  "index": 17,
+  "id": "factory",
+  "name": "Repository software factory",
+  "sourceCommit": "e1fbeee4b23399542c5105cb6f89733a14cc1892",
+  "sourceSubject": "✨ feat(factory): add the repository software factory",
+  "childIndex": 4,
+  "childCount": 17,
+  "head": "86b4890c93cc6cd89ee302f349552e4c64077e65"
+ },
+ "atomic": {
+  "globalIndex": 823,
+  "globalCount": 845,
+  "purpose": "✨ feat(factory-automation): add the repro, shell, advance modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "factory-automation",
+  "component": "factory/automation",
+  "unitKey": "repro",
+  "mergedUnitKeys": [
+   "repro",
+   "shell",
+   "advance"
+  ]
+ },
+ "dependencies": {
+  "parent": "3ffcd4a572c400fa84a0be7c3cca7cd71a4cf922",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui",
+   "docs-site"
+  ],
+  "sourceImports": [
+   "93b464e2c9027d4b9e43681eecf74fc5de8fd1dc",
+   "3ffcd4a572c400fa84a0be7c3cca7cd71a4cf922"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "3ffcd4a572c400fa84a0be7c3cca7cd71a4cf922",
+  "next": "41c8f668987c58aec618e76a84c30dd4b81f6647",
+  "epicFirst": "ba7243c4d5d3b90d5f65b965635c307d1d37ac11",
+  "epicLast": "86b4890c93cc6cd89ee302f349552e4c64077e65",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 547,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "factory/automation/repro.ts",
+   "mode": "100644",
+   "blob": "8aecb7866052084e926bf7c857b0ca16f0f5fea3",
+   "previousBlob": null,
+   "added": 190,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "factory/automation/repro.test.ts",
+   "mode": "100644",
+   "blob": "d4c7f86ad02947254825b708e574c5f1d75f340b",
+   "previousBlob": null,
+   "added": 102,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "factory/automation/shell.ts",
+   "mode": "100644",
+   "blob": "2f6ba2cb9b75dea838af098fcbebf69643959350",
+   "previousBlob": null,
+   "added": 142,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "factory/automation/advance.ts",
+   "mode": "100644",
+   "blob": "acf602ecd2f644bc5e88da9941d9494181df60c0",
+   "previousBlob": null,
+   "added": 113,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

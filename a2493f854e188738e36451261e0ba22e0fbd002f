@@ -1,0 +1,125 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a2493f854e188738e36451261e0ba22e0fbd002f",
+ "tree": "a11d3519538677b5db7b0c249bb599efd3e98f8d",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 17,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 665,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the lib modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/.smithers",
+  "unitKey": "dir:lib",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "bcddf852e7975d20a59cf19d8335a8876a140b7b",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "commit": "fec516964e3e6a618aace55755a6d0befd72daa8"
+   }
+  ]
+ },
+ "related": {
+  "previous": "bcddf852e7975d20a59cf19d8335a8876a140b7b",
+  "next": "ed423dc7d6acdb3fd19172dc768571944f377b77",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 5,
+  "added": 851,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/lib/build-local-smithers-distribution.mjs",
+   "mode": "100644",
+   "blob": "70058a466a22754023eb62ff50d5c6ef32f66f4f",
+   "previousBlob": null,
+   "added": 169,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/lib/run-bounded-process.ts",
+   "mode": "100644",
+   "blob": "d68ee612b94c86adb8a5ae1438e61744e0d91122",
+   "previousBlob": null,
+   "added": 123,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/lib/whole-foods-meal-planner-mcp.ts",
+   "mode": "100644",
+   "blob": "f4f0960872b61201b7b1e0a6ed0ce4e46030a17b",
+   "previousBlob": null,
+   "added": 327,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/lib/whole-foods-meal-planner.mcp.json",
+   "mode": "100644",
+   "blob": "5fa5abc996c6ee5c744f1801b7598811e6d9c5f2",
+   "previousBlob": null,
+   "added": 8,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/lib/wholeFoodsMealPlanner.ts",
+   "mode": "100644",
+   "blob": "573ab241d97eee248756c73f73a4b9723a1cfe61",
+   "previousBlob": null,
+   "added": 224,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

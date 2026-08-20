@@ -1,0 +1,98 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "933e41e913d42c4f59ec8446ef165d877ea8cb5f",
+ "tree": "eac53c122c2a31637d210e58ed8ba59aec753ef9",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 46,
+  "childCount": 61,
+  "head": "a5193915fd7f1bc7634e32c28838552e883641db"
+ },
+ "atomic": {
+  "globalIndex": 171,
+  "globalCount": 845,
+  "purpose": "✅ test(platform-node): cover AtomicFileSystem (2/2)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "platform-node",
+  "component": "packages/platform-node",
+  "unitKey": "AtomicFileSystem",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "0d37da500f9f4419056dbf9fd3e38455d72c5530",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/jj",
+    "commit": "a67499b875ddce7aa9fe4a7cc5414fc0ab9eb398"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "0d37da500f9f4419056dbf9fd3e38455d72c5530",
+  "next": "cf1fa13bd10a48aa99bd68d3fe1487cb4bafafb3",
+  "epicFirst": "5037300288116821b95e1046a67ca324243eeeeb",
+  "epicLast": "a5193915fd7f1bc7634e32c28838552e883641db",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 1204,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/platform-node/test/AtomicFileSystemHelper.test.ts",
+   "mode": "100644",
+   "blob": "7358d8a0194bd367a9948793884c4c3cb2b67269",
+   "previousBlob": null,
+   "added": 992,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/platform-node/test/AtomicFileSystemRefusals.test.ts",
+   "mode": "100644",
+   "blob": "708b896eddc7c8e7ffcaa4d02f91c66356e7f9a5",
+   "previousBlob": null,
+   "added": 175,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/platform-node/test/AtomicFileSystemSpawnFailure.test.ts",
+   "mode": "100644",
+   "blob": "0cfc09af2c085aa851905694d69bf8b4fe6bd599",
+   "previousBlob": null,
+   "added": 37,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

@@ -1,0 +1,80 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "fbdbe67c65198be6195138f47d55bb84d1f9be86",
+ "tree": "0c9f44202ddcec2f10e2c3637b43281a2560a390",
+ "epic": {
+  "index": 10,
+  "id": "platform",
+  "name": "Conformance, scoring, evaluation and telemetry",
+  "sourceCommit": "317910c088e178d40f3b1553a182a7ee2be5dd24",
+  "sourceSubject": "✅ test(platform): add conformance, scoring, evaluation, and telemetry",
+  "childIndex": 23,
+  "childCount": 36,
+  "head": "7815804a6f1b8fd9568d8a0031bb0b58ee098100"
+ },
+ "atomic": {
+  "globalIndex": 499,
+  "globalCount": 845,
+  "purpose": "✨ feat(observability): export the public observability surface",
+  "type": "feat",
+  "kind": "index",
+  "scope": "observability",
+  "component": "packages/observability",
+  "unitKey": "~index",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "6325d6d79c4027f596a36ad5536229f8d7fefa70",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent"
+  ],
+  "sourceImports": [
+   "6325d6d79c4027f596a36ad5536229f8d7fefa70",
+   "c6f8971b2bfba4f7334294d570fb61ed66cc5c68"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   }
+  ]
+ },
+ "related": {
+  "previous": "6325d6d79c4027f596a36ad5536229f8d7fefa70",
+  "next": "8ebe36c5d014186c80ae27f0a30405dc635623ec",
+  "epicFirst": "979f13d307eb3917b8f17afabcbde76137e83652",
+  "epicLast": "7815804a6f1b8fd9568d8a0031bb0b58ee098100",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 69,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/observability/src/index.ts",
+   "mode": "100644",
+   "blob": "9520d38f64dd4d46a2d863426fd1c6fd20e87a88",
+   "previousBlob": null,
+   "added": 69,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

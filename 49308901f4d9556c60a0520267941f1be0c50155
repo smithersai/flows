@@ -1,0 +1,135 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "49308901f4d9556c60a0520267941f1be0c50155",
+ "tree": "8944dd221d198f044d8ee38e67167b595d6c17db",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 32,
+  "childCount": 43,
+  "head": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9"
+ },
+ "atomic": {
+  "globalIndex": 314,
+  "globalCount": 845,
+  "purpose": "✨ feat(patterns): add the MapReduce, Panel, Pattern modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "patterns",
+  "component": "packages/patterns",
+  "unitKey": "MapReduce",
+  "mergedUnitKeys": [
+   "MapReduce",
+   "Panel",
+   "Pattern"
+  ]
+ },
+ "dependencies": {
+  "parent": "6a5d67eee8504b0ed95c1f34e0e476970e154b10",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [
+   "6a5d67eee8504b0ed95c1f34e0e476970e154b10"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   }
+  ]
+ },
+ "related": {
+  "previous": "6a5d67eee8504b0ed95c1f34e0e476970e154b10",
+  "next": "ffab80024ea3a4ce3c969fafdb0948d64d0deef6",
+  "epicFirst": "f7a85bfa43ff3fa63e2ad6200bd2d4d7ec1397a2",
+  "epicLast": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 6,
+  "added": 680,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/patterns/src/MapReduce.ts",
+   "mode": "100644",
+   "blob": "c11e6be0fe7221af6689c257073dc4a94da83505",
+   "previousBlob": null,
+   "added": 185,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/patterns/test/MapReduce.test.ts",
+   "mode": "100644",
+   "blob": "a8d3fc4a84b6d4855ac940e4d0e4294da9cd3c1e",
+   "previousBlob": null,
+   "added": 79,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/patterns/src/Panel.ts",
+   "mode": "100644",
+   "blob": "35edcb3ef8ef1e02b6fa30c6d55139c91c7f6560",
+   "previousBlob": null,
+   "added": 63,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/patterns/test/Panel.test.ts",
+   "mode": "100644",
+   "blob": "c9288c472ea026e36941e4b0412ad6b87413cb78",
+   "previousBlob": null,
+   "added": 36,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/patterns/src/Pattern.ts",
+   "mode": "100644",
+   "blob": "52e4fd1a38cd2c466fe87febee19c652991ab989",
+   "previousBlob": null,
+   "added": 181,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/patterns/test/Pattern.test.ts",
+   "mode": "100644",
+   "blob": "3748873df37ce215276c34edfecc0e5adc9c1179",
+   "previousBlob": null,
+   "added": 136,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

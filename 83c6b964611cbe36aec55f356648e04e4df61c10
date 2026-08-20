@@ -1,0 +1,101 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "83c6b964611cbe36aec55f356648e04e4df61c10",
+ "tree": "eebaad531b8e6d04afa14d40a2570fe6da34e5a8",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 58,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 706,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the canary-restoration, canary-seam-probe modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/scripts",
+  "unitKey": "canary-restoration",
+  "mergedUnitKeys": [
+   "canary-restoration",
+   "canary-seam-probe"
+  ]
+ },
+ "dependencies": {
+  "parent": "21232c8dfe7cce27cdc73f36b53d5a326b535a57",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "21232c8dfe7cce27cdc73f36b53d5a326b535a57",
+  "next": "2d02bd2213d87dbb61f6cffdbba7fa7825f39518",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 255,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/scripts/canary-restoration.ts",
+   "mode": "100644",
+   "blob": "3a71296dd8a251140e62af61011d2a9da441e60d",
+   "previousBlob": null,
+   "added": 41,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/scripts/canary-restoration.test.ts",
+   "mode": "100644",
+   "blob": "00f864c3da49475b6afd214e2a44ba3a8d11419c",
+   "previousBlob": null,
+   "added": 52,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/scripts/canary-seam-probe.ts",
+   "mode": "100644",
+   "blob": "58abfa8550bff6c9bb291c9cd7569d5f4ba10df6",
+   "previousBlob": null,
+   "added": 162,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

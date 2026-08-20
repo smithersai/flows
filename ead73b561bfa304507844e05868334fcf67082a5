@@ -1,0 +1,128 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "ead73b561bfa304507844e05868334fcf67082a5",
+ "tree": "1f1b39e2a0e8e08dcdca0f2a912142cf3ae37dab",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 17,
+  "childCount": 43,
+  "head": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9"
+ },
+ "atomic": {
+  "globalIndex": 299,
+  "globalCount": 845,
+  "purpose": "✨ feat(registry): add the Names, RegistryError, Disclosure modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "registry",
+  "component": "packages/registry",
+  "unitKey": "internal/Names",
+  "mergedUnitKeys": [
+   "internal/Names",
+   "RegistryError",
+   "Disclosure"
+  ]
+ },
+ "dependencies": {
+  "parent": "da07325a0d109c3ddff0d08ce585a7604e9e5133",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [
+   "befa30c0fa098dfb799e49529736dd285712fb98"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "da07325a0d109c3ddff0d08ce585a7604e9e5133",
+  "next": "537c4daae8df2135857aeea67e9f3d736ede1f57",
+  "epicFirst": "f7a85bfa43ff3fa63e2ad6200bd2d4d7ec1397a2",
+  "epicLast": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 5,
+  "added": 495,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/registry/src/internal/Names.ts",
+   "mode": "100644",
+   "blob": "adf9fbb2fe9b967f4860fbf5571054a5e1219f15",
+   "previousBlob": null,
+   "added": 83,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/registry/test/Names.test.ts",
+   "mode": "100644",
+   "blob": "d309ef11b88481147849592fed28a5e7c579dcae",
+   "previousBlob": null,
+   "added": 79,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/registry/src/RegistryError.ts",
+   "mode": "100644",
+   "blob": "40a6552cbf2424c49d2d8a7c9b0c682b1cbbaf76",
+   "previousBlob": null,
+   "added": 136,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/registry/src/Disclosure.ts",
+   "mode": "100644",
+   "blob": "30d2b848dd349f8a0267ebda69a23ca6b73d7c94",
+   "previousBlob": null,
+   "added": 61,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/registry/test/Disclosure.test.ts",
+   "mode": "100644",
+   "blob": "90b41fe4169884a7ce9b5a9ef1688d1b1ccd6d5f",
+   "previousBlob": null,
+   "added": 136,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

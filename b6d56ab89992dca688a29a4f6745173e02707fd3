@@ -1,0 +1,129 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "b6d56ab89992dca688a29a4f6745173e02707fd3",
+ "tree": "8f61d97d45dbf76a4538d4bed8cb207f12b179be",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 18,
+  "childCount": 55,
+  "head": "9633d567508a5d82ee51d5ed34014e850f417731"
+ },
+ "atomic": {
+  "globalIndex": 34,
+  "globalCount": 845,
+  "purpose": "✨ feat(journal): add the migrations, JournalEvent, OwnerId modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "journal",
+  "component": "packages/journal",
+  "unitKey": "dir:migrations",
+  "mergedUnitKeys": [
+   "dir:migrations",
+   "JournalEvent",
+   "OwnerId"
+  ]
+ },
+ "dependencies": {
+  "parent": "71589a291067221b846dec7148cbbc7a7bf91c9e",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   }
+  ]
+ },
+ "related": {
+  "previous": "71589a291067221b846dec7148cbbc7a7bf91c9e",
+  "next": "1bdfdf41e188fb7ce6ecd8bb04bcf6deb6c913dd",
+  "epicFirst": "0b1fe1d563a03d93618ff339540cb77a2ed44d4b",
+  "epicLast": "9633d567508a5d82ee51d5ed34014e850f417731",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 6,
+  "added": 406,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/journal/src/migrations/0001_initial.ts",
+   "mode": "100644",
+   "blob": "10b1d3331399b5acd9beb8466f2fe8e7611d6e33",
+   "previousBlob": null,
+   "added": 38,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/journal/src/migrations/0002_checkpoints.ts",
+   "mode": "100644",
+   "blob": "a6aacc45eb0645609da2ebc4727456cfb8f8926e",
+   "previousBlob": null,
+   "added": 41,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/journal/src/migrations/0003_consensus.ts",
+   "mode": "100644",
+   "blob": "e8912fb86dd57484bed712ceb97afcdb9d675c66",
+   "previousBlob": null,
+   "added": 81,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/journal/src/JournalEvent.ts",
+   "mode": "100644",
+   "blob": "2c9f648e0494131608c594bc8662971a771dfa3f",
+   "previousBlob": null,
+   "added": 141,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/journal/test/JournalEvent.property.test.ts",
+   "mode": "100644",
+   "blob": "8740af59d318f4ad39e8c12753a07ae9660d9e53",
+   "previousBlob": null,
+   "added": 68,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/journal/src/OwnerId.ts",
+   "mode": "100644",
+   "blob": "5d22ce93ad8d94c5f2beca480ab38b325da445c7",
+   "previousBlob": null,
+   "added": 37,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

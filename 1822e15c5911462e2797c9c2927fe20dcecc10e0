@@ -1,0 +1,109 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "1822e15c5911462e2797c9c2927fe20dcecc10e0",
+ "tree": "2f9360d64e6103d40f8ab759281253ef52572581",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 22,
+  "childCount": 61,
+  "head": "a5193915fd7f1bc7634e32c28838552e883641db"
+ },
+ "atomic": {
+  "globalIndex": 147,
+  "globalCount": 845,
+  "purpose": "✨ feat(kernel): add the GrantEvent, HostError modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "kernel",
+  "component": "packages/kernel",
+  "unitKey": "GrantEvent",
+  "mergedUnitKeys": [
+   "GrantEvent",
+   "HostError"
+  ]
+ },
+ "dependencies": {
+  "parent": "d17e6eef5cd051adfe9b791e452ea5cb39020dfc",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   },
+   {
+    "package": "@smthrs/jj",
+    "commit": "a67499b875ddce7aa9fe4a7cc5414fc0ab9eb398"
+   },
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   },
+   {
+    "package": "@smthrs/platform-browser",
+    "commit": "ca23816b16d5e35de879f35fe042c979b3f78807"
+   }
+  ]
+ },
+ "related": {
+  "previous": "d17e6eef5cd051adfe9b791e452ea5cb39020dfc",
+  "next": "ad8bef08c1c8979e8600ba9e2facb343249cd804",
+  "epicFirst": "5037300288116821b95e1046a67ca324243eeeeb",
+  "epicLast": "a5193915fd7f1bc7634e32c28838552e883641db",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 328,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/kernel/src/GrantEvent.ts",
+   "mode": "100644",
+   "blob": "b692d4d45bbb5baaa2c1a533e43e64f778de47be",
+   "previousBlob": null,
+   "added": 179,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/kernel/test/GrantEvent.test.ts",
+   "mode": "100644",
+   "blob": "393f06c8c9ba9fdfcec5e6a535c99a5503e82620",
+   "previousBlob": null,
+   "added": 112,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/kernel/src/HostError.ts",
+   "mode": "100644",
+   "blob": "4fffed8cda67489b56c4857f4a156cd97edab3a4",
+   "previousBlob": null,
+   "added": 37,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

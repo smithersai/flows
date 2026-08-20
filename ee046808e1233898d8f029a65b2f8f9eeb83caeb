@@ -1,0 +1,78 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "ee046808e1233898d8f029a65b2f8f9eeb83caeb",
+ "tree": "392d3182acef20469cc74d1bf5a031302f716078",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 48,
+  "childCount": 61,
+  "head": "a5193915fd7f1bc7634e32c28838552e883641db"
+ },
+ "atomic": {
+  "globalIndex": 173,
+  "globalCount": 845,
+  "purpose": "✨ feat(platform-node): export the public platform-node surface",
+  "type": "feat",
+  "kind": "index",
+  "scope": "platform-node",
+  "component": "packages/platform-node",
+  "unitKey": "~index",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "cf1fa13bd10a48aa99bd68d3fe1487cb4bafafb3",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [
+   "cf1fa13bd10a48aa99bd68d3fe1487cb4bafafb3"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/jj",
+    "commit": "a67499b875ddce7aa9fe4a7cc5414fc0ab9eb398"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "cf1fa13bd10a48aa99bd68d3fe1487cb4bafafb3",
+  "next": "787d045a521319178cc3deeba29c07e76b4b69ee",
+  "epicFirst": "5037300288116821b95e1046a67ca324243eeeeb",
+  "epicLast": "a5193915fd7f1bc7634e32c28838552e883641db",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 21,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/platform-node/src/index.ts",
+   "mode": "100644",
+   "blob": "dda63a239a0c4beca6f53aa8bac8ec0f6b149721",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,117 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "289d6dd19d000ec4bb098660f031777efb65441c",
+ "tree": "e26c2bff48fe912fee6d30e76b1ee58817df8e3e",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 4,
+  "childCount": 43,
+  "head": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9"
+ },
+ "atomic": {
+  "globalIndex": 286,
+  "globalCount": 845,
+  "purpose": "✨ feat(core): add the Annotations, Digest modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "core",
+  "component": "packages/core",
+  "unitKey": "Annotations",
+  "mergedUnitKeys": [
+   "Annotations",
+   "Digest"
+  ]
+ },
+ "dependencies": {
+  "parent": "e0780a78cd2150acaebeeeef617aa682ba801573",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [
+   "637e81297bd46a960f5b1dd05495dec90730f908",
+   "e0780a78cd2150acaebeeeef617aa682ba801573"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "commit": "3b57deac5ef23a0e1e2fa660e6bcf9351049a95b"
+   },
+   {
+    "package": "@smthrs/crypto",
+    "commit": "3ac9a18fee84c753c34d31ae7baae150fa503fe6"
+   }
+  ]
+ },
+ "related": {
+  "previous": "e0780a78cd2150acaebeeeef617aa682ba801573",
+  "next": "2210dd0aeab6fbecf456c22945a9c3a615646168",
+  "epicFirst": "f7a85bfa43ff3fa63e2ad6200bd2d4d7ec1397a2",
+  "epicLast": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 296,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/core/src/Annotations.ts",
+   "mode": "100644",
+   "blob": "453c0bae501446545f4f3c929b2f3ec3b3e515c9",
+   "previousBlob": null,
+   "added": 91,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/core/test/Annotations.test.ts",
+   "mode": "100644",
+   "blob": "22bead298ea1161bfc0e8254e66b054f0a29e242",
+   "previousBlob": null,
+   "added": 38,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/core/src/Digest.ts",
+   "mode": "100644",
+   "blob": "21c814acac1c3c34eb31efd6636f224ca96fb1df",
+   "previousBlob": null,
+   "added": 101,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/core/test/Digest.test.ts",
+   "mode": "100644",
+   "blob": "63c589ae50eb9c7ca37822f56a2a04f7767d1c29",
+   "previousBlob": null,
+   "added": 66,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

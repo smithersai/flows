@@ -1,0 +1,84 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "2ff087e5707d963b79611e1983e18a6b4e57c296",
+ "tree": "447076d357d2f0e84c406a0d5643b58799b8cedb",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 31,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 543,
+  "globalCount": 845,
+  "purpose": "✅ test(build): cover service/test (3/3)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "build",
+  "component": "packages/build/terraform",
+  "unitKey": "modules/cache/service/test",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "ed3d3b485dc97708914d1fffca91e42f5cc02a0a",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "ed3d3b485dc97708914d1fffca91e42f5cc02a0a",
+  "next": "cd5f99c69d1c6f0a6e37007cb3f8c81f3ce7e548",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 768,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build/terraform/modules/cache/service/test/server_test.js",
+   "mode": "100644",
+   "blob": "3dc2fc0f19562ba89ab5faa0bc298b5c83f5dd09",
+   "previousBlob": null,
+   "added": 122,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/terraform/modules/cache/service/test/storage_test.js",
+   "mode": "100644",
+   "blob": "858d3e6df2343c85b9562d8707f50bdfb38e2fc2",
+   "previousBlob": null,
+   "added": 646,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

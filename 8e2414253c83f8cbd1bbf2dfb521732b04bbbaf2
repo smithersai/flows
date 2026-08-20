@@ -1,0 +1,83 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "8e2414253c83f8cbd1bbf2dfb521732b04bbbaf2",
+ "tree": "05de0e7314a41dbf20890369286e5645f713a42d",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 5,
+  "childCount": 55,
+  "head": "9633d567508a5d82ee51d5ed34014e850f417731"
+ },
+ "atomic": {
+  "globalIndex": 21,
+  "globalCount": 845,
+  "purpose": "✨ feat(artifacts): add CombinedArtifacts",
+  "type": "feat",
+  "kind": "module",
+  "scope": "artifacts",
+  "component": "packages/artifacts",
+  "unitKey": "CombinedArtifacts",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "ac8471e7795d6a95874991df181d0d79178318a0",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [
+   "58643d40c83c8e4008cf380a1deee682bf4b8dbb"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/crypto",
+    "commit": "3ac9a18fee84c753c34d31ae7baae150fa503fe6"
+   }
+  ]
+ },
+ "related": {
+  "previous": "ac8471e7795d6a95874991df181d0d79178318a0",
+  "next": "19f33d8414a2d387d6e76229d483151351f205f5",
+  "epicFirst": "0b1fe1d563a03d93618ff339540cb77a2ed44d4b",
+  "epicLast": "9633d567508a5d82ee51d5ed34014e850f417731",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 515,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/artifacts/src/CombinedArtifacts.ts",
+   "mode": "100644",
+   "blob": "1efdd3b8578551e63734c7c59049b0d4f4bd9bb0",
+   "previousBlob": null,
+   "added": 214,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/artifacts/test/CombinedArtifacts.test.ts",
+   "mode": "100644",
+   "blob": "1ee40a390384cd5a6903c2a9b52c3603af3d4d45",
+   "previousBlob": null,
+   "added": 301,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

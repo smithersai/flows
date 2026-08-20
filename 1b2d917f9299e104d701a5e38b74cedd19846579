@@ -1,0 +1,70 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "1b2d917f9299e104d701a5e38b74cedd19846579",
+ "tree": "428a0dd5516ab3e8ca14c3081ddd35a5761df978",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 55,
+  "childCount": 96,
+  "head": "c93705a8b036d030082a6877bd6668709293285d"
+ },
+ "atomic": {
+  "globalIndex": 241,
+  "globalCount": 845,
+  "purpose": "✨ feat(engine-store): add StepBoundary",
+  "type": "feat",
+  "kind": "module",
+  "scope": "engine-store",
+  "component": "packages/engine-store/src",
+  "unitKey": "StepBoundary",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "3f3525339467e1d760eee5916a80920d2503e180",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "455867d72e555abc6350fae874587cf5704d28e7"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "3f3525339467e1d760eee5916a80920d2503e180",
+  "next": "b43b3b12d0f84a013434387f26580ee78f0854af",
+  "epicFirst": "eec277e2e1bfd7b6ae08c5d31c63df081ea52207",
+  "epicLast": "c93705a8b036d030082a6877bd6668709293285d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 1169,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/StepBoundary.ts",
+   "mode": "100644",
+   "blob": "0e52a3cb8338b2a52c6dfe2c2f297819892a1ad1",
+   "previousBlob": null,
+   "added": 1169,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

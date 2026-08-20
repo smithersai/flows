@@ -1,0 +1,137 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "06026731b3c05827206f2ea2379fe9770852210f",
+ "tree": "74132ac38c78ce17d11a1962c614ca8707406989",
+ "epic": {
+  "index": 10,
+  "id": "platform",
+  "name": "Conformance, scoring, evaluation and telemetry",
+  "sourceCommit": "317910c088e178d40f3b1553a182a7ee2be5dd24",
+  "sourceSubject": "✅ test(platform): add conformance, scoring, evaluation, and telemetry",
+  "childIndex": 9,
+  "childCount": 36,
+  "head": "7815804a6f1b8fd9568d8a0031bb0b58ee098100"
+ },
+ "atomic": {
+  "globalIndex": 485,
+  "globalCount": 845,
+  "purpose": "✨ feat(testing): add the RecordedModel, Divergence modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "testing",
+  "component": "packages/testing",
+  "unitKey": "RecordedModel",
+  "mergedUnitKeys": [
+   "RecordedModel",
+   "Divergence"
+  ]
+ },
+ "dependencies": {
+  "parent": "80f6581908690127383cb6dc7b94277757524c58",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent"
+  ],
+  "sourceImports": [
+   "80f6581908690127383cb6dc7b94277757524c58",
+   "b7aaabfa453ef7bf91253192e37323e419e0fb1b"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/engine",
+    "commit": "b17af994607bc2ef084b62d75c0b2509f8b56d23"
+   },
+   {
+    "package": "@smthrs/flow",
+    "commit": "8f2310ef99183d31a7cb6a91238af374d246498b"
+   },
+   {
+    "package": "@smthrs/jj",
+    "commit": "a67499b875ddce7aa9fe4a7cc5414fc0ab9eb398"
+   },
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   },
+   {
+    "package": "@smthrs/plan",
+    "commit": "a6c062c1ea8185f0a2b743039e577306a8ad4a47"
+   },
+   {
+    "package": "@smthrs/harness",
+    "commit": "6efc2c90189369916690397a40ed7cce75754114"
+   },
+   {
+    "package": "@smthrs/model",
+    "commit": "5d7f346b5c7d5b6d6470e58b2aed91e31cba613a"
+   }
+  ]
+ },
+ "related": {
+  "previous": "80f6581908690127383cb6dc7b94277757524c58",
+  "next": "46940fa3cf9e8bd85cd5debbe48df628c9bdae82",
+  "epicFirst": "979f13d307eb3917b8f17afabcbde76137e83652",
+  "epicLast": "7815804a6f1b8fd9568d8a0031bb0b58ee098100",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 356,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/testing/src/RecordedModel.ts",
+   "mode": "100644",
+   "blob": "b1a6ad22b18e0e7b363378f53f30a82a52565c63",
+   "previousBlob": null,
+   "added": 147,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/testing/test/RecordedModel.test.ts",
+   "mode": "100644",
+   "blob": "12902186202a0b8441f1c8c3e93cbab8c2c85b9b",
+   "previousBlob": null,
+   "added": 105,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/testing/src/Divergence.ts",
+   "mode": "100644",
+   "blob": "2281657dc3bcd9091db7b78778af1787f4fcbb1d",
+   "previousBlob": null,
+   "added": 104,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

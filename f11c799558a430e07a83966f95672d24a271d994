@@ -1,0 +1,160 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "f11c799558a430e07a83966f95672d24a271d994",
+ "tree": "3599cad3ba9cb547a1dd70bb454eeca61ff6d50e",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 57,
+  "childCount": 61,
+  "head": "a5193915fd7f1bc7634e32c28838552e883641db"
+ },
+ "atomic": {
+  "globalIndex": 182,
+  "globalCount": 845,
+  "purpose": "✨ feat(sandbox): add the RemoteChildProcessSpawner modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "sandbox",
+  "component": "packages/sandbox",
+  "unitKey": "dir:RemoteChildProcessSpawner",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "bd1003139224cb0c607182285e8b1225aa1f4253",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "bd1003139224cb0c607182285e8b1225aa1f4253",
+  "next": "c01390d00979b6192f0c181d068e9798dea775e7",
+  "epicFirst": "5037300288116821b95e1046a67ca324243eeeeb",
+  "epicLast": "a5193915fd7f1bc7634e32c28838552e883641db",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 9,
+  "added": 1226,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/sandbox/src/RemoteChildProcessSpawner/Provider.ts",
+   "mode": "100644",
+   "blob": "41b050592191ab7dfa5761129fc8ce529845f010",
+   "previousBlob": null,
+   "added": 67,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/src/RemoteChildProcessSpawner/ProviderError.ts",
+   "mode": "100644",
+   "blob": "a8d7c2cde5f054c6113e39ede84ac81f12679224",
+   "previousBlob": null,
+   "added": 50,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/src/RemoteChildProcessSpawner/TestRemote.ts",
+   "mode": "100644",
+   "blob": "0620468ac8e34846991663b43a9d29e437b52563",
+   "previousBlob": null,
+   "added": 79,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/src/RemoteChildProcessSpawner/TestRemoteProvider.ts",
+   "mode": "100644",
+   "blob": "c352b314df5dd62b0fa092bc40d7c128793bfe28",
+   "previousBlob": null,
+   "added": 17,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/src/RemoteChildProcessSpawner/TestRemoteState.ts",
+   "mode": "100644",
+   "blob": "b5b1a1bd24e0ba74b9a36e95091772d251354185",
+   "previousBlob": null,
+   "added": 17,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/src/RemoteChildProcessSpawner/TestScript.ts",
+   "mode": "100644",
+   "blob": "0d57f3b32464bccaba1a6a57a60f774a57926d32",
+   "previousBlob": null,
+   "added": 22,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/src/RemoteChildProcessSpawner/index.ts",
+   "mode": "100644",
+   "blob": "ae7abef875003937e6197e270a53677b4e08741a",
+   "previousBlob": null,
+   "added": 57,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/src/RemoteChildProcessSpawner/layer.ts",
+   "mode": "100644",
+   "blob": "8191e5a334e29734f3d53022f1b681264cbd5eda",
+   "previousBlob": null,
+   "added": 220,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/test/RemoteChildProcessSpawner.test.ts",
+   "mode": "100644",
+   "blob": "47512f184816c241e1e9422f8fc86b812a345cf6",
+   "previousBlob": null,
+   "added": 697,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

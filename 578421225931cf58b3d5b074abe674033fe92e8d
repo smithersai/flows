@@ -1,0 +1,163 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "578421225931cf58b3d5b074abe674033fe92e8d",
+ "tree": "8811732bb571e33b0505fcb1b70de3f2b62ffcaf",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 4,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 516,
+  "globalCount": 845,
+  "purpose": "🧹 chore(build): scaffold the @smthrs/build package",
+  "type": "chore",
+  "kind": "scaffold",
+  "scope": "build",
+  "component": "packages/build",
+  "unitKey": "~scaffold",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "1149b8976e841faa9640c68b536d35af5c5cf36c",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/crypto",
+    "commit": "3ac9a18fee84c753c34d31ae7baae150fa503fe6"
+   },
+   {
+    "package": "@smthrs/flow",
+    "commit": "8f2310ef99183d31a7cb6a91238af374d246498b"
+   },
+   {
+    "package": "@smthrs/plan",
+    "commit": "a6c062c1ea8185f0a2b743039e577306a8ad4a47"
+   }
+  ]
+ },
+ "related": {
+  "previous": "1149b8976e841faa9640c68b536d35af5c5cf36c",
+  "next": "a12788567b0c0cd6e4ca935fa59d9b23528c00e5",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 8,
+  "added": 428,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build/.gitignore",
+   "mode": "100644",
+   "blob": "edc60b9a814c9f77896079ce27d085f6d0f66287",
+   "previousBlob": null,
+   "added": 14,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/BUILD.ts",
+   "mode": "100644",
+   "blob": "9549bce818d3b1e569c000842ff9df9381ef8dff",
+   "previousBlob": null,
+   "added": 83,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/dprint.json",
+   "mode": "100644",
+   "blob": "c5c46c10798c5f13d063ad04dccc324e5a6290e2",
+   "previousBlob": null,
+   "added": 28,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/eslint.config.js",
+   "mode": "100644",
+   "blob": "ce88bd5c6d8fc973a1634d0da9df2e0a200d0be7",
+   "previousBlob": null,
+   "added": 102,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/package.json",
+   "mode": "100644",
+   "blob": "a568fc36b292f30aaac6c1fbbbf32c2b5f6187b4",
+   "previousBlob": null,
+   "added": 117,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/tsconfig.json",
+   "mode": "100644",
+   "blob": "5cfb10b1de41d48173d6d1f89f456c52cae7233f",
+   "previousBlob": null,
+   "added": 40,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/tsconfig.test.json",
+   "mode": "100644",
+   "blob": "94fae90f7540fc802b584832d57cdcfc5f8167f3",
+   "previousBlob": null,
+   "added": 12,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/vitest.config.ts",
+   "mode": "100644",
+   "blob": "5d1b27d7ec69309a6d46a90a0ba792f7cd3ab9d8",
+   "previousBlob": null,
+   "added": 32,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  }
+ ]
+}

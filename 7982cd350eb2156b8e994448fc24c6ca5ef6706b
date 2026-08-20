@@ -1,0 +1,92 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "7982cd350eb2156b8e994448fc24c6ca5ef6706b",
+ "tree": "d6c8b710b0500f30cd50471abe4442272709263a",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 69,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 717,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the Assert, Browser modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/e2e",
+  "unitKey": "Assert",
+  "mergedUnitKeys": [
+   "Assert",
+   "Browser"
+  ]
+ },
+ "dependencies": {
+  "parent": "7bb169599c6fa8e1c6d918ca7b73f966a7afc1a6",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "7bb169599c6fa8e1c6d918ca7b73f966a7afc1a6"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "7bb169599c6fa8e1c6d918ca7b73f966a7afc1a6",
+  "next": "2dec0b1f78aca759f4dc3055572ba66b85988f48",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 538,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/Assert.ts",
+   "mode": "100644",
+   "blob": "cf1bd4a9e76fbb6cadfc59fb7c4e3e658788e0c5",
+   "previousBlob": null,
+   "added": 93,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/Browser.ts",
+   "mode": "100644",
+   "blob": "74ffa9a7ad8f52b94e0beb48e05e1edfaaa2b963",
+   "previousBlob": null,
+   "added": 445,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

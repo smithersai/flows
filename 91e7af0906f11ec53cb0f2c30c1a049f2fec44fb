@@ -1,0 +1,181 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "91e7af0906f11ec53cb0f2c30c1a049f2fec44fb",
+ "tree": "389acd5c72f78be40a493c58b3cafb31350f3f1f",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 103,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 751,
+  "globalCount": 845,
+  "purpose": "📝 docs(ui): document ui for ui",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "ui",
+  "component": "apps/ui",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "6f2e02832f458318f698bda747eac712333ba5cd",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "commit": "3b57deac5ef23a0e1e2fa660e6bcf9351049a95b"
+   },
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   },
+   {
+    "package": "@smthrs/chain",
+    "commit": "b729433ee7b80987881f5505e8663c9995e4fa27"
+   },
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/crypto",
+    "commit": "3ac9a18fee84c753c34d31ae7baae150fa503fe6"
+   },
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   },
+   {
+    "package": "@smthrs/harness",
+    "commit": "6efc2c90189369916690397a40ed7cce75754114"
+   },
+   {
+    "package": "@smthrs/jj",
+    "commit": "a67499b875ddce7aa9fe4a7cc5414fc0ab9eb398"
+   },
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   },
+   {
+    "package": "@smthrs/memory",
+    "commit": "b0730cfb8c6d3d2a449dcfc6a984435879f62107"
+   },
+   {
+    "package": "@smthrs/model",
+    "commit": "5d7f346b5c7d5b6d6470e58b2aed91e31cba613a"
+   },
+   {
+    "package": "@smthrs/patterns",
+    "commit": "9e6c7183c2eb1028fd0b3f8e1736586a353cafd0"
+   },
+   {
+    "package": "@smthrs/platform-browser",
+    "commit": "ca23816b16d5e35de879f35fe042c979b3f78807"
+   },
+   {
+    "package": "@smthrs/registry",
+    "commit": "1ae2f3b78daa4ba33deb87bfe057eee002727dcd"
+   }
+  ]
+ },
+ "related": {
+  "previous": "6f2e02832f458318f698bda747eac712333ba5cd",
+  "next": "b9977998620d655035132392609d9a999ef7385b",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 5,
+  "added": 1449,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/AGENTS.md",
+   "mode": "100644",
+   "blob": "60437cb34f737b2a74bf6faf47b61d30ae0653f4",
+   "previousBlob": null,
+   "added": 61,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/FLOW-REUSE-RECEIPT.md",
+   "mode": "100644",
+   "blob": "65490e4dd940a41bb3748572cbb621c54eb27f58",
+   "previousBlob": null,
+   "added": 275,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/LIBRARY-CHANGE-REQUESTS.md",
+   "mode": "100644",
+   "blob": "554460f9b0915c366e1521fe3c6ac6347035cb18",
+   "previousBlob": null,
+   "added": 188,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/MANUAL-REVIEW-CHECKLIST.md",
+   "mode": "100644",
+   "blob": "5f312e7cce6473f0cc82348a7c41934d2bac60e3",
+   "previousBlob": null,
+   "added": 855,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/README.md",
+   "mode": "100644",
+   "blob": "665e4710aa284d918900fc66817f48707a9a4da2",
+   "previousBlob": null,
+   "added": 70,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

@@ -1,0 +1,124 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "fa7323b62ebd61ed714b87b28913e6cb2008a540",
+ "tree": "761a42f056fe61228c767a2946d3e1c50eb5d0ba",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 83,
+  "childCount": 96,
+  "head": "c93705a8b036d030082a6877bd6668709293285d"
+ },
+ "atomic": {
+  "globalIndex": 269,
+  "globalCount": 845,
+  "purpose": "✅ test(time-travel): cover SqlTimeTravelStore",
+  "type": "test",
+  "kind": "tests",
+  "scope": "time-travel",
+  "component": "packages/time-travel",
+  "unitKey": "SqlTimeTravelStore",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "3aa61f5e7cc4bed9f8ff562e6f64ab1391baf121",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   },
+   {
+    "package": "@smthrs/engine-store",
+    "commit": "c6b3697b9aadd84d656b5f1179422382009e6892"
+   },
+   {
+    "package": "@smthrs/jj",
+    "commit": "a67499b875ddce7aa9fe4a7cc5414fc0ab9eb398"
+   },
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   },
+   {
+    "package": "@smthrs/run-store",
+    "commit": "9633d567508a5d82ee51d5ed34014e850f417731"
+   },
+   {
+    "package": "@smthrs/step-cache",
+    "commit": "a907f76614a1aed065dcbdc5b44cc4f4d0e970a0"
+   },
+   {
+    "package": "@smthrs/artifacts",
+    "commit": "0ee5dee9b13e29707b4089b10c6214d1987c34b4"
+   },
+   {
+    "package": "@smthrs/engine",
+    "commit": "b17af994607bc2ef084b62d75c0b2509f8b56d23"
+   },
+   {
+    "package": "@smthrs/flow",
+    "commit": "8f2310ef99183d31a7cb6a91238af374d246498b"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   },
+   {
+    "package": "@smthrs/plan",
+    "commit": "a6c062c1ea8185f0a2b743039e577306a8ad4a47"
+   }
+  ]
+ },
+ "related": {
+  "previous": "3aa61f5e7cc4bed9f8ff562e6f64ab1391baf121",
+  "next": "d39dd1cf42fe73501f091fb00a536bb8f5154707",
+  "epicFirst": "eec277e2e1bfd7b6ae08c5d31c63df081ea52207",
+  "epicLast": "c93705a8b036d030082a6877bd6668709293285d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 925,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/time-travel/test/SqlTimeTravelStore.test.ts",
+   "mode": "100644",
+   "blob": "1691491133d6942e84028626e9cd04ee7148e226",
+   "previousBlob": null,
+   "added": 95,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/time-travel/test/SqlTimeTravelStoreOperations.test.ts",
+   "mode": "100644",
+   "blob": "60b11aadaa06fe12cba1d3506cafa2edb7551cbd",
+   "previousBlob": null,
+   "added": 830,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

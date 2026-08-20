@@ -1,0 +1,91 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "dc151173e420d6ce8fda47487037fbb20a84711e",
+ "tree": "5a221dec705e1747579abef559ae68fa057e25ff",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 147,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 795,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the state/controller modules (4/4)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:mainview/state/controller",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "6795a6004c5055c11b125c8051c6a8778ce179f6",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "936580f83e9247b8d2c86c38a6c4ef634dde2411",
+   "0dd03545f5ea30a4aec05cdcc8826779e6452c0a",
+   "e0ea030ac10573a07f6acdcf40c6b3fa818b55ef"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "6795a6004c5055c11b125c8051c6a8778ce179f6",
+  "next": "9d82d9a71ebc365ca2fd0f7ee437415b4f872a64",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 766,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/controller/workflows.ts",
+   "mode": "100644",
+   "blob": "0ec638d5ec084b88d506f267bdb29481684edea9",
+   "previousBlob": null,
+   "added": 542,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/controller/world.ts",
+   "mode": "100644",
+   "blob": "cd8b148064520f7e4f74682ddc72d8c92e8d2231",
+   "previousBlob": null,
+   "added": 224,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

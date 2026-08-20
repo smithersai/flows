@@ -1,0 +1,83 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a5193915fd7f1bc7634e32c28838552e883641db",
+ "tree": "28c6b4195cdc6e5c3bb23b45c6357c55a12606c9",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 61,
+  "childCount": 61,
+  "head": "a5193915fd7f1bc7634e32c28838552e883641db"
+ },
+ "atomic": {
+  "globalIndex": 186,
+  "globalCount": 845,
+  "purpose": "📝 docs(sandbox): document sandbox",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "sandbox",
+  "component": "packages/sandbox",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "4e981b86b6e4ea0f4167510722737f527fb69eee",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "4e981b86b6e4ea0f4167510722737f527fb69eee",
+  "next": "eec277e2e1bfd7b6ae08c5d31c63df081ea52207",
+  "epicFirst": "5037300288116821b95e1046a67ca324243eeeeb",
+  "epicLast": "a5193915fd7f1bc7634e32c28838552e883641db",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 105,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/sandbox/CHANGELOG.md",
+   "mode": "100644",
+   "blob": "c10689b614638f469c11785035bbf376ba34fc54",
+   "previousBlob": null,
+   "added": 55,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/README.md",
+   "mode": "100644",
+   "blob": "891b05e83743afa0264c68445d603db86b65f039",
+   "previousBlob": null,
+   "added": 50,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

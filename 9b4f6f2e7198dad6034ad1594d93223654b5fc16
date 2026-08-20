@@ -1,0 +1,89 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "9b4f6f2e7198dad6034ad1594d93223654b5fc16",
+ "tree": "4609504f00069e4019447dbe938b3776db97e322",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 29,
+  "childCount": 43,
+  "head": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9"
+ },
+ "atomic": {
+  "globalIndex": 311,
+  "globalCount": 845,
+  "purpose": "📝 docs(fs): document fs",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "fs",
+  "component": "packages/fs",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "76c7092fe026eff3c097ee90c0d3f041249604eb",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/registry",
+    "commit": "1ae2f3b78daa4ba33deb87bfe057eee002727dcd"
+   }
+  ]
+ },
+ "related": {
+  "previous": "76c7092fe026eff3c097ee90c0d3f041249604eb",
+  "next": "28406daec4563d98797d8c3b70288f6540f5becd",
+  "epicFirst": "f7a85bfa43ff3fa63e2ad6200bd2d4d7ec1397a2",
+  "epicLast": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 46,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/fs/CHANGELOG.md",
+   "mode": "100644",
+   "blob": "dd066c3a7d2ccf72445c0449297c31565bd128cf",
+   "previousBlob": null,
+   "added": 7,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/fs/README.md",
+   "mode": "100644",
+   "blob": "928e1e2efb3244bf83fda5f80649222a2ac71a54",
+   "previousBlob": null,
+   "added": 39,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

@@ -1,0 +1,82 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "df9bb905e79a3d63ec44f86f44a319433a13efb5",
+ "tree": "3ceaef36e2a7053d4e79a282a3253e55c8a391cc",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 124,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 772,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add worker-e2e",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/scripts",
+  "unitKey": "worker-e2e",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "b99cf5f1cab2380e5444ff16d62e7fa9450e3682",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "514d89cd44090b5737976110fd9e7c7242a619f9",
+   "f2f4ea0ef0875dbd9f3a02155990ec55c4bdc224",
+   "f032649d5f5d191dbd7a7750f056e199d8555921",
+   "073fd2736d249f37dedb31cd104b2e69ba331df0",
+   "e0ea030ac10573a07f6acdcf40c6b3fa818b55ef"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "b99cf5f1cab2380e5444ff16d62e7fa9450e3682",
+  "next": "2564c29586d596a1ea144b004044e8da5ce6d143",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 1737,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/scripts/worker-e2e.ts",
+   "mode": "100644",
+   "blob": "e99d4fd85c364ce5efaa0c97549b49db04ce61c1",
+   "previousBlob": null,
+   "added": 1737,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

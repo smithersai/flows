@@ -1,0 +1,70 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "c6fb4e6f36a54d89582698b788f5c8f931a248e5",
+ "tree": "5f2827d2bb950d055ca332461d5b72aff846a375",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 25,
+  "childCount": 55,
+  "head": "9633d567508a5d82ee51d5ed34014e850f417731"
+ },
+ "atomic": {
+  "globalIndex": 41,
+  "globalCount": 845,
+  "purpose": "✅ test(journal): cover Journal (4/4)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "journal",
+  "component": "packages/journal",
+  "unitKey": "Journal",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "3f0b9fcafbce8e52eff744414e1976d1ba5e651b",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   }
+  ]
+ },
+ "related": {
+  "previous": "3f0b9fcafbce8e52eff744414e1976d1ba5e651b",
+  "next": "13f4baa4437a7ec17517081fc08fe92169746a76",
+  "epicFirst": "0b1fe1d563a03d93618ff339540cb77a2ed44d4b",
+  "epicLast": "9633d567508a5d82ee51d5ed34014e850f417731",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 226,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/journal/test/JournalTransaction.test.ts",
+   "mode": "100644",
+   "blob": "7f1b4aa40754acd836a8e512156698537019d5c7",
+   "previousBlob": null,
+   "added": 226,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

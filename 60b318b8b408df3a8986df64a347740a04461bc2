@@ -1,0 +1,96 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "60b318b8b408df3a8986df64a347740a04461bc2",
+ "tree": "7d2e9bbac9a535adce2753b0483fe9f9fe238b00",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 8,
+  "childCount": 43,
+  "head": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9"
+ },
+ "atomic": {
+  "globalIndex": 290,
+  "globalCount": 845,
+  "purpose": "✨ feat(core): add Graph",
+  "type": "feat",
+  "kind": "module",
+  "scope": "core",
+  "component": "packages/core",
+  "unitKey": "Graph",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "f9d28a50a463b25eb35a037ceb9f3c12133f71ac",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [
+   "289d6dd19d000ec4bb098660f031777efb65441c",
+   "637e81297bd46a960f5b1dd05495dec90730f908",
+   "c50399d1bf1dbd2cc08815c9f6cf85f26f0a93ea",
+   "e0780a78cd2150acaebeeeef617aa682ba801573",
+   "f9d28a50a463b25eb35a037ceb9f3c12133f71ac",
+   "2210dd0aeab6fbecf456c22945a9c3a615646168"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "commit": "3b57deac5ef23a0e1e2fa660e6bcf9351049a95b"
+   },
+   {
+    "package": "@smthrs/crypto",
+    "commit": "3ac9a18fee84c753c34d31ae7baae150fa503fe6"
+   }
+  ]
+ },
+ "related": {
+  "previous": "f9d28a50a463b25eb35a037ceb9f3c12133f71ac",
+  "next": "9ea5cbefc555ad326386c79f7a9f9f1fffeb2c9b",
+  "epicFirst": "f7a85bfa43ff3fa63e2ad6200bd2d4d7ec1397a2",
+  "epicLast": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 1306,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/core/src/Graph.ts",
+   "mode": "100644",
+   "blob": "549b74c65e9c8fc78d2427cfa1859b20f320e80d",
+   "previousBlob": null,
+   "added": 877,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/core/test/Graph.test.ts",
+   "mode": "100644",
+   "blob": "16dab8ac0b8d159dfbb76165955bbed1ae90611a",
+   "previousBlob": null,
+   "added": 429,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

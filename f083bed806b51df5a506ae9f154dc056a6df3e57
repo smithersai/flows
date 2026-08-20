@@ -1,0 +1,86 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "f083bed806b51df5a506ae9f154dc056a6df3e57",
+ "tree": "250ac65be78af7e194ae14716af29835fccc3e71",
+ "epic": {
+  "index": 2,
+  "id": "core",
+  "name": "Canonical leaf contracts",
+  "sourceCommit": "9cd3ac554b7b6acecfceddce69f6a6b6afa257b6",
+  "sourceSubject": "✨ feat(core): add canonical leaf contracts",
+  "childIndex": 12,
+  "childCount": 14,
+  "head": "661ab4abf442fdbc7f5039a9846f9822f28b505a"
+ },
+ "atomic": {
+  "globalIndex": 14,
+  "globalCount": 845,
+  "purpose": "✨ feat(crypto): add Sha256",
+  "type": "feat",
+  "kind": "module",
+  "scope": "crypto",
+  "component": "packages/crypto",
+  "unitKey": "Sha256",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "430e81622ac1154752d27ff02ccc11c95a28a6f4",
+  "epicPredecessors": [
+   "repo"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "430e81622ac1154752d27ff02ccc11c95a28a6f4",
+  "next": "3ac9a18fee84c753c34d31ae7baae150fa503fe6",
+  "epicFirst": "c0c561bff5109eb97831d6eda26e84d1d4aa5583",
+  "epicLast": "661ab4abf442fdbc7f5039a9846f9822f28b505a",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 213,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/crypto/src/Sha256.ts",
+   "mode": "100644",
+   "blob": "36295b49d9c4a8c93976fb1d2e0bf4eddea425c5",
+   "previousBlob": null,
+   "added": 76,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/crypto/test/Sha256.property.test.ts",
+   "mode": "100644",
+   "blob": "69fad463080de0b5b31a6320f27356352b1a8b21",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/crypto/test/Sha256.test.ts",
+   "mode": "100644",
+   "blob": "1022c86c3f1154a1b19becd60710d45b6da9a2b9",
+   "previousBlob": null,
+   "added": 137,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

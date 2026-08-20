@@ -1,0 +1,85 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "911cd6e9d09f1da3b72864b41dbbb83034e27e89",
+ "tree": "8d6d6d0d7d739cccf320e1b6acbd349ab4f5d879",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 57,
+  "childCount": 96,
+  "head": "c93705a8b036d030082a6877bd6668709293285d"
+ },
+ "atomic": {
+  "globalIndex": 243,
+  "globalCount": 845,
+  "purpose": "✨ feat(engine-store): add the StepSandbox, WakeBus modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "engine-store",
+  "component": "packages/engine-store/src",
+  "unitKey": "StepSandbox",
+  "mergedUnitKeys": [
+   "StepSandbox",
+   "WakeBus"
+  ]
+ },
+ "dependencies": {
+  "parent": "b43b3b12d0f84a013434387f26580ee78f0854af",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "1b2d917f9299e104d701a5e38b74cedd19846579",
+   "b43b3b12d0f84a013434387f26580ee78f0854af"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "b43b3b12d0f84a013434387f26580ee78f0854af",
+  "next": "9123f49c124e0267fbe38a2cc90282ad1bccc0c2",
+  "epicFirst": "eec277e2e1bfd7b6ae08c5d31c63df081ea52207",
+  "epicLast": "c93705a8b036d030082a6877bd6668709293285d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 292,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/StepSandbox.ts",
+   "mode": "100644",
+   "blob": "8dccc67387557deb7997e1ea1d312ebd0750cee2",
+   "previousBlob": null,
+   "added": 119,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/WakeBus.ts",
+   "mode": "100644",
+   "blob": "4740612023be6a7fee4db7727720cd49a9d26ab1",
+   "previousBlob": null,
+   "added": 173,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

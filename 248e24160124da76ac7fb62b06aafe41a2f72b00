@@ -1,0 +1,84 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "248e24160124da76ac7fb62b06aafe41a2f72b00",
+ "tree": "6ae288f20e6fe80b9061fbc46af54d15146235d0",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 53,
+  "childCount": 96,
+  "head": "c93705a8b036d030082a6877bd6668709293285d"
+ },
+ "atomic": {
+  "globalIndex": 239,
+  "globalCount": 845,
+  "purpose": "✨ feat(engine-store): add the contract, Sha256 modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "engine-store",
+  "component": "packages/engine-store/test",
+  "unitKey": "dir:contract",
+  "mergedUnitKeys": [
+   "dir:contract",
+   "Sha256"
+  ]
+ },
+ "dependencies": {
+  "parent": "b99e4ffd9a87baf764aace571008b88ef841e23d",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "b99e4ffd9a87baf764aace571008b88ef841e23d"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "b99e4ffd9a87baf764aace571008b88ef841e23d",
+  "next": "3f3525339467e1d760eee5916a80920d2503e180",
+  "epicFirst": "eec277e2e1bfd7b6ae08c5d31c63df081ea52207",
+  "epicLast": "c93705a8b036d030082a6877bd6668709293285d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 465,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/contract/DurableEngineStateContract.ts",
+   "mode": "100644",
+   "blob": "5b4d65772ff64af589fef34297f246d898728fe7",
+   "previousBlob": null,
+   "added": 433,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/Sha256.ts",
+   "mode": "100644",
+   "blob": "6b40cab9bb4ee49c7246a900ccd6376711356526",
+   "previousBlob": null,
+   "added": 32,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

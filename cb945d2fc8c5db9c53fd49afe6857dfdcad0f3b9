@@ -1,0 +1,78 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9",
+ "tree": "6c2937eb9f933752b66042f5a9fc60e000cdc7f7",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 43,
+  "childCount": 43,
+  "head": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9"
+ },
+ "atomic": {
+  "globalIndex": 325,
+  "globalCount": 845,
+  "purpose": "✨ feat(plugin): export the public plugin surface",
+  "type": "feat",
+  "kind": "index",
+  "scope": "plugin",
+  "component": "packages/plugin",
+  "unitKey": "~index",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "b422f709ce100ad9a4a0d8607e45a053ee2cc1df",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [
+   "a6af6b175284322f976513df83d400f4690412db",
+   "b422f709ce100ad9a4a0d8607e45a053ee2cc1df",
+   "600c1f4aadc4e1276ad332c8aa37b13ec4c102ca"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/flow",
+    "commit": "8f2310ef99183d31a7cb6a91238af374d246498b"
+   }
+  ]
+ },
+ "related": {
+  "previous": "b422f709ce100ad9a4a0d8607e45a053ee2cc1df",
+  "next": "65dffaa9668923ae816eeaa5bce0901a958729b0",
+  "epicFirst": "f7a85bfa43ff3fa63e2ad6200bd2d4d7ec1397a2",
+  "epicLast": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 84,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/plugin/src/index.ts",
+   "mode": "100644",
+   "blob": "eb73f3c3dd54f105a9b3df1da2bf102ede5f383f",
+   "previousBlob": null,
+   "added": 84,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

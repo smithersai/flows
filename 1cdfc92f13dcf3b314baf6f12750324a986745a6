@@ -1,0 +1,101 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "1cdfc92f13dcf3b314baf6f12750324a986745a6",
+ "tree": "e36a4437f329fc58ade6ca3cac0158310004afff",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 23,
+  "childCount": 96,
+  "head": "c93705a8b036d030082a6877bd6668709293285d"
+ },
+ "atomic": {
+  "globalIndex": 209,
+  "globalCount": 845,
+  "purpose": "✅ test(engine-store): cover engine-store (15/23)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "engine-store",
+  "component": "packages/engine-store/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "ede564e832ebd0cca8fdc9d37fe93133f8ca358b",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "ede564e832ebd0cca8fdc9d37fe93133f8ca358b",
+  "next": "c441997e021fcfa438b987f9d79c59fe6d8d64a2",
+  "epicFirst": "eec277e2e1bfd7b6ae08c5d31c63df081ea52207",
+  "epicLast": "c93705a8b036d030082a6877bd6668709293285d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 1325,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/RestoreDrill.test.ts",
+   "mode": "100644",
+   "blob": "47071f33c09f7aad3cd2daaf64c03aba44b2fd67",
+   "previousBlob": null,
+   "added": 555,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/RetryExpiration.test.ts",
+   "mode": "100644",
+   "blob": "4c50b32401658927c7693e47ff72ec6df1a1ca17",
+   "previousBlob": null,
+   "added": 204,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/RetryOrigin.test.ts",
+   "mode": "100644",
+   "blob": "c6341c4d25de356b8de58910eaddc8ee15460d42",
+   "previousBlob": null,
+   "added": 239,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/RunCoordinator.test.ts",
+   "mode": "100644",
+   "blob": "841c5334bbb6bba5c1a6462521ce25d3978ffaca",
+   "previousBlob": null,
+   "added": 327,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

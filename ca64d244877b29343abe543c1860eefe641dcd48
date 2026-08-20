@@ -1,0 +1,79 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "ca64d244877b29343abe543c1860eefe641dcd48",
+ "tree": "7f48e02c859f3d8effda37a343cf85cc24c50256",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 35,
+  "childCount": 66,
+  "head": "28962374658aba2757a5405dab6454616510b6b6"
+ },
+ "atomic": {
+  "globalIndex": 360,
+  "globalCount": 845,
+  "purpose": "✅ test(model): cover AnthropicMessages",
+  "type": "test",
+  "kind": "tests",
+  "scope": "model",
+  "component": "packages/model",
+  "unitKey": "AnthropicMessages",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "f06aaf60478140cf15bcb2a0a695b6726362da5a",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "f06aaf60478140cf15bcb2a0a695b6726362da5a",
+  "next": "f67be10ea2523bf2206e212ea3ce742b9d76f8eb",
+  "epicFirst": "65dffaa9668923ae816eeaa5bce0901a958729b0",
+  "epicLast": "28962374658aba2757a5405dab6454616510b6b6",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 833,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/model/test/AnthropicMessages.test.ts",
+   "mode": "100644",
+   "blob": "8045498650dec7abb15b60619192b7af2c7b9e10",
+   "previousBlob": null,
+   "added": 833,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

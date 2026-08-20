@@ -1,0 +1,196 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "9a38ef27b0439dcf0f309f6d78ee21074d90cdf3",
+ "tree": "96bef3f91266ed84ffb4f3afe1d7d8c781079b07",
+ "epic": {
+  "index": 12,
+  "id": "examples",
+  "name": "Executable learning and evaluation suites",
+  "sourceCommit": "1c0d5bce16fdac649b8f108f4e37eaea58f4933c",
+  "sourceSubject": "📚 docs(examples): add executable learning and evaluation suites",
+  "childIndex": 15,
+  "childCount": 18,
+  "head": "ac7419bdf70373fddd3f14e1eaf511aca20aea7d"
+ },
+ "atomic": {
+  "globalIndex": 625,
+  "globalCount": 845,
+  "purpose": "📦 build(examples): add examples workspace configuration",
+  "type": "build",
+  "kind": "scaffold",
+  "scope": "examples",
+  "component": "examples",
+  "unitKey": "~scaffold",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "b1a4e8a5991a1a81dbd6183022ba666fe261308b",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/agent",
+    "commit": "b0dba50a345f90c5aaa20e5177e68a82df0809a5"
+   },
+   {
+    "package": "@smthrs/artifacts",
+    "commit": "0ee5dee9b13e29707b4089b10c6214d1987c34b4"
+   },
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   },
+   {
+    "package": "@smthrs/engine",
+    "commit": "b17af994607bc2ef084b62d75c0b2509f8b56d23"
+   },
+   {
+    "package": "@smthrs/engine-store",
+    "commit": "c6b3697b9aadd84d656b5f1179422382009e6892"
+   },
+   {
+    "package": "@smthrs/flow",
+    "commit": "8f2310ef99183d31a7cb6a91238af374d246498b"
+   },
+   {
+    "package": "@smthrs/flows",
+    "commit": "2b51cd84706f3813ae6a830e3ab8d472bfad1757"
+   },
+   {
+    "package": "@smthrs/harness",
+    "commit": "6efc2c90189369916690397a40ed7cce75754114"
+   },
+   {
+    "package": "@smthrs/jj",
+    "commit": "a67499b875ddce7aa9fe4a7cc5414fc0ab9eb398"
+   },
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   },
+   {
+    "package": "@smthrs/keys",
+    "commit": "e145b0e5dfced2a00c300f9b139b14f6820bf771"
+   },
+   {
+    "package": "@smthrs/model",
+    "commit": "5d7f346b5c7d5b6d6470e58b2aed91e31cba613a"
+   },
+   {
+    "package": "@smthrs/observability",
+    "commit": "fbdbe67c65198be6195138f47d55bb84d1f9be86"
+   },
+   {
+    "package": "@smthrs/plan",
+    "commit": "a6c062c1ea8185f0a2b743039e577306a8ad4a47"
+   },
+   {
+    "package": "@smthrs/platform-browser",
+    "commit": "ca23816b16d5e35de879f35fe042c979b3f78807"
+   },
+   {
+    "package": "@smthrs/platform-node",
+    "commit": "ee046808e1233898d8f029a65b2f8f9eeb83caeb"
+   },
+   {
+    "package": "@smthrs/registry",
+    "commit": "1ae2f3b78daa4ba33deb87bfe057eee002727dcd"
+   },
+   {
+    "package": "@smthrs/run-store",
+    "commit": "9633d567508a5d82ee51d5ed34014e850f417731"
+   },
+   {
+    "package": "@smthrs/step-cache",
+    "commit": "a907f76614a1aed065dcbdc5b44cc4f4d0e970a0"
+   },
+   {
+    "package": "@smthrs/sync",
+    "commit": "fe2f612d03e13b414eb28e2f50a685d212be384f"
+   },
+   {
+    "package": "@smthrs/time-travel",
+    "commit": "f45494e6a9a4d910a08dca82e8a2c9a48f16c39a"
+   }
+  ]
+ },
+ "related": {
+  "previous": "b1a4e8a5991a1a81dbd6183022ba666fe261308b",
+  "next": "d53ae30248a8cc8cf0af3626c7e24910b37c6d7c",
+  "epicFirst": "f49d638b0d89382d3b7dc40e3aa9372c7294d2d8",
+  "epicLast": "ac7419bdf70373fddd3f14e1eaf511aca20aea7d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 129,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "examples/BUILD.ts",
+   "mode": "100644",
+   "blob": "6152566afec5af60c64314f0c6e3354b13046364",
+   "previousBlob": null,
+   "added": 53,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "examples/package.json",
+   "mode": "100644",
+   "blob": "0d97e5c5a0a5a24ad5ee32e9cb21bfdbe32412fb",
+   "previousBlob": null,
+   "added": 44,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "examples/tsconfig.json",
+   "mode": "100644",
+   "blob": "4c92569a88e195da662e867850cd166b2879c718",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "examples/vitest.config.ts",
+   "mode": "100644",
+   "blob": "440af10417b7625ad3385d0c9737838358e1ce4d",
+   "previousBlob": null,
+   "added": 11,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  }
+ ]
+}

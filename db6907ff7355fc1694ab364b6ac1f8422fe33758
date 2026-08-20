@@ -1,0 +1,68 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "db6907ff7355fc1694ab364b6ac1f8422fe33758",
+ "tree": "057b3b6fc893b8afabbd0602b491fca954927bc4",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 31,
+  "childCount": 96,
+  "head": "c93705a8b036d030082a6877bd6668709293285d"
+ },
+ "atomic": {
+  "globalIndex": 217,
+  "globalCount": 845,
+  "purpose": "✅ test(engine-store): cover engine-store (23/23)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "engine-store",
+  "component": "packages/engine-store/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "95bf53ec2174cb6a970f9fb5f126cfc8182d7b14",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "95bf53ec2174cb6a970f9fb5f126cfc8182d7b14",
+  "next": "d8482a5781d78196e2ecf56a0c16b3844a56e97b",
+  "epicFirst": "eec277e2e1bfd7b6ae08c5d31c63df081ea52207",
+  "epicLast": "c93705a8b036d030082a6877bd6668709293285d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 1239,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/WorkspaceSandbox.test.ts",
+   "mode": "100644",
+   "blob": "47eef921fc38a2df7950f70eb988eccd1ef31fb7",
+   "previousBlob": null,
+   "added": 1239,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

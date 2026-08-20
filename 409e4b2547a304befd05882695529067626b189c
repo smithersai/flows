@@ -1,0 +1,149 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "409e4b2547a304befd05882695529067626b189c",
+ "tree": "50f6b4090f226fc13a3c2681554a89c84b4cf6d8",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 40,
+  "childCount": 54,
+  "head": "8f2310ef99183d31a7cb6a91238af374d246498b"
+ },
+ "atomic": {
+  "globalIndex": 111,
+  "globalCount": 845,
+  "purpose": "✅ test(engine): cover engine (4/5)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "engine",
+  "component": "packages/engine",
+  "unitKey": "test",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "d767f4a27a3925b8280faef4e03ff1456d6351d3",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/crypto",
+    "commit": "3ac9a18fee84c753c34d31ae7baae150fa503fe6"
+   },
+   {
+    "package": "@smthrs/flow",
+    "commit": "8f2310ef99183d31a7cb6a91238af374d246498b"
+   },
+   {
+    "package": "@smthrs/keys",
+    "commit": "e145b0e5dfced2a00c300f9b139b14f6820bf771"
+   },
+   {
+    "package": "@smthrs/plan",
+    "commit": "a6c062c1ea8185f0a2b743039e577306a8ad4a47"
+   }
+  ]
+ },
+ "related": {
+  "previous": "d767f4a27a3925b8280faef4e03ff1456d6351d3",
+  "next": "f30eba07f931b7c0214890375f783bce72c6b9bc",
+  "epicFirst": "8d222879944a121d441c2c37d5ed2b7943a88b54",
+  "epicLast": "8f2310ef99183d31a7cb6a91238af374d246498b",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 7,
+  "added": 1264,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine/test/IncrementalInvalidation.test.ts",
+   "mode": "100644",
+   "blob": "7b5e140d70865739ffed37127d61af42869f3d54",
+   "previousBlob": null,
+   "added": 191,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine/test/InvocationKeyStability.test.ts",
+   "mode": "100644",
+   "blob": "92093d274dbb8460d5bcdd9f7a865dbba279a400",
+   "previousBlob": null,
+   "added": 497,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine/test/KeylessConcurrency.test.ts",
+   "mode": "100644",
+   "blob": "df955a35aef9f528a10cc385149f0bc8435b9535",
+   "previousBlob": null,
+   "added": 257,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine/test/Lineage.test.ts",
+   "mode": "100644",
+   "blob": "373cbef5b564790bd17c2a3cdb745b68d94d819b",
+   "previousBlob": null,
+   "added": 22,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine/test/RecordedExitSchemaMismatch.test.ts",
+   "mode": "100644",
+   "blob": "87079a77522f1579baa2b1772d9d55e4b85309b4",
+   "previousBlob": null,
+   "added": 77,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine/test/RetryOnInterrupt.test.ts",
+   "mode": "100644",
+   "blob": "8d55191f0b39776b33457ddcfdc38f74080433ea",
+   "previousBlob": null,
+   "added": 108,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine/test/RetryOriginFallback.test.ts",
+   "mode": "100644",
+   "blob": "a8cd468703c042a84213d4c79082fefa763dced8",
+   "previousBlob": null,
+   "added": 112,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

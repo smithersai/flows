@@ -1,0 +1,80 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "794d5c395ba761e7066dc42c1642cacea33772da",
+ "tree": "c149da4dd13af361a7a3d331fc7b8bf56ed7c937",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 121,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 769,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the suites module (9/11)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/e2e",
+  "unitKey": "dir:suites",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "8243fcc7da4102d39c15f0d5cb8c449498058aa9",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "7982cd350eb2156b8e994448fc24c6ca5ef6706b",
+   "53a74dc269f5c72c65e52e9ade4074d5a535a4ee",
+   "7bb169599c6fa8e1c6d918ca7b73f966a7afc1a6"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "8243fcc7da4102d39c15f0d5cb8c449498058aa9",
+  "next": "39a84897106d60d390d20febe3e3696054227f1f",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 875,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/suites/shell-layout.e2e.ts",
+   "mode": "100644",
+   "blob": "82e73ecc6f91600d7c99a6f47fbfdf4f23eeb185",
+   "previousBlob": null,
+   "added": 875,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

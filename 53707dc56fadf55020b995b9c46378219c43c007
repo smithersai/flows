@@ -1,0 +1,79 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "53707dc56fadf55020b995b9c46378219c43c007",
+ "tree": "0c4413cf34a50d32854151e24aaf9859fd9444d5",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 31,
+  "childCount": 55,
+  "head": "9633d567508a5d82ee51d5ed34014e850f417731"
+ },
+ "atomic": {
+  "globalIndex": 47,
+  "globalCount": 845,
+  "purpose": "✨ feat(journal): export the public journal surface",
+  "type": "feat",
+  "kind": "index",
+  "scope": "journal",
+  "component": "packages/journal",
+  "unitKey": "~index",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "a3844b60b67125675ffc44a9a6bf27f1bf0b330e",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [
+   "b6d56ab89992dca688a29a4f6745173e02707fd3",
+   "3766c3a8c1f23813bc27d1cd18c8163afa59b7e2",
+   "b76fdcf3401d813235df40673fe2571b515d0908",
+   "1bdfdf41e188fb7ce6ecd8bb04bcf6deb6c913dd",
+   "455683f254fe47edbefe967367032d33cf17af2b",
+   "13f4baa4437a7ec17517081fc08fe92169746a76",
+   "e940c479920dead6aa6a309be15a3965a3d83bcc",
+   "a0cfaf2c4979213d9909cab96af4d1ad55f2ca53"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   }
+  ]
+ },
+ "related": {
+  "previous": "a3844b60b67125675ffc44a9a6bf27f1bf0b330e",
+  "next": "e12f5235bbdedf8de9a57bbdb113493ff9d3c751",
+  "epicFirst": "0b1fe1d563a03d93618ff339540cb77a2ed44d4b",
+  "epicLast": "9633d567508a5d82ee51d5ed34014e850f417731",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 79,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/journal/src/index.ts",
+   "mode": "100644",
+   "blob": "265b6ba1a0254036027731e5d4bf0bbad80e994d",
+   "previousBlob": null,
+   "added": 79,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

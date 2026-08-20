@@ -1,0 +1,226 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "4bbcaaa78afa95e809c1be6a8915034fdde56573",
+ "tree": "e161b39d4b6caae8071c1a1fabf4d5cbed1ff372",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 48,
+  "childCount": 54,
+  "head": "8f2310ef99183d31a7cb6a91238af374d246498b"
+ },
+ "atomic": {
+  "globalIndex": 119,
+  "globalCount": 845,
+  "purpose": "✨ feat(flow): add the Action modules (1/2)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "flow",
+  "component": "packages/flow/src",
+  "unitKey": "dir:Action",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "d1efe1a85a37221b8a689693ea1341e2d3452328",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [
+   "88b0b8482f723d70b830817bd4f50b82b1b3b764",
+   "7294b5fdabb892d6587b33b903fe5f17378b0e76",
+   "e4e438fb5d215ff99573959a146b86df7e2b3752",
+   "91929fc7b5f5c40f7e10163450c1626300f5d89b",
+   "91ea35c7f3ae53bccae7e89506ee601af7eca576"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "d1efe1a85a37221b8a689693ea1341e2d3452328",
+  "next": "91929fc7b5f5c40f7e10163450c1626300f5d89b",
+  "epicFirst": "8d222879944a121d441c2c37d5ed2b7943a88b54",
+  "epicLast": "8f2310ef99183d31a7cb6a91238af374d246498b",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 15,
+  "added": 1486,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/Action.ts",
+   "mode": "100644",
+   "blob": "213c5af6be9294d8c675f9041de22e69a26d1069",
+   "previousBlob": null,
+   "added": 273,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/BoundaryMode.ts",
+   "mode": "100644",
+   "blob": "a98c52e58d65610a3253f8e6821c92e162434add",
+   "previousBlob": null,
+   "added": 29,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/CacheEnvironment.ts",
+   "mode": "100644",
+   "blob": "49c9b62731c375184faa28444473f533efadf7e7",
+   "previousBlob": null,
+   "added": 55,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/Context.ts",
+   "mode": "100644",
+   "blob": "3ec09d6f53d6c46f563a6db01c3266c9a5890901",
+   "previousBlob": null,
+   "added": 132,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/Errors.ts",
+   "mode": "100644",
+   "blob": "1215f6c349956d8a66b8404de341c523548993d7",
+   "previousBlob": null,
+   "added": 106,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/FileBoundary.ts",
+   "mode": "100644",
+   "blob": "05b24d2b7be91ec5895a919ff60fb28cb447c433",
+   "previousBlob": null,
+   "added": 71,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/Filegroup.ts",
+   "mode": "100644",
+   "blob": "04108311ec01fd77d3cb72e8dbd906d84f7fbf02",
+   "previousBlob": null,
+   "added": 16,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/FileInput.ts",
+   "mode": "100644",
+   "blob": "54b1f736c6a78f3783211653611b2b75ac7de95b",
+   "previousBlob": null,
+   "added": 35,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/Glob.ts",
+   "mode": "100644",
+   "blob": "a0096271be13610f88687c84a5dc0f257e4067fe",
+   "previousBlob": null,
+   "added": 7,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/idempotencyKey.ts",
+   "mode": "100644",
+   "blob": "dac660e2efaf8a8e1830d545d5b630e43d4ad1bf",
+   "previousBlob": null,
+   "added": 67,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/Implementations.ts",
+   "mode": "100644",
+   "blob": "ed74aa958157d48cc4a0b12e73a66bc5d87bff73",
+   "previousBlob": null,
+   "added": 146,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/index.ts",
+   "mode": "100644",
+   "blob": "1f7a4700338a9ef1d928417cae51b47cb805e6cb",
+   "previousBlob": null,
+   "added": 23,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/make.ts",
+   "mode": "100644",
+   "blob": "485e092fae9aa25c643c36210eab2e7b3a1dc175",
+   "previousBlob": null,
+   "added": 390,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/raceAll.ts",
+   "mode": "100644",
+   "blob": "efcb4b76a30eaf7d7078365b841f7436bdeb3305",
+   "previousBlob": null,
+   "added": 44,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/retry.ts",
+   "mode": "100644",
+   "blob": "be7a135b3261deb65c6cfc0754d01d26f6a728a0",
+   "previousBlob": null,
+   "added": 92,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,134 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "b6ac9334c287e91f69fae3f5858debbbe5bd7a70",
+ "tree": "03927ca09e2ca5a932da46d4bf5c7b7bca0a687c",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 28,
+  "childCount": 96,
+  "head": "c93705a8b036d030082a6877bd6668709293285d"
+ },
+ "atomic": {
+  "globalIndex": 214,
+  "globalCount": 845,
+  "purpose": "✅ test(engine-store): cover engine-store (20/23)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "engine-store",
+  "component": "packages/engine-store/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "a805f8f83d7083a43b3afa8e1d6103217537423b",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "a805f8f83d7083a43b3afa8e1d6103217537423b",
+  "next": "8d0c331537e2a4642414da2ca8fb53132c371335",
+  "epicFirst": "eec277e2e1bfd7b6ae08c5d31c63df081ea52207",
+  "epicLast": "c93705a8b036d030082a6877bd6668709293285d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 7,
+  "added": 1376,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/SuspendedParking.test.ts",
+   "mode": "100644",
+   "blob": "77ee6d2c1c72fa324fed989ff9612f23c6608bc2",
+   "previousBlob": null,
+   "added": 145,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/SweepAndScopes.test.ts",
+   "mode": "100644",
+   "blob": "388b23ad7254cc6ef358a310f8ea3bf571d37f73",
+   "previousBlob": null,
+   "added": 211,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/SweeperResilience.test.ts",
+   "mode": "100644",
+   "blob": "9bf1d0f6fb545f8a27f9e52f9f6d1181aebf21f0",
+   "previousBlob": null,
+   "added": 215,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/SweepFiltering.test.ts",
+   "mode": "100644",
+   "blob": "1b67fc647cf63e7257325e794d56ab6d92ba7a8f",
+   "previousBlob": null,
+   "added": 150,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/TerminalEmitDurability.test.ts",
+   "mode": "100644",
+   "blob": "f5b65ba284443f4d834cb022be90a677e38e31e5",
+   "previousBlob": null,
+   "added": 348,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/TestStores.test.ts",
+   "mode": "100644",
+   "blob": "f6b98b6baf549caebbf078f5063168b9d9b95347",
+   "previousBlob": null,
+   "added": 94,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/Tiers.test.ts",
+   "mode": "100644",
+   "blob": "834b36f90aaee9cecefaf7a36dcfa5ac56b141e3",
+   "previousBlob": null,
+   "added": 213,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

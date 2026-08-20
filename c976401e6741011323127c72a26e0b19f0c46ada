@@ -1,0 +1,108 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "c976401e6741011323127c72a26e0b19f0c46ada",
+ "tree": "23e97966fab26290c0bac642ffb053e17e24b3d3",
+ "epic": {
+  "index": 2,
+  "id": "core",
+  "name": "Canonical leaf contracts",
+  "sourceCommit": "9cd3ac554b7b6acecfceddce69f6a6b6afa257b6",
+  "sourceSubject": "✨ feat(core): add canonical leaf contracts",
+  "childIndex": 7,
+  "childCount": 14,
+  "head": "661ab4abf442fdbc7f5039a9846f9822f28b505a"
+ },
+ "atomic": {
+  "globalIndex": 9,
+  "globalCount": 845,
+  "purpose": "✨ feat(capability): add Capability",
+  "type": "feat",
+  "kind": "module",
+  "scope": "capability",
+  "component": "packages/capability",
+  "unitKey": "Capability",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "f4a723fd0821705f2339cbb4a776907a1a6c1d7b",
+  "epicPredecessors": [
+   "repo"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "f4a723fd0821705f2339cbb4a776907a1a6c1d7b",
+  "next": "ea1b71863eff1f98c0970e796e5d77dec3e5716b",
+  "epicFirst": "c0c561bff5109eb97831d6eda26e84d1d4aa5583",
+  "epicLast": "661ab4abf442fdbc7f5039a9846f9822f28b505a",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 5,
+  "added": 1087,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/capability/src/Capability.ts",
+   "mode": "100644",
+   "blob": "4c9627d2f3b5ad463a15124c031aae3f06e97a05",
+   "previousBlob": null,
+   "added": 402,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/capability/test/Capability.property.test.ts",
+   "mode": "100644",
+   "blob": "1b2b930915edb0a2ab2f1fb2dff7f8a2b0b3f4fe",
+   "previousBlob": null,
+   "added": 359,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/capability/test/Capability.test.ts",
+   "mode": "100644",
+   "blob": "fe70e025f598f20db656a82daf680af3076a52c4",
+   "previousBlob": null,
+   "added": 204,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/capability/test/CapabilityEscape.test.ts",
+   "mode": "100644",
+   "blob": "6db8b7be26cc9763a65078b00bfcf8c87b6d51fc",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/capability/test/CapabilityTiers.test.ts",
+   "mode": "100644",
+   "blob": "a67e2483d593bd39dd2ef42a174a441903c7f15b",
+   "previousBlob": null,
+   "added": 101,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

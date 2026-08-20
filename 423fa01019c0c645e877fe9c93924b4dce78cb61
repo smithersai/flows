@@ -1,0 +1,118 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "423fa01019c0c645e877fe9c93924b4dce78cb61",
+ "tree": "e3506d44f4d94bbc8928c03efe99c21a8fe3d473",
+ "epic": {
+  "index": 18,
+  "id": "workflows",
+  "name": "Repository automation workflows",
+  "sourceCommit": "9ea4941fc404fb4f12e3384b96a37e0739be3916",
+  "sourceSubject": "✨ feat(workflows): add repository automation workflows",
+  "childIndex": 4,
+  "childCount": 9,
+  "head": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "atomic": {
+  "globalIndex": 840,
+  "globalCount": 845,
+  "purpose": "✨ feat(smithers): add the evals/alpha-agent modules (2/2)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "smithers",
+  "component": ".smithers",
+  "unitKey": "dir:evals/alpha-agent",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "028cff00e144e601086e17a4ab94dec95fb8338f",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui",
+   "docs-site",
+   "factory"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "commit": "fec516964e3e6a618aace55755a6d0befd72daa8"
+   }
+  ]
+ },
+ "related": {
+  "previous": "028cff00e144e601086e17a4ab94dec95fb8338f",
+  "next": "d59b454d3b1d168f3e873dfab193eb8a46ccbe01",
+  "epicFirst": "fed6cbe14b940882dcae210c48223700336f43b7",
+  "epicLast": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 1205,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": ".smithers/evals/alpha-agent/build-cases.ts",
+   "mode": "100644",
+   "blob": "fa3c7b29426e87e7c6f1dd2322b14e75ce54f409",
+   "previousBlob": null,
+   "added": 101,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": ".smithers/evals/alpha-agent/cases.jsonl",
+   "mode": "100644",
+   "blob": "06036fce2392e4c82214be6944e0e3b20e4d201c",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": ".smithers/evals/alpha-agent/cases.source.json",
+   "mode": "100644",
+   "blob": "49068a4a11e6fd67350d4593b61a8313f0aedac6",
+   "previousBlob": null,
+   "added": 568,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": ".smithers/evals/alpha-agent/scoreTrace.ts",
+   "mode": "100644",
+   "blob": "4ac8c44f1c6d7343389eaa0a7ebe1673d07d58b3",
+   "previousBlob": null,
+   "added": 515,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

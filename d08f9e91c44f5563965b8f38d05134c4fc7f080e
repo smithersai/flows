@@ -1,0 +1,73 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "d08f9e91c44f5563965b8f38d05134c4fc7f080e",
+ "tree": "d2b80b602354e4017c0f44acc12b69078d4c6ae9",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 75,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 587,
+  "globalCount": 845,
+  "purpose": "📦 build(repo): move the root workspace onto pnpm",
+  "type": "build",
+  "kind": "scaffold",
+  "scope": "repo",
+  "component": "~root",
+  "unitKey": "~scaffold",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "2ce76c5d90cd699180fea74b4adf6bfe90435312",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "2ce76c5d90cd699180fea74b4adf6bfe90435312",
+  "next": "ea7bfc99043a43ffe241b27b8f56c563a8fdeda4",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 11,
+  "deleted": 5
+ },
+ "provenance": {
+  "strategy": "hunk-split or whole-file evolution of a path introduced earlier",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "package.json",
+   "mode": "100644",
+   "blob": "0cd69f39df473649111b0f4a9e11477e78ab4904",
+   "previousBlob": "7dd3342bbdeccd35503d5fa5414de47df6a71fc1",
+   "added": 11,
+   "deleted": 5,
+   "binary": false,
+   "role": "scaffold"
+  }
+ ]
+}

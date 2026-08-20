@@ -1,0 +1,73 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a4966f1781b02882e97b6e19f273c36163477e04",
+ "tree": "f405cc454b414257ddb5036a31e1192ea8fd7a82",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 52,
+  "childCount": 54,
+  "head": "8f2310ef99183d31a7cb6a91238af374d246498b"
+ },
+ "atomic": {
+  "globalIndex": 123,
+  "globalCount": 845,
+  "purpose": "✨ feat(flow): add Interpreter",
+  "type": "feat",
+  "kind": "module",
+  "scope": "flow",
+  "component": "packages/flow/src",
+  "unitKey": "Interpreter",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "4bfbcf971e073161706c7d911f47d99d2f700a3c",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [
+   "4bbcaaa78afa95e809c1be6a8915034fdde56573",
+   "91929fc7b5f5c40f7e10163450c1626300f5d89b",
+   "88b0b8482f723d70b830817bd4f50b82b1b3b764",
+   "d1efe1a85a37221b8a689693ea1341e2d3452328",
+   "7294b5fdabb892d6587b33b903fe5f17378b0e76",
+   "4bfbcf971e073161706c7d911f47d99d2f700a3c"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "4bfbcf971e073161706c7d911f47d99d2f700a3c",
+  "next": "26787232a7bfb9ef414e29ecab373cfc7aaec993",
+  "epicFirst": "8d222879944a121d441c2c37d5ed2b7943a88b54",
+  "epicLast": "8f2310ef99183d31a7cb6a91238af374d246498b",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 666,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/flow/src/Interpreter.ts",
+   "mode": "100644",
+   "blob": "13b88d73a2270d00eb3471713f8a922d0ff26930",
+   "previousBlob": null,
+   "added": 666,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

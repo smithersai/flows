@@ -1,0 +1,76 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "e7ff4cbe8ba915eaea50e9973e3f4bc7d5a716f8",
+ "tree": "46e3e39e66feb54f2deda27da54be1fdb79abf6f",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 64,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 712,
+  "globalCount": 845,
+  "purpose": "📝 docs(ui): document ui for scripts",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "ui",
+  "component": "apps/ui/scripts",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "514d89cd44090b5737976110fd9e7c7242a619f9",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "514d89cd44090b5737976110fd9e7c7242a619f9",
+  "next": "6c2760d3ad3bbc52425be5eb215e72ae123edd77",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 227,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/scripts/README.md",
+   "mode": "100644",
+   "blob": "f72084f3593679e8c7c197ba55aabc5751c3a7ac",
+   "previousBlob": null,
+   "added": 227,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

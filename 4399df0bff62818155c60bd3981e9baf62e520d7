@@ -1,0 +1,127 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "4399df0bff62818155c60bd3981e9baf62e520d7",
+ "tree": "5f4898cb9b9870384eeb2174de4755b1d7ed49d5",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 11,
+  "childCount": 61,
+  "head": "a5193915fd7f1bc7634e32c28838552e883641db"
+ },
+ "atomic": {
+  "globalIndex": 136,
+  "globalCount": 845,
+  "purpose": "✅ test(jj): cover jj (1/2)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "jj",
+  "component": "packages/jj",
+  "unitKey": "test",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "a67499b875ddce7aa9fe4a7cc5414fc0ab9eb398",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   }
+  ]
+ },
+ "related": {
+  "previous": "a67499b875ddce7aa9fe4a7cc5414fc0ab9eb398",
+  "next": "c30e71c40a6b58a81d597469d227fc1a2e5baff9",
+  "epicFirst": "5037300288116821b95e1046a67ca324243eeeeb",
+  "epicLast": "a5193915fd7f1bc7634e32c28838552e883641db",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 6,
+  "added": 1253,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/jj/test/BrowserJj.test.ts",
+   "mode": "100644",
+   "blob": "ff9d2e523095c46de1b10d22258721ef1944caf2",
+   "previousBlob": null,
+   "added": 277,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/jj/test/BrowserJjContract.test.ts",
+   "mode": "100644",
+   "blob": "edaadc62524e52b5f3e1bb4c88917d218714c216",
+   "previousBlob": null,
+   "added": 142,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/jj/test/BrowserJjWasmEdgeCases.test.ts",
+   "mode": "100644",
+   "blob": "6e9579a7181d24d022c004f8b47f0a5352107880",
+   "previousBlob": null,
+   "added": 392,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/jj/test/FakeFlowsJjWasm.ts",
+   "mode": "100644",
+   "blob": "9f391b51641ee31cf0c2c2e502adec54644a3ae8",
+   "previousBlob": null,
+   "added": 217,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/jj/test/index.test.ts",
+   "mode": "100644",
+   "blob": "6bf14057a1aaa1004db03218430775fad3e40959",
+   "previousBlob": null,
+   "added": 60,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/jj/test/NodeJj.test.ts",
+   "mode": "100644",
+   "blob": "8d76cc9c409793ffd6e4ecac21c15b3243cce459",
+   "previousBlob": null,
+   "added": 165,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

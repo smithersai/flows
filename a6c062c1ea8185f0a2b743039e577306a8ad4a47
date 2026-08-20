@@ -1,0 +1,84 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a6c062c1ea8185f0a2b743039e577306a8ad4a47",
+ "tree": "f99d2143c83290c2602b31ef8bc1cd13eff7635a",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 16,
+  "childCount": 54,
+  "head": "8f2310ef99183d31a7cb6a91238af374d246498b"
+ },
+ "atomic": {
+  "globalIndex": 87,
+  "globalCount": 845,
+  "purpose": "✨ feat(plan): export the public plan surface",
+  "type": "feat",
+  "kind": "index",
+  "scope": "plan",
+  "component": "packages/plan",
+  "unitKey": "~index",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "e4843c0e698beb636862813b95bb84a44d4bacc2",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [
+   "4a3ea87ce9a7992f57af6472afdf4ae62674a918",
+   "67bd940da731effa13f25c2453a2b3c3a96b73ba",
+   "6e6fdf8f5b5c6691db109891905bfbca635449dd",
+   "bf589223a07a2ebc6beccd701c5e1a4eb9b0732c",
+   "9a1d38bd37de6bdeb1692dc584a60cd59a87e278",
+   "e4843c0e698beb636862813b95bb84a44d4bacc2",
+   "b6a8f0841f0b7cb35677366df8dd543f5f99b40c",
+   "00ca3d1183a21cc19e156d65dc330139c9366d41"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   },
+   {
+    "package": "@smthrs/keys",
+    "commit": "e145b0e5dfced2a00c300f9b139b14f6820bf771"
+   }
+  ]
+ },
+ "related": {
+  "previous": "e4843c0e698beb636862813b95bb84a44d4bacc2",
+  "next": "96d40fad8e828c8633b580a1cbcd65e8265f2b24",
+  "epicFirst": "8d222879944a121d441c2c37d5ed2b7943a88b54",
+  "epicLast": "8f2310ef99183d31a7cb6a91238af374d246498b",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 86,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/plan/src/index.ts",
+   "mode": "100644",
+   "blob": "69a59a6d5d95c3bdd14b04a596e8718e143e7790",
+   "previousBlob": null,
+   "added": 86,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

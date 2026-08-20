@@ -1,0 +1,90 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "c441997e021fcfa438b987f9d79c59fe6d8d64a2",
+ "tree": "af8f4d1b2be75f5b992ab9ce601fd7985330b104",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 24,
+  "childCount": 96,
+  "head": "c93705a8b036d030082a6877bd6668709293285d"
+ },
+ "atomic": {
+  "globalIndex": 210,
+  "globalCount": 845,
+  "purpose": "✅ test(engine-store): cover engine-store (16/23)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "engine-store",
+  "component": "packages/engine-store/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "1cdfc92f13dcf3b314baf6f12750324a986745a6",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "1cdfc92f13dcf3b314baf6f12750324a986745a6",
+  "next": "d51bf7f94ccf4e317f6a2df77f4970e3f152e882",
+  "epicFirst": "eec277e2e1bfd7b6ae08c5d31c63df081ea52207",
+  "epicLast": "c93705a8b036d030082a6877bd6668709293285d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 1348,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/RunDriverEdges.test.ts",
+   "mode": "100644",
+   "blob": "05e83339ae02b32468c456b3320991920eedf627",
+   "previousBlob": null,
+   "added": 917,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/RunParentAtomicity.test.ts",
+   "mode": "100644",
+   "blob": "3438d90743cda3a898c01b2833a7d4a465bea013",
+   "previousBlob": null,
+   "added": 162,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/RunParentEdges.test.ts",
+   "mode": "100644",
+   "blob": "325ed347a570c78b044cac8f5ded7e0c02abb7d9",
+   "previousBlob": null,
+   "added": 269,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

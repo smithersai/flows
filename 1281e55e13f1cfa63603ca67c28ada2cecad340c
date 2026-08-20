@@ -1,0 +1,118 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "1281e55e13f1cfa63603ca67c28ada2cecad340c",
+ "tree": "c7978b2750f46fdf5f180975a507de694270cdc0",
+ "epic": {
+  "index": 9,
+  "id": "agent",
+  "name": "Harness, chain, tools and CLI",
+  "sourceCommit": "a8caaa3dc45df0c14d6b10d0db9faf8a7ea7e542",
+  "sourceSubject": "✨ feat(agent): compose the harness, chain, tools, and CLI",
+  "childIndex": 73,
+  "childCount": 85,
+  "head": "012fadccb450058987918de5ef55d315135be71d"
+ },
+ "atomic": {
+  "globalIndex": 464,
+  "globalCount": 845,
+  "purpose": "✅ test(chain): cover chain",
+  "type": "test",
+  "kind": "tests",
+  "scope": "chain",
+  "component": "packages/chain",
+  "unitKey": "test",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "b729433ee7b80987881f5505e8663c9995e4fa27",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   },
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/memory",
+    "commit": "b0730cfb8c6d3d2a449dcfc6a984435879f62107"
+   },
+   {
+    "package": "@smthrs/model",
+    "commit": "5d7f346b5c7d5b6d6470e58b2aed91e31cba613a"
+   },
+   {
+    "package": "@smthrs/registry",
+    "commit": "1ae2f3b78daa4ba33deb87bfe057eee002727dcd"
+   },
+   {
+    "package": "@smthrs/testing",
+    "commit": "a0e5f174f9c26f37d0db19e8811f39431063418e"
+   }
+  ]
+ },
+ "related": {
+  "previous": "b729433ee7b80987881f5505e8663c9995e4fa27",
+  "next": "f39e5735bf6e948acbc223b2b53ce60c4a35dfc3",
+  "epicFirst": "f86ed77ef384765a9a6a60ef7e3b84bfa04b8ac7",
+  "epicLast": "012fadccb450058987918de5ef55d315135be71d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 459,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/chain/test/RunnerConformance.test.ts",
+   "mode": "100644",
+   "blob": "e04651279507cafacb5ffa3cab9ae8433fb4a4e1",
+   "previousBlob": null,
+   "added": 319,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/test/harness.ts",
+   "mode": "100644",
+   "blob": "628bdf83213ab8e64202d5007f5f216c6a9369ff",
+   "previousBlob": null,
+   "added": 113,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/test/index.test.ts",
+   "mode": "100644",
+   "blob": "9ddc904ba6be22ee05b13c0304c8a9802040b1b5",
+   "previousBlob": null,
+   "added": 27,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

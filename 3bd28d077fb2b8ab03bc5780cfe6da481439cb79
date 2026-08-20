@@ -1,0 +1,213 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "3bd28d077fb2b8ab03bc5780cfe6da481439cb79",
+ "tree": "175e28ef2910ffbeac2f5ff0a34d244c5c2946bc",
+ "epic": {
+  "index": 12,
+  "id": "examples",
+  "name": "Executable learning and evaluation suites",
+  "sourceCommit": "1c0d5bce16fdac649b8f108f4e37eaea58f4933c",
+  "sourceSubject": "📚 docs(examples): add executable learning and evaluation suites",
+  "childIndex": 10,
+  "childCount": 18,
+  "head": "ac7419bdf70373fddd3f14e1eaf511aca20aea7d"
+ },
+ "atomic": {
+  "globalIndex": 620,
+  "globalCount": 845,
+  "purpose": "✨ feat(evals-swebench): add the lib, bootstrap, evaluate and 3 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "evals-swebench",
+  "component": "evals/swebench",
+  "unitKey": "dir:lib",
+  "mergedUnitKeys": [
+   "dir:lib",
+   "bootstrap",
+   "evaluate",
+   "flows",
+   "prices",
+   "regen-patch"
+  ]
+ },
+ "dependencies": {
+  "parent": "43a81c39ce81168f581c6c44cb05a0cbfe296bf0",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "43a81c39ce81168f581c6c44cb05a0cbfe296bf0",
+  "next": "22a4ff309b5f48d4a00128c9f02b1a0dbfc0c7de",
+  "epicFirst": "f49d638b0d89382d3b7dc40e3aa9372c7294d2d8",
+  "epicLast": "ac7419bdf70373fddd3f14e1eaf511aca20aea7d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 13,
+  "added": 687,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "evals/swebench/lib/grade.py",
+   "mode": "100644",
+   "blob": "23f9848055e72c1cbe3f939a33b61bab21ede99c",
+   "previousBlob": null,
+   "added": 46,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/lib/make-preds.mjs",
+   "mode": "100644",
+   "blob": "bae66a42f933d738867807f7177ab4543e0f7844",
+   "previousBlob": null,
+   "added": 22,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/lib/sample.mjs",
+   "mode": "100644",
+   "blob": "150488b8e43573052331ecde06699cf50ad3f674",
+   "previousBlob": null,
+   "added": 84,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/lib/strip-modes.mjs",
+   "mode": "100644",
+   "blob": "d75912d571307c395edb2b44047d32e64a5da887",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/lib/test-command.py",
+   "mode": "100644",
+   "blob": "9f4c0beb7edbfbfd1a14e7045d6adefb1e41bde9",
+   "previousBlob": null,
+   "added": 63,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/lib/validate-instance.mjs",
+   "mode": "100644",
+   "blob": "e401f9897776af43d57eacafe50645b628063d02",
+   "previousBlob": null,
+   "added": 35,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/lib/write-flow.mjs",
+   "mode": "100644",
+   "blob": "b34607a5a3c18f43fb2e8e3eaf868e89ba52a003",
+   "previousBlob": null,
+   "added": 83,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/lib/write-prompt-codex.mjs",
+   "mode": "100644",
+   "blob": "2f5edbb1689f5d394d42358e2567fa9bf4046299",
+   "previousBlob": null,
+   "added": 60,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/bootstrap.sh",
+   "mode": "100755",
+   "blob": "17515b62044f1e47b43cfe04d694c2cadb8f0ec5",
+   "previousBlob": null,
+   "added": 84,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/evaluate.sh",
+   "mode": "100755",
+   "blob": "ee22375408dfc435e950aba336d2beac961bbcb0",
+   "previousBlob": null,
+   "added": 54,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/flows.sh",
+   "mode": "100755",
+   "blob": "6cc1a28dcf91515ce6f5a8b371c5416b3882cba5",
+   "previousBlob": null,
+   "added": 27,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/prices.ts",
+   "mode": "100644",
+   "blob": "d540c6c99312969469828a7f55e68807803e07c6",
+   "previousBlob": null,
+   "added": 86,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/regen-patch.sh",
+   "mode": "100755",
+   "blob": "1ce5a759836201acd9aa660e378ba53b9a2fbe27",
+   "previousBlob": null,
+   "added": 22,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

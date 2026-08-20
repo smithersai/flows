@@ -1,0 +1,68 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "961ccaaa6d1290e877ddf4e698403e71022d2640",
+ "tree": "0395c2548e96eb01010f3d78a34dccc73656605b",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 5,
+  "childCount": 96,
+  "head": "c93705a8b036d030082a6877bd6668709293285d"
+ },
+ "atomic": {
+  "globalIndex": 191,
+  "globalCount": 845,
+  "purpose": "✨ feat(engine-store): add Reconciliation",
+  "type": "feat",
+  "kind": "module",
+  "scope": "engine-store",
+  "component": "packages/engine-store/src",
+  "unitKey": "Reconciliation",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "e7be1e20cf0cac9c983899b0b73d53a7624bc5d3",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "e7be1e20cf0cac9c983899b0b73d53a7624bc5d3",
+  "next": "e869bb8c4f46995afe93e126841cdc64b966d574",
+  "epicFirst": "eec277e2e1bfd7b6ae08c5d31c63df081ea52207",
+  "epicLast": "c93705a8b036d030082a6877bd6668709293285d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 226,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/Reconciliation.ts",
+   "mode": "100644",
+   "blob": "f16fab60cb793eb7b26c50a57dda1205ff849e98",
+   "previousBlob": null,
+   "added": 226,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

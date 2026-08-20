@@ -1,0 +1,88 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "c98d190d33451460fb598ff84537b9f1502ce787",
+ "tree": "33ba9cbbf89ce5496e2e38714533c764aebca989",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 34,
+  "childCount": 61,
+  "head": "a5193915fd7f1bc7634e32c28838552e883641db"
+ },
+ "atomic": {
+  "globalIndex": 159,
+  "globalCount": 845,
+  "purpose": "✨ feat(kernel): add JournalGrantStore",
+  "type": "feat",
+  "kind": "module",
+  "scope": "kernel",
+  "component": "packages/kernel",
+  "unitKey": "JournalGrantStore",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "3946ac716377ec4b41040589864d9a248b9056c6",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [
+   "1822e15c5911462e2797c9c2927fe20dcecc10e0",
+   "b6fa9ea2408b43a51a8ad35472ae78993ba2bc5a",
+   "6771c7e72889f1a229e0dfd4d17be31461c9099d"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   },
+   {
+    "package": "@smthrs/jj",
+    "commit": "a67499b875ddce7aa9fe4a7cc5414fc0ab9eb398"
+   },
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   },
+   {
+    "package": "@smthrs/platform-browser",
+    "commit": "ca23816b16d5e35de879f35fe042c979b3f78807"
+   }
+  ]
+ },
+ "related": {
+  "previous": "3946ac716377ec4b41040589864d9a248b9056c6",
+  "next": "49a5e4d8450567b6a73424752636c5593e93cc9b",
+  "epicFirst": "5037300288116821b95e1046a67ca324243eeeeb",
+  "epicLast": "a5193915fd7f1bc7634e32c28838552e883641db",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 351,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/kernel/src/JournalGrantStore.ts",
+   "mode": "100644",
+   "blob": "1b7b60279fc94871cc919b123151584690f6ed1a",
+   "previousBlob": null,
+   "added": 351,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,76 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "0d37da500f9f4419056dbf9fd3e38455d72c5530",
+ "tree": "612e72580a0b3f6b59f92b588294991e767b9de9",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 45,
+  "childCount": 61,
+  "head": "a5193915fd7f1bc7634e32c28838552e883641db"
+ },
+ "atomic": {
+  "globalIndex": 170,
+  "globalCount": 845,
+  "purpose": "✅ test(platform-node): cover AtomicFileSystem (1/2)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "platform-node",
+  "component": "packages/platform-node",
+  "unitKey": "AtomicFileSystem",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "029d90ede147ecbf12de823b8ff58c3dd1ee37c7",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/jj",
+    "commit": "a67499b875ddce7aa9fe4a7cc5414fc0ab9eb398"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "029d90ede147ecbf12de823b8ff58c3dd1ee37c7",
+  "next": "933e41e913d42c4f59ec8446ef165d877ea8cb5f",
+  "epicFirst": "5037300288116821b95e1046a67ca324243eeeeb",
+  "epicLast": "a5193915fd7f1bc7634e32c28838552e883641db",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 847,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/platform-node/test/AtomicFileSystem.test.ts",
+   "mode": "100644",
+   "blob": "083bd65c20e0668b82afa16196259e4075a7b630",
+   "previousBlob": null,
+   "added": 847,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

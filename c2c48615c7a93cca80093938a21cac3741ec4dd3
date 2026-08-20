@@ -1,0 +1,167 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "c2c48615c7a93cca80093938a21cac3741ec4dd3",
+ "tree": "88424d3fbc2966dea91f85e2b680d433f9367fe3",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 85,
+  "childCount": 96,
+  "head": "c93705a8b036d030082a6877bd6668709293285d"
+ },
+ "atomic": {
+  "globalIndex": 271,
+  "globalCount": 845,
+  "purpose": "✨ feat(time-travel): add TimeTravel",
+  "type": "feat",
+  "kind": "module",
+  "scope": "time-travel",
+  "component": "packages/time-travel",
+  "unitKey": "TimeTravel",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "d39dd1cf42fe73501f091fb00a536bb8f5154707",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "72a49cf384e37e045a8cf2fa3592993bfc06569a",
+   "5988164467eaa4351a264d684ac237ce1a690aff",
+   "4947c9c1a355a79595a7fdfb4447136a085ef753",
+   "ae1436f857fd5291830b514681f6b581f6e049f9",
+   "1a7703427f2121fe46a1fa8cfa100745fa4c2dad",
+   "228c0a91baf6608eed8d8c2a3ff6ac2f8ffafdeb",
+   "bf1e947ba7cbc023de8d712a077a5dd7800c0c39",
+   "46ef6bce15aee613b71a0d80ead7e00d6821ebd1",
+   "655bb2f884399d804c29c3368dd9f535a9f858b5"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   },
+   {
+    "package": "@smthrs/engine-store",
+    "commit": "c6b3697b9aadd84d656b5f1179422382009e6892"
+   },
+   {
+    "package": "@smthrs/jj",
+    "commit": "a67499b875ddce7aa9fe4a7cc5414fc0ab9eb398"
+   },
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   },
+   {
+    "package": "@smthrs/run-store",
+    "commit": "9633d567508a5d82ee51d5ed34014e850f417731"
+   },
+   {
+    "package": "@smthrs/step-cache",
+    "commit": "a907f76614a1aed065dcbdc5b44cc4f4d0e970a0"
+   },
+   {
+    "package": "@smthrs/artifacts",
+    "commit": "0ee5dee9b13e29707b4089b10c6214d1987c34b4"
+   },
+   {
+    "package": "@smthrs/engine",
+    "commit": "b17af994607bc2ef084b62d75c0b2509f8b56d23"
+   },
+   {
+    "package": "@smthrs/flow",
+    "commit": "8f2310ef99183d31a7cb6a91238af374d246498b"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   },
+   {
+    "package": "@smthrs/plan",
+    "commit": "a6c062c1ea8185f0a2b743039e577306a8ad4a47"
+   }
+  ]
+ },
+ "related": {
+  "previous": "d39dd1cf42fe73501f091fb00a536bb8f5154707",
+  "next": "f45494e6a9a4d910a08dca82e8a2c9a48f16c39a",
+  "epicFirst": "eec277e2e1bfd7b6ae08c5d31c63df081ea52207",
+  "epicLast": "c93705a8b036d030082a6877bd6668709293285d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 5,
+  "added": 1258,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/time-travel/src/TimeTravel.ts",
+   "mode": "100644",
+   "blob": "389e4b49b89978b972b549a62092133be8447c51",
+   "previousBlob": null,
+   "added": 343,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/time-travel/test/TimeTravel.test.ts",
+   "mode": "100644",
+   "blob": "67ba0a3221e0c41b0f3f0ca89342526477b03c5d",
+   "previousBlob": null,
+   "added": 518,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/time-travel/test/TimeTravelMigrations.test.ts",
+   "mode": "100644",
+   "blob": "5362ae53a8edfb092154db9c48973bc62726cfdb",
+   "previousBlob": null,
+   "added": 98,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/time-travel/test/TimeTravelOptions.test.ts",
+   "mode": "100644",
+   "blob": "a42f6979f16d78a663ab7cd69cdc3bf8292c7465",
+   "previousBlob": null,
+   "added": 115,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/time-travel/test/TimeTravelRewind.e2e.test.ts",
+   "mode": "100644",
+   "blob": "458602ecf640caf80db759b55349dbb32f6baa3e",
+   "previousBlob": null,
+   "added": 184,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

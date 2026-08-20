@@ -1,0 +1,90 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "9a1d38bd37de6bdeb1692dc584a60cd59a87e278",
+ "tree": "87c537af0b9deb34c1c3ddd460737d12fb79a146",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 14,
+  "childCount": 54,
+  "head": "8f2310ef99183d31a7cb6a91238af374d246498b"
+ },
+ "atomic": {
+  "globalIndex": 85,
+  "globalCount": 845,
+  "purpose": "✨ feat(plan): add Plan",
+  "type": "feat",
+  "kind": "module",
+  "scope": "plan",
+  "component": "packages/plan",
+  "unitKey": "Plan",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "bf589223a07a2ebc6beccd701c5e1a4eb9b0732c",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [
+   "6e6fdf8f5b5c6691db109891905bfbca635449dd",
+   "67bd940da731effa13f25c2453a2b3c3a96b73ba",
+   "b6a8f0841f0b7cb35677366df8dd543f5f99b40c"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   },
+   {
+    "package": "@smthrs/keys",
+    "commit": "e145b0e5dfced2a00c300f9b139b14f6820bf771"
+   }
+  ]
+ },
+ "related": {
+  "previous": "bf589223a07a2ebc6beccd701c5e1a4eb9b0732c",
+  "next": "e4843c0e698beb636862813b95bb84a44d4bacc2",
+  "epicFirst": "8d222879944a121d441c2c37d5ed2b7943a88b54",
+  "epicLast": "8f2310ef99183d31a7cb6a91238af374d246498b",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 1248,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/plan/src/Plan.ts",
+   "mode": "100644",
+   "blob": "3d3cf41bd08ce0c39142b2f73d99c1e7fe82c335",
+   "previousBlob": null,
+   "added": 659,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/plan/test/Plan.test.ts",
+   "mode": "100644",
+   "blob": "851c4e478ff1ab9f13772bb976d74905d6440e1a",
+   "previousBlob": null,
+   "added": 589,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

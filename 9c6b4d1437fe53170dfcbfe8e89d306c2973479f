@@ -1,0 +1,101 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "9c6b4d1437fe53170dfcbfe8e89d306c2973479f",
+ "tree": "6a264506c0472fd2e2c92815f2399f885850f229",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 28,
+  "childCount": 54,
+  "head": "8f2310ef99183d31a7cb6a91238af374d246498b"
+ },
+ "atomic": {
+  "globalIndex": 99,
+  "globalCount": 845,
+  "purpose": "📝 docs(flow): document flow",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "flow",
+  "component": "packages/flow",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "eb6cdb96755f9890b488f1be2bfda3c8a6448a52",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/crypto",
+    "commit": "3ac9a18fee84c753c34d31ae7baae150fa503fe6"
+   },
+   {
+    "package": "@smthrs/keys",
+    "commit": "e145b0e5dfced2a00c300f9b139b14f6820bf771"
+   },
+   {
+    "package": "@smthrs/plan",
+    "commit": "a6c062c1ea8185f0a2b743039e577306a8ad4a47"
+   }
+  ]
+ },
+ "related": {
+  "previous": "eb6cdb96755f9890b488f1be2bfda3c8a6448a52",
+  "next": "13435c092eec73bad86b14e49357bdfb875e47f7",
+  "epicFirst": "8d222879944a121d441c2c37d5ed2b7943a88b54",
+  "epicLast": "8f2310ef99183d31a7cb6a91238af374d246498b",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 467,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/flow/CHANGELOG.md",
+   "mode": "100644",
+   "blob": "e205c4ee0261855432222dedb2a724a7a0df7fec",
+   "previousBlob": null,
+   "added": 34,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/README.md",
+   "mode": "100644",
+   "blob": "6ebe2efe904b389da813be4174893165dce38410",
+   "previousBlob": null,
+   "added": 381,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/THIRD_PARTY_NOTICES.md",
+   "mode": "100644",
+   "blob": "3b6f39d6df330b6a19afa7eca6d0dd7378c4735d",
+   "previousBlob": null,
+   "added": 52,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

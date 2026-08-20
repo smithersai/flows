@@ -1,0 +1,149 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "93705e6e04418eeaac20ecf5c998480c5701b021",
+ "tree": "f4d52065d356cc7eb8d418002c693271817a4ffd",
+ "epic": {
+  "index": 15,
+  "id": "tui",
+  "name": "Terminal application",
+  "sourceCommit": "ca5777391956c8a52c077feff63d7e5f4c84896a",
+  "sourceSubject": "✨ feat(tui): add the terminal application",
+  "childIndex": 3,
+  "childCount": 7,
+  "head": "bf2d85b5e202b9f23ce0675d93001594e672969b"
+ },
+ "atomic": {
+  "globalIndex": 798,
+  "globalCount": 845,
+  "purpose": "✨ feat(tui): add the agent, scripts, ui modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "tui",
+  "component": "apps/tui",
+  "unitKey": "dir:agent",
+  "mergedUnitKeys": [
+   "dir:agent",
+   "dir:scripts",
+   "dir:ui"
+  ]
+ },
+ "dependencies": {
+  "parent": "1eb3c5a127a9ec2fd158f9ae067aba629d5f7397",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui"
+  ],
+  "sourceImports": [
+   "1eb3c5a127a9ec2fd158f9ae067aba629d5f7397"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "1eb3c5a127a9ec2fd158f9ae067aba629d5f7397",
+  "next": "57f8fa9bc49561163161c4f22d67802182d183fa",
+  "epicFirst": "9d82d9a71ebc365ca2fd0f7ee437415b4f872a64",
+  "epicLast": "bf2d85b5e202b9f23ce0675d93001594e672969b",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 7,
+  "added": 651,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/tui/src/agent/CloudAgent.ts",
+   "mode": "100644",
+   "blob": "6a4a392b19589d8023da12412506f806a5d86b6b",
+   "previousBlob": null,
+   "added": 184,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/tui/src/agent/WebAgent.ts",
+   "mode": "100644",
+   "blob": "2be1edba75ed8045ae220bcf466ae18d0c964f8c",
+   "previousBlob": null,
+   "added": 179,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/tui/src/agent/transport.ts",
+   "mode": "100644",
+   "blob": "c6adbf723589b1dfbeabfdad3a3fa60a760ce63b",
+   "previousBlob": null,
+   "added": 63,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/tui/scripts/smoke.ts",
+   "mode": "100644",
+   "blob": "61e80213034f24f9ce8a3a045e8c7445996d3d22",
+   "previousBlob": null,
+   "added": 45,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/tui/src/ui/App.tsx",
+   "mode": "100644",
+   "blob": "e635800f1828b4f58fea24125fdf40eb0f9fc6c7",
+   "previousBlob": null,
+   "added": 45,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/tui/src/ui/Composer.tsx",
+   "mode": "100644",
+   "blob": "1215f0f7d8ac3b5874c60a7de242626e695f0a8c",
+   "previousBlob": null,
+   "added": 52,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/tui/src/ui/Transcript.tsx",
+   "mode": "100644",
+   "blob": "eceb14066020fd42cb844b9f862b6cc0d949862c",
+   "previousBlob": null,
+   "added": 83,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,109 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "b3e84c7e415b6480963157855a6c25d594e22ae6",
+ "tree": "bfb7801e5ad9f5f609d5c9d10743c6ef608c3248",
+ "epic": {
+  "index": 18,
+  "id": "workflows",
+  "name": "Repository automation workflows",
+  "sourceCommit": "9ea4941fc404fb4f12e3384b96a37e0739be3916",
+  "sourceSubject": "✨ feat(workflows): add repository automation workflows",
+  "childIndex": 6,
+  "childCount": 9,
+  "head": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "atomic": {
+  "globalIndex": 842,
+  "globalCount": 845,
+  "purpose": "✨ feat(smithers): add the workflows modules (1/2)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "smithers",
+  "component": ".smithers",
+  "unitKey": "dir:workflows",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "d59b454d3b1d168f3e873dfab193eb8a46ccbe01",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui",
+   "docs-site",
+   "factory"
+  ],
+  "sourceImports": [
+   "423fa01019c0c645e877fe9c93924b4dce78cb61"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "commit": "fec516964e3e6a618aace55755a6d0befd72daa8"
+   }
+  ]
+ },
+ "related": {
+  "previous": "d59b454d3b1d168f3e873dfab193eb8a46ccbe01",
+  "next": "daacc95abcdfb80abd1c7a2e9baddc59628740b0",
+  "epicFirst": "fed6cbe14b940882dcae210c48223700336f43b7",
+  "epicLast": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 1345,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": ".smithers/workflows/alpha-agent-eval-judge.tsx",
+   "mode": "100644",
+   "blob": "91778b29a7fa275861162561c2bc31f040a8a324",
+   "previousBlob": null,
+   "added": 261,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": ".smithers/workflows/alpha-agent.tsx",
+   "mode": "100644",
+   "blob": "df5a062129b18401a9c3108fd145a2f65678ff87",
+   "previousBlob": null,
+   "added": 953,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": ".smithers/workflows/alpha-ui-evals.tsx",
+   "mode": "100644",
+   "blob": "c91658afff110d128143180b2c332a89b945e93d",
+   "previousBlob": null,
+   "added": 131,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

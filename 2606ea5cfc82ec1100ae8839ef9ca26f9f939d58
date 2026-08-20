@@ -1,0 +1,130 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "2606ea5cfc82ec1100ae8839ef9ca26f9f939d58",
+ "tree": "b7c6a4605dd26b65b8d74cac0fba2f326b59a4d5",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 58,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 570,
+  "globalCount": 845,
+  "purpose": "✨ feat(targets): add the PackageLint, PnpmWorkspaceFile, SortPackageJson and 2 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "targets",
+  "component": "packages/targets/src",
+  "unitKey": "PackageLint",
+  "mergedUnitKeys": [
+   "PackageLint",
+   "PnpmWorkspaceFile",
+   "SortPackageJson",
+   "TsBuild",
+   "Typecheck"
+  ]
+ },
+ "dependencies": {
+  "parent": "b665063672651f053c49c222b6d67b37daaa8e6c",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [
+   "cafb6ee211054a8f7bf1229774fbb9e909f9b007",
+   "efd1f69d0dbcd437153aea782a5404079bcb96d8",
+   "61a0cc4fd2023b48395f5c5b9d8d22336a0fdf99",
+   "520e3aecadaae18423e2c74acf6d432db9b5872b",
+   "437aed96d9c83b342ee0651f9d7443bab83ee713",
+   "da06b2edc206bff9c5b073a88504844e9426b41b"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "b665063672651f053c49c222b6d67b37daaa8e6c",
+  "next": "f7d037a41432b8ef82a8584b56b253b86a368714",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 5,
+  "added": 622,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/targets/src/PackageLint.ts",
+   "mode": "100644",
+   "blob": "84116433bd46ef818230ffc8e044c1ba6548c1f8",
+   "previousBlob": null,
+   "added": 107,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/src/PnpmWorkspaceFile.ts",
+   "mode": "100644",
+   "blob": "e43a1f4f0110a802fa17c3d39fb97189dca19742",
+   "previousBlob": null,
+   "added": 187,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/src/SortPackageJson.ts",
+   "mode": "100644",
+   "blob": "20b8cedc9332cba5a35df4ac34d445d6940ac67e",
+   "previousBlob": null,
+   "added": 86,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/src/TsBuild.ts",
+   "mode": "100644",
+   "blob": "ee62adc9847e4cf4a39674acc060230b92c5a9a5",
+   "previousBlob": null,
+   "added": 158,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/src/Typecheck.ts",
+   "mode": "100644",
+   "blob": "0bf203ddbdf96235598e30efd7cfb002bd71156f",
+   "previousBlob": null,
+   "added": 84,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

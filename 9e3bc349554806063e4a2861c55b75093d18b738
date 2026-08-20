@@ -1,0 +1,81 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "9e3bc349554806063e4a2861c55b75093d18b738",
+ "tree": "9e589b6bcc66a5662e947178404c6e936ea8e6cc",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 9,
+  "childCount": 55,
+  "head": "9633d567508a5d82ee51d5ed34014e850f417731"
+ },
+ "atomic": {
+  "globalIndex": 25,
+  "globalCount": 845,
+  "purpose": "📝 docs(artifacts): document artifacts",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "artifacts",
+  "component": "packages/artifacts",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "ebc8b5363970e2082881788cfba86fdccd59cada",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/crypto",
+    "commit": "3ac9a18fee84c753c34d31ae7baae150fa503fe6"
+   }
+  ]
+ },
+ "related": {
+  "previous": "ebc8b5363970e2082881788cfba86fdccd59cada",
+  "next": "b7ebc246af48ac84aa21898999ffb2322d968457",
+  "epicFirst": "0b1fe1d563a03d93618ff339540cb77a2ed44d4b",
+  "epicLast": "9633d567508a5d82ee51d5ed34014e850f417731",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 122,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/artifacts/CHANGELOG.md",
+   "mode": "100644",
+   "blob": "65a8a1e31c216a30353ab00e5c6fcd8d7b64854f",
+   "previousBlob": null,
+   "added": 16,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/artifacts/README.md",
+   "mode": "100644",
+   "blob": "414338f564018d43ac518e7ea6ddcc4a39f7f6c0",
+   "previousBlob": null,
+   "added": 106,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

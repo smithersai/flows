@@ -1,0 +1,106 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "1197e0eb0e8870d6adc3125415c2302973a8039b",
+ "tree": "4d6d9b74caa656e5e1cacb696de4a11dde22cb79",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 20,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 532,
+  "globalCount": 845,
+  "purpose": "✅ test(build): cover worker/test",
+  "type": "test",
+  "kind": "tests",
+  "scope": "build",
+  "component": "packages/build/infra",
+  "unitKey": "worker/test",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "1dde957ec459e7418ad4f77832d6eeba440278f6",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "1dde957ec459e7418ad4f77832d6eeba440278f6",
+  "next": "372f2ce248dbc2311e65fb8e416e733f090b4c30",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 1162,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build/infra/worker/test/content-store.test.ts",
+   "mode": "100644",
+   "blob": "0fa0c7c39d1098c51ded81b3bca8bc863609bd42",
+   "previousBlob": null,
+   "added": 62,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/infra/worker/test/migrations.test.ts",
+   "mode": "100644",
+   "blob": "2811df8b0a09345fabbb9319ca8152f52929212c",
+   "previousBlob": null,
+   "added": 61,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/infra/worker/test/protocol-hardening.test.ts",
+   "mode": "100644",
+   "blob": "ab608d917669c614abb88326357ce45ec130bfa4",
+   "previousBlob": null,
+   "added": 764,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/infra/worker/test/protocol.test.ts",
+   "mode": "100644",
+   "blob": "f5017edf841d940dcd88ea63ae3d783dcbea23e6",
+   "previousBlob": null,
+   "added": 275,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

@@ -1,0 +1,144 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "b260d314228699251677e4892ba22d91f0770ba9",
+ "tree": "a3887fbf349dd263698fc5e1b8b209a0c69354a5",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 51,
+  "childCount": 55,
+  "head": "9633d567508a5d82ee51d5ed34014e850f417731"
+ },
+ "atomic": {
+  "globalIndex": 67,
+  "globalCount": 845,
+  "purpose": "✅ test(step-cache): cover step-cache",
+  "type": "test",
+  "kind": "tests",
+  "scope": "step-cache",
+  "component": "packages/step-cache",
+  "unitKey": "src/test",
+  "mergedUnitKeys": [
+   "src/test",
+   "test",
+   "test/fixtures"
+  ]
+ },
+ "dependencies": {
+  "parent": "a907f76614a1aed065dcbdc5b44cc4f4d0e970a0",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "commit": "3b57deac5ef23a0e1e2fa660e6bcf9351049a95b"
+   },
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   }
+  ]
+ },
+ "related": {
+  "previous": "a907f76614a1aed065dcbdc5b44cc4f4d0e970a0",
+  "next": "69c64b2330c721f0956ad0cb2525c172ce0d6106",
+  "epicFirst": "0b1fe1d563a03d93618ff339540cb77a2ed44d4b",
+  "epicLast": "9633d567508a5d82ee51d5ed34014e850f417731",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 7,
+  "added": 164,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/step-cache/src/test/TestCacheStore.ts",
+   "mode": "100644",
+   "blob": "35ec9f1a0166c7be9179c8240e41f04297c407a4",
+   "previousBlob": null,
+   "added": 22,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/step-cache/test/Artifacts.test.ts",
+   "mode": "100644",
+   "blob": "47a72c29c51235b5ae27d8e9712d075ecc3f032b",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/step-cache/test/Contracts.test.ts",
+   "mode": "100644",
+   "blob": "921b341d12c058b5da50f8ff0fdcb8f764f1fa10",
+   "previousBlob": null,
+   "added": 32,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/step-cache/test/Redaction.test.ts",
+   "mode": "100644",
+   "blob": "8e9c9f41ab910b6ad29274f92e89a849805072af",
+   "previousBlob": null,
+   "added": 51,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/step-cache/test/TestCacheStore.test.ts",
+   "mode": "100644",
+   "blob": "67536c0c1037c3650ee86b1c3dcc88869635fb2a",
+   "previousBlob": null,
+   "added": 26,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/step-cache/test/fixtures/artifact-cjs.cjs",
+   "mode": "100644",
+   "blob": "bfceb31eedb019165c4150ddaaf980a60c9fb66a",
+   "previousBlob": null,
+   "added": 6,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/step-cache/test/fixtures/artifact-esm.mjs",
+   "mode": "100644",
+   "blob": "bcf1c581d535158040d35f7902cf4e3488ff4873",
+   "previousBlob": null,
+   "added": 6,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

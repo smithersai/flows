@@ -1,0 +1,212 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "ab4911a19ad008ff6a90f4e73956b591273d05f3",
+ "tree": "fef09cc7f336857379377c33ee97118fbf3b83be",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 14,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 662,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the p95b, p96, p96b and 9 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/.scratch-surfaces",
+  "unitKey": "p95b",
+  "mergedUnitKeys": [
+   "p95b",
+   "p96",
+   "p96b",
+   "p96c",
+   "p96d",
+   "p97",
+   "p98",
+   "pcomposer",
+   "pdbg",
+   "plandings",
+   "probe0",
+   "signin"
+  ]
+ },
+ "dependencies": {
+  "parent": "ace4c3062af394b3645242bfd5562c3de27ad96c",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "ace4c3062af394b3645242bfd5562c3de27ad96c"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "ace4c3062af394b3645242bfd5562c3de27ad96c",
+  "next": "a5b8fb2cd71b05286e07034ef71461a36f5bcc3f",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 12,
+  "added": 171,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/.scratch-surfaces/p95b.ts",
+   "mode": "100644",
+   "blob": "07ec07d8316c88bfe854103e87106d8fea99501e",
+   "previousBlob": null,
+   "added": 19,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.scratch-surfaces/p96.ts",
+   "mode": "100644",
+   "blob": "b4880fcfd465b78ceb1805651d61b262e93dd68d",
+   "previousBlob": null,
+   "added": 12,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.scratch-surfaces/p96b.ts",
+   "mode": "100644",
+   "blob": "c3c5370d99130a80081758e86ff60af89a058002",
+   "previousBlob": null,
+   "added": 11,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.scratch-surfaces/p96c.ts",
+   "mode": "100644",
+   "blob": "f9a3a27b18e0326ce8cb3b916ab1acce6d2868f9",
+   "previousBlob": null,
+   "added": 15,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.scratch-surfaces/p96d.ts",
+   "mode": "100644",
+   "blob": "cdb8f0b9bd55553e0d2fb04c9a0b9684bb70a38a",
+   "previousBlob": null,
+   "added": 17,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.scratch-surfaces/p97.ts",
+   "mode": "100644",
+   "blob": "ca17a46ff330e20cd4c67f652f0071f746acf191",
+   "previousBlob": null,
+   "added": 16,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.scratch-surfaces/p98.ts",
+   "mode": "100644",
+   "blob": "d0ad7d154116f6dc2cdc3519ee59b2708fe6931b",
+   "previousBlob": null,
+   "added": 14,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.scratch-surfaces/pcomposer.ts",
+   "mode": "100644",
+   "blob": "d1aeb9b1403589353841349e8a8d707d614fd8e4",
+   "previousBlob": null,
+   "added": 9,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.scratch-surfaces/pdbg.ts",
+   "mode": "100644",
+   "blob": "199c110f9deddf13d4b577b3ad059d9f8804bfbc",
+   "previousBlob": null,
+   "added": 20,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.scratch-surfaces/plandings.ts",
+   "mode": "100644",
+   "blob": "b6fd0b7ba8a7806e4a8f95a09ad8326568d5fef7",
+   "previousBlob": null,
+   "added": 7,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.scratch-surfaces/probe0.ts",
+   "mode": "100644",
+   "blob": "557ee3ea84c4df2710e7d0feaa72849125ef7c33",
+   "previousBlob": null,
+   "added": 11,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.scratch-surfaces/signin.ts",
+   "mode": "100644",
+   "blob": "0fdb0f3919435c97db95f901875a0674fb3368ea",
+   "previousBlob": null,
+   "added": 20,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,97 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "06979c3096a77a262962b7c05d5868844d20f316",
+ "tree": "e8cf66a65b42569fb58d407559da071f44c57deb",
+ "epic": {
+  "index": 12,
+  "id": "examples",
+  "name": "Executable learning and evaluation suites",
+  "sourceCommit": "1c0d5bce16fdac649b8f108f4e37eaea58f4933c",
+  "sourceSubject": "📚 docs(examples): add executable learning and evaluation suites",
+  "childIndex": 2,
+  "childCount": 18,
+  "head": "ac7419bdf70373fddd3f14e1eaf511aca20aea7d"
+ },
+ "atomic": {
+  "globalIndex": 612,
+  "globalCount": 845,
+  "purpose": "✨ feat(evals-agent): add the baseline, subject modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "evals-agent",
+  "component": "evals/agent",
+  "unitKey": "baseline",
+  "mergedUnitKeys": [
+   "baseline",
+   "subject"
+  ]
+ },
+ "dependencies": {
+  "parent": "f49d638b0d89382d3b7dc40e3aa9372c7294d2d8",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build"
+  ],
+  "sourceImports": [
+   "b0dba50a345f90c5aaa20e5177e68a82df0809a5",
+   "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183",
+   "b17af994607bc2ef084b62d75c0b2509f8b56d23",
+   "8f2310ef99183d31a7cb6a91238af374d246498b",
+   "6efc2c90189369916690397a40ed7cce75754114",
+   "5d7f346b5c7d5b6d6470e58b2aed91e31cba613a",
+   "a6c062c1ea8185f0a2b743039e577306a8ad4a47",
+   "1ae2f3b78daa4ba33deb87bfe057eee002727dcd"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "f49d638b0d89382d3b7dc40e3aa9372c7294d2d8",
+  "next": "391e9130918284b396519bf6d49b933cf94a2595",
+  "epicFirst": "f49d638b0d89382d3b7dc40e3aa9372c7294d2d8",
+  "epicLast": "ac7419bdf70373fddd3f14e1eaf511aca20aea7d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 489,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "evals/agent/baseline.json",
+   "mode": "100644",
+   "blob": "e68e52130d1276988c9774c2cfe78f48f4398cac",
+   "previousBlob": null,
+   "added": 1,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/agent/subject.ts",
+   "mode": "100644",
+   "blob": "54c192d204420db8674b9449827a39203f34a632",
+   "previousBlob": null,
+   "added": 488,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

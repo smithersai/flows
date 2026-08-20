@@ -1,0 +1,93 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "537c4daae8df2135857aeea67e9f3d736ede1f57",
+ "tree": "851dc95e1e65731d8b63448ac7d03cad9c040bea",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 18,
+  "childCount": 43,
+  "head": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9"
+ },
+ "atomic": {
+  "globalIndex": 300,
+  "globalCount": 845,
+  "purpose": "✨ feat(registry): add MarkdownFlow",
+  "type": "feat",
+  "kind": "module",
+  "scope": "registry",
+  "component": "packages/registry",
+  "unitKey": "MarkdownFlow",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "ead73b561bfa304507844e05868334fcf67082a5",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [
+   "befa30c0fa098dfb799e49529736dd285712fb98",
+   "cf245c8a6d029e70a60d119c653963bd02ab2b65",
+   "ead73b561bfa304507844e05868334fcf67082a5"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "ead73b561bfa304507844e05868334fcf67082a5",
+  "next": "aa645dcd0e3c97136961b0daded039fc8be000f2",
+  "epicFirst": "f7a85bfa43ff3fa63e2ad6200bd2d4d7ec1397a2",
+  "epicLast": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 1107,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/registry/src/MarkdownFlow.ts",
+   "mode": "100644",
+   "blob": "2404fa491d189fb617ada3b1844d6f620005286b",
+   "previousBlob": null,
+   "added": 509,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/registry/test/MarkdownFlow.test.ts",
+   "mode": "100644",
+   "blob": "3872461c644237300499b0ca87ca48124f5a2f46",
+   "previousBlob": null,
+   "added": 598,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

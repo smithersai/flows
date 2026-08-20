@@ -1,0 +1,79 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "d51bf7f94ccf4e317f6a2df77f4970e3f152e882",
+ "tree": "1bdfbe0a0bd2731a40ae89d985430b4118c5ae97",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 25,
+  "childCount": 96,
+  "head": "c93705a8b036d030082a6877bd6668709293285d"
+ },
+ "atomic": {
+  "globalIndex": 211,
+  "globalCount": 845,
+  "purpose": "✅ test(engine-store): cover engine-store (17/23)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "engine-store",
+  "component": "packages/engine-store/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "c441997e021fcfa438b987f9d79c59fe6d8d64a2",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "c441997e021fcfa438b987f9d79c59fe6d8d64a2",
+  "next": "531ffa6b42a16fd4399556e6a3c91d00e276f363",
+  "epicFirst": "eec277e2e1bfd7b6ae08c5d31c63df081ea52207",
+  "epicLast": "c93705a8b036d030082a6877bd6668709293285d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 1484,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/SandboxedAction.test.ts",
+   "mode": "100644",
+   "blob": "20b7a0ecda7f18df3a512e5a3e6d800b3ad0a23c",
+   "previousBlob": null,
+   "added": 671,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/Selection.test.ts",
+   "mode": "100644",
+   "blob": "22ea43c8b34621fd56c5e1fbdcc28c82b8cd5b2e",
+   "previousBlob": null,
+   "added": 813,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

@@ -1,0 +1,120 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "c3d19605a3b40f86461e4e72fe4bcf82fb4c6acd",
+ "tree": "0d4cdf25a87a1cf2f8d7677bacac4189a982ba2b",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 110,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 758,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the ChatUpstream, Client, Personas and 1 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/e2e",
+  "unitKey": "ChatUpstream",
+  "mergedUnitKeys": [
+   "ChatUpstream",
+   "Client",
+   "Personas",
+   "Front"
+  ]
+ },
+ "dependencies": {
+  "parent": "16e45c3929a4ec0d1c0830c241d3293151b44f25",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "f2f4ea0ef0875dbd9f3a02155990ec55c4bdc224",
+   "e0ea030ac10573a07f6acdcf40c6b3fa818b55ef",
+   "936580f83e9247b8d2c86c38a6c4ef634dde2411",
+   "073fd2736d249f37dedb31cd104b2e69ba331df0",
+   "a701836259f43899fc1445ebce5b9941044812d7"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "16e45c3929a4ec0d1c0830c241d3293151b44f25",
+  "next": "53a74dc269f5c72c65e52e9ade4074d5a535a4ee",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 664,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/ChatUpstream.ts",
+   "mode": "100644",
+   "blob": "4a1fd2470c401a010a6291a86fcd7269ee601567",
+   "previousBlob": null,
+   "added": 216,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/Client.ts",
+   "mode": "100644",
+   "blob": "96a3d7ade48b51599fb215314f59b5ad8fe69d3a",
+   "previousBlob": null,
+   "added": 173,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/Personas.ts",
+   "mode": "100644",
+   "blob": "753cb477e4b966a9cec8e14825e9b0f558e8ad7f",
+   "previousBlob": null,
+   "added": 97,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/Front.ts",
+   "mode": "100644",
+   "blob": "19342e0c8ac297c6adc9cc906b5364744da3daa6",
+   "previousBlob": null,
+   "added": 178,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

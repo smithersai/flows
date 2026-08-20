@@ -1,0 +1,112 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "644fe5aa922057552f71ca92b209fcdaba71042a",
+ "tree": "78fc95f61fafa07c2ce7cb4cff8f61a282821689",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 47,
+  "childCount": 66,
+  "head": "28962374658aba2757a5405dab6454616510b6b6"
+ },
+ "atomic": {
+  "globalIndex": 372,
+  "globalCount": 845,
+  "purpose": "✨ feat(memory): add the MemoryError, Embedding modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "memory",
+  "component": "packages/memory",
+  "unitKey": "MemoryError",
+  "mergedUnitKeys": [
+   "MemoryError",
+   "Embedding"
+  ]
+ },
+ "dependencies": {
+  "parent": "5c21ab858de83d609a92ccb966d53c6465995f4a",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   },
+   {
+    "package": "@smthrs/model",
+    "commit": "5d7f346b5c7d5b6d6470e58b2aed91e31cba613a"
+   },
+   {
+    "package": "@smthrs/patterns",
+    "commit": "9e6c7183c2eb1028fd0b3f8e1736586a353cafd0"
+   }
+  ]
+ },
+ "related": {
+  "previous": "5c21ab858de83d609a92ccb966d53c6465995f4a",
+  "next": "4673391e2fc864668661424c1a3d6f3183b83c07",
+  "epicFirst": "65dffaa9668923ae816eeaa5bce0901a958729b0",
+  "epicLast": "28962374658aba2757a5405dab6454616510b6b6",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 382,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/memory/src/MemoryError.ts",
+   "mode": "100644",
+   "blob": "dc4512bedb327f3319b4efd2dadf4c60e3783668",
+   "previousBlob": null,
+   "added": 45,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/memory/src/Embedding.ts",
+   "mode": "100644",
+   "blob": "e5a9e3ade737d715e34e6a895cb4164af3314873",
+   "previousBlob": null,
+   "added": 207,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/memory/test/Embedding.test.ts",
+   "mode": "100644",
+   "blob": "0b4755d5db876c8a34e79ced6154e44e96133cb9",
+   "previousBlob": null,
+   "added": 130,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

@@ -1,0 +1,149 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a701836259f43899fc1445ebce5b9941044812d7",
+ "tree": "532650fe8b59a8780832c0155dd81a0df74dd2e8",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 126,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 774,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the mainview/chain modules (1/2)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:mainview/chain",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "2564c29586d596a1ea144b004044e8da5ce6d143",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "f032649d5f5d191dbd7a7750f056e199d8555921",
+   "073fd2736d249f37dedb31cd104b2e69ba331df0",
+   "e0ea030ac10573a07f6acdcf40c6b3fa818b55ef",
+   "1def8db7eb29e0066f6b01771aeedfe597bf9c53",
+   "936580f83e9247b8d2c86c38a6c4ef634dde2411",
+   "09e4193e0599df92adaf75dcf8c2fd1d33128a2d"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "2564c29586d596a1ea144b004044e8da5ce6d143",
+  "next": "1def8db7eb29e0066f6b01771aeedfe597bf9c53",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 7,
+  "added": 1233,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/chain/AppEngine.ts",
+   "mode": "100644",
+   "blob": "122744d0f985a8fff244ed7bd26743d67154b624",
+   "previousBlob": null,
+   "added": 108,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/chain/bundle-entry.fixture.ts",
+   "mode": "100644",
+   "blob": "584e42ddcd017c3b5140dd8685802f87614974cc",
+   "previousBlob": null,
+   "added": 8,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/chain/ChainRuntime.ts",
+   "mode": "100644",
+   "blob": "e59eb57d6d500af927deeb6e652d7a48b2cc6205",
+   "previousBlob": null,
+   "added": 667,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/chain/CollectionJournal.ts",
+   "mode": "100644",
+   "blob": "8b488ce1f073bddfe793720753a8e8aedbe03f68",
+   "previousBlob": null,
+   "added": 77,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/chain/DebugFolds.ts",
+   "mode": "100644",
+   "blob": "ba60b0ade1874fd544d9b35c32eda5f663f5eabf",
+   "previousBlob": null,
+   "added": 173,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/chain/FlowCatalog.ts",
+   "mode": "100644",
+   "blob": "f697226ff12f6fb4a8898f79c453ec92045318ac",
+   "previousBlob": null,
+   "added": 77,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/chain/Policy.ts",
+   "mode": "100644",
+   "blob": "302aee7a6d924016ed9416fefb564442d5536a9b",
+   "previousBlob": null,
+   "added": 123,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

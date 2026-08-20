@@ -1,0 +1,121 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "df2500fadc7e76599fe738b190adeddbb36b9046",
+ "tree": "5479bf4ac2aefb83ac6ab4c2f626e104feab38c0",
+ "epic": {
+  "index": 17,
+  "id": "factory",
+  "name": "Repository software factory",
+  "sourceCommit": "e1fbeee4b23399542c5105cb6f89733a14cc1892",
+  "sourceSubject": "✨ feat(factory): add the repository software factory",
+  "childIndex": 11,
+  "childCount": 17,
+  "head": "86b4890c93cc6cd89ee302f349552e4c64077e65"
+ },
+ "atomic": {
+  "globalIndex": 830,
+  "globalCount": 845,
+  "purpose": "✨ feat(factory-flows): add the review-docs, slop-sweep, smoke and 1 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "factory-flows",
+  "component": "factory/flows",
+  "unitKey": "review-docs",
+  "mergedUnitKeys": [
+   "review-docs",
+   "slop-sweep",
+   "smoke",
+   "smoke-record"
+  ]
+ },
+ "dependencies": {
+  "parent": "34f6db88f2c91c87b265107174aea766463380d5",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui",
+   "docs-site"
+  ],
+  "sourceImports": [
+   "8f2310ef99183d31a7cb6a91238af374d246498b",
+   "a6c062c1ea8185f0a2b743039e577306a8ad4a47",
+   "34f6db88f2c91c87b265107174aea766463380d5"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "34f6db88f2c91c87b265107174aea766463380d5",
+  "next": "ef39c17eb640b79c203dca79c7f1f90598eba291",
+  "epicFirst": "ba7243c4d5d3b90d5f65b965635c307d1d37ac11",
+  "epicLast": "86b4890c93cc6cd89ee302f349552e4c64077e65",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 556,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "factory/flows/review-docs.ts",
+   "mode": "100644",
+   "blob": "668eaae3c26329aa4d9ee7c1a33c4b4b57591619",
+   "previousBlob": null,
+   "added": 370,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "factory/flows/slop-sweep.ts",
+   "mode": "100644",
+   "blob": "1ae2733ff4c5de7e82b4dda29becf1f40e9662b8",
+   "previousBlob": null,
+   "added": 118,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "factory/flows/smoke.ts",
+   "mode": "100644",
+   "blob": "70731e0ac3d0c1148c72d2a10e34f10a1bf92883",
+   "previousBlob": null,
+   "added": 38,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "factory/flows/smoke-record.ts",
+   "mode": "100644",
+   "blob": "6e940dfa49de919ef97a61472b8bde440920a850",
+   "previousBlob": null,
+   "added": 30,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

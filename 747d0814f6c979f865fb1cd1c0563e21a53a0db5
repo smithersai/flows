@@ -1,0 +1,187 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "747d0814f6c979f865fb1cd1c0563e21a53a0db5",
+ "tree": "18033000ea134450d0291e3c2965a87d5d45d9bf",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 23,
+  "childCount": 43,
+  "head": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9"
+ },
+ "atomic": {
+  "globalIndex": 305,
+  "globalCount": 845,
+  "purpose": "✅ test(registry): cover registry, foreign/pdf, foreign/review and 6 more",
+  "type": "test",
+  "kind": "tests",
+  "scope": "registry",
+  "component": "packages/registry",
+  "unitKey": "test/fixtures",
+  "mergedUnitKeys": [
+   "test/fixtures",
+   "test/fixtures/foreign/pdf",
+   "test/fixtures/foreign/review",
+   "test/fixtures/foreign/template-skill",
+   "test/fixtures/project/flows/broken",
+   "test/fixtures/project/flows/changelog",
+   "test/fixtures/project/flows/hidden",
+   "test/fixtures/project/flows/review",
+   "test/fixtures/project/flows/review/read-pr"
+  ]
+ },
+ "dependencies": {
+  "parent": "1ab8af522880a27e005a55bb4aad0677b1de7d30",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "1ab8af522880a27e005a55bb4aad0677b1de7d30",
+  "next": "a123e0cec7f16d83de077a25fcb6db4db7fee582",
+  "epicFirst": "f7a85bfa43ff3fa63e2ad6200bd2d4d7ec1397a2",
+  "epicLast": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 10,
+  "added": 113,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/registry/test/fixtures/artifact-cjs.cjs",
+   "mode": "100644",
+   "blob": "76aad8e9ab766484082b00ce089138dcbe1a5d25",
+   "previousBlob": null,
+   "added": 8,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/registry/test/fixtures/foreign/pdf/SKILL.md",
+   "mode": "100644",
+   "blob": "71669a6a1c42773e02fa240e8a0edbd2f349e48c",
+   "previousBlob": null,
+   "added": 24,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/registry/test/fixtures/foreign/review/SKILL.md",
+   "mode": "100644",
+   "blob": "224f2e8fee59e8e3854c59d1f34aa60105d93308",
+   "previousBlob": null,
+   "added": 8,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/registry/test/fixtures/foreign/template-skill/PROVENANCE.md",
+   "mode": "100644",
+   "blob": "575606dbc07a8db95eb47e5fa3731f05eebfe773",
+   "previousBlob": null,
+   "added": 7,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/registry/test/fixtures/foreign/template-skill/SKILL.md",
+   "mode": "100644",
+   "blob": "50a4f9b104357d96361e257adb70454604cd15c0",
+   "previousBlob": null,
+   "added": 6,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/registry/test/fixtures/project/flows/broken/flow.mdx",
+   "mode": "100644",
+   "blob": "b55b73a747c5b407a21c32fdaca7e92eb9b0d473",
+   "previousBlob": null,
+   "added": 5,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/registry/test/fixtures/project/flows/changelog/flow.mdx",
+   "mode": "100644",
+   "blob": "729985810df45dfdfbb3a8b7ed8d6962c4bddcd6",
+   "previousBlob": null,
+   "added": 5,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/registry/test/fixtures/project/flows/hidden/flow.mdx",
+   "mode": "100644",
+   "blob": "91e11d9b64107de87c4d7b89d124f8b4ed94b827",
+   "previousBlob": null,
+   "added": 6,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/registry/test/fixtures/project/flows/review/flow.mdx",
+   "mode": "100644",
+   "blob": "16e9335e877415bc669b68fd8034095b92243d39",
+   "previousBlob": null,
+   "added": 6,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/registry/test/fixtures/project/flows/review/read-pr/flow.ts",
+   "mode": "100644",
+   "blob": "1c646ed5102bfc3809ac776e4a5f4792c069d343",
+   "previousBlob": null,
+   "added": 38,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

@@ -1,0 +1,116 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "602e56470c83282c4654f97b0f5478ff1732b40e",
+ "tree": "a5c85ec5db199d2cfb01c50ee9dfcfdc5b8cbefe",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 26,
+  "childCount": 66,
+  "head": "28962374658aba2757a5405dab6454616510b6b6"
+ },
+ "atomic": {
+  "globalIndex": 351,
+  "globalCount": 845,
+  "purpose": "✅ test(gateway): cover gateway",
+  "type": "test",
+  "kind": "tests",
+  "scope": "gateway",
+  "component": "packages/gateway",
+  "unitKey": "src/test",
+  "mergedUnitKeys": [
+   "src/test",
+   "test"
+  ]
+ },
+ "dependencies": {
+  "parent": "273f375374fa551e9cd89d3041e69653c0d0c503",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/control",
+    "commit": "40bf3f68fb8b79abcb73506a5980f5eaa9e92e36"
+   },
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   },
+   {
+    "package": "@smthrs/notifications",
+    "commit": "1fb5a051f5ccc772c2e8cce3b8a29472c51afd48"
+   },
+   {
+    "package": "@smthrs/run-store",
+    "commit": "9633d567508a5d82ee51d5ed34014e850f417731"
+   },
+   {
+    "package": "@smthrs/sync",
+    "commit": "fe2f612d03e13b414eb28e2f50a685d212be384f"
+   }
+  ]
+ },
+ "related": {
+  "previous": "273f375374fa551e9cd89d3041e69653c0d0c503",
+  "next": "001ea269ac3da637da0214d9cc69f72939e0fcaa",
+  "epicFirst": "65dffaa9668923ae816eeaa5bce0901a958729b0",
+  "epicLast": "28962374658aba2757a5405dab6454616510b6b6",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 175,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/gateway/src/test/TestSuperviseRuntime.ts",
+   "mode": "100644",
+   "blob": "1f91f5d59b20204c18ca9c01279086183b6b8df5",
+   "previousBlob": null,
+   "added": 81,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/gateway/test/Index.test.ts",
+   "mode": "100644",
+   "blob": "9bab02bcc5e52e743d7ed8eaa3eadba66ab1bc83",
+   "previousBlob": null,
+   "added": 37,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/gateway/test/TestSuperviseRuntime.test.ts",
+   "mode": "100644",
+   "blob": "5fe71c85391f829820c3875561ab4f5fcde7399d",
+   "previousBlob": null,
+   "added": 57,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

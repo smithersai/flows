@@ -1,0 +1,162 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "e12f5235bbdedf8de9a57bbdb113493ff9d3c751",
+ "tree": "b2abb233679f95f55be4f654b2c1605569f27c6b",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 32,
+  "childCount": 55,
+  "head": "9633d567508a5d82ee51d5ed34014e850f417731"
+ },
+ "atomic": {
+  "globalIndex": 48,
+  "globalCount": 845,
+  "purpose": "✅ test(journal): cover journal",
+  "type": "test",
+  "kind": "tests",
+  "scope": "journal",
+  "component": "packages/journal",
+  "unitKey": "src/test",
+  "mergedUnitKeys": [
+   "src/test",
+   "test",
+   "test/fixtures"
+  ]
+ },
+ "dependencies": {
+  "parent": "53707dc56fadf55020b995b9c46378219c43c007",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   }
+  ]
+ },
+ "related": {
+  "previous": "53707dc56fadf55020b995b9c46378219c43c007",
+  "next": "0813bbbe3ccc64ade8aa5d4e38bc7c24ab74eeb8",
+  "epicFirst": "0b1fe1d563a03d93618ff339540cb77a2ed44d4b",
+  "epicLast": "9633d567508a5d82ee51d5ed34014e850f417731",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 9,
+  "added": 459,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/journal/src/test/Notifying.ts",
+   "mode": "100644",
+   "blob": "20ff263a26f75b38078b8ed40d6d6f6108ca78e0",
+   "previousBlob": null,
+   "added": 108,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/journal/src/test/TestJournal.ts",
+   "mode": "100644",
+   "blob": "77e199b9e47bffcc926f40628318f804649f72d8",
+   "previousBlob": null,
+   "added": 42,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/journal/test/Artifacts.test.ts",
+   "mode": "100644",
+   "blob": "47a72c29c51235b5ae27d8e9712d075ecc3f032b",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/journal/test/Contracts.test.ts",
+   "mode": "100644",
+   "blob": "77af8ccafa0a3316cc5d4664ca1dd8701b21f0ec",
+   "previousBlob": null,
+   "added": 104,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/journal/test/LocalConsensusConformance.test.ts",
+   "mode": "100644",
+   "blob": "5eb93febf9bf7623a41dbe07f959b3e2094d3cd1",
+   "previousBlob": null,
+   "added": 9,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/journal/test/Notifying.test.ts",
+   "mode": "100644",
+   "blob": "4c9831b4b2304db69f65a30cb8fce8b6f09f4f96",
+   "previousBlob": null,
+   "added": 63,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/journal/test/TestJournal.test.ts",
+   "mode": "100644",
+   "blob": "ffe8c7603d3bc08b7b3c15c7184f583ec42389f0",
+   "previousBlob": null,
+   "added": 100,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/journal/test/fixtures/artifact-cjs.cjs",
+   "mode": "100644",
+   "blob": "b6ab9d295906ef0331d9f44d463f891c9f47eca5",
+   "previousBlob": null,
+   "added": 6,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/journal/test/fixtures/artifact-esm.mjs",
+   "mode": "100644",
+   "blob": "b4124651b0e60add5fbbff8c42d3568c26d701a3",
+   "previousBlob": null,
+   "added": 6,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

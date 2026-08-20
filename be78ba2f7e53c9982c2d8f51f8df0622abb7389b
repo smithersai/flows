@@ -1,0 +1,175 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "be78ba2f7e53c9982c2d8f51f8df0622abb7389b",
+ "tree": "41cde63629c2b1256bcd8451f907e946b71aaac1",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 47,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 695,
+  "globalCount": 845,
+  "purpose": "📝 docs(ui): document chat",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "ui",
+  "component": "apps/ui/canary-repros",
+  "unitKey": "chat",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "8b36eae51e2fd6f350c72971e90185f875d8df8b",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "8b36eae51e2fd6f350c72971e90185f875d8df8b",
+  "next": "eff5eb63b8b78c5c2489093b973a67464a329c66",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 10,
+  "added": 719,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/chat/4.13.md",
+   "mode": "100644",
+   "blob": "baee655beca0c22c056b42324d017ca862b907a6",
+   "previousBlob": null,
+   "added": 94,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/chat/4.2.md",
+   "mode": "100644",
+   "blob": "6ba5d0bb24224015105cba2919f5cb38b8bbc74f",
+   "previousBlob": null,
+   "added": 72,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/chat/4.6.md",
+   "mode": "100644",
+   "blob": "addbcd2cca91c8f1428a46b1514ddad4efefa559",
+   "previousBlob": null,
+   "added": 61,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/chat/5.1.md",
+   "mode": "100644",
+   "blob": "c3005c0ca5f7b85c673d09932b5b474fc5afb24d",
+   "previousBlob": null,
+   "added": 81,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/chat/5.11.md",
+   "mode": "100644",
+   "blob": "2f455fe23effb5bb2a19b35d2426a5c30fd44450",
+   "previousBlob": null,
+   "added": 68,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/chat/5.15.md",
+   "mode": "100644",
+   "blob": "7d024f39c5d62d31e280d7c0d657343c18d1e714",
+   "previousBlob": null,
+   "added": 61,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/chat/5.2.md",
+   "mode": "100644",
+   "blob": "c4eee0ec9dc5adcb70d9a87b885bb121eabd2bb8",
+   "previousBlob": null,
+   "added": 71,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/chat/5.6.md",
+   "mode": "100644",
+   "blob": "e6384b4f9bc3db4ec1ddc2611226cda44b072459",
+   "previousBlob": null,
+   "added": 72,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/chat/6.1.md",
+   "mode": "100644",
+   "blob": "2ef31f82a555fe368c2a38e4da7d06a86913a159",
+   "previousBlob": null,
+   "added": 74,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/chat/6.4.md",
+   "mode": "100644",
+   "blob": "87293e382385a162ea03ea547e8df711388497f0",
+   "previousBlob": null,
+   "added": 65,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

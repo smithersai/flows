@@ -1,0 +1,150 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "008df0d0dec7bd32735d1e14d27f3b645ee76fd0",
+ "tree": "5290d38274a25fd14d07ab6f6c8d4692d26f943f",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 13,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 525,
+  "globalCount": 845,
+  "purpose": "📝 docs(build): document workspace (1/2)",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "build",
+  "component": "packages/build/docs",
+  "unitKey": "workspace",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "4c6fcbb6f6363f7223638bcdfa9d79ddeb5dbd68",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "4c6fcbb6f6363f7223638bcdfa9d79ddeb5dbd68",
+  "next": "2ed39ef9c06549bd8fce2342c1b4a8a4529c76c6",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 8,
+  "added": 1369,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build/docs/workspace/caching.md",
+   "mode": "100644",
+   "blob": "5c6a7643595f27b3aaff22e24349c1de85e62700",
+   "previousBlob": null,
+   "added": 334,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/workspace/configuration.md",
+   "mode": "100644",
+   "blob": "607b47ca2adec4f601fec930ccec1033511ec4dd",
+   "previousBlob": null,
+   "added": 94,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/workspace/flows-repo-adoption.md",
+   "mode": "100644",
+   "blob": "268ac4c7bb4ab4b08c1bc1efdf4ad31642403c1c",
+   "previousBlob": null,
+   "added": 87,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/workspace/github-automation.md",
+   "mode": "100644",
+   "blob": "86ae4d056c641a9cad0ea22243aeddf36a1a904b",
+   "previousBlob": null,
+   "added": 113,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/workspace/querying.md",
+   "mode": "100644",
+   "blob": "b6dd626b287ec393c4c1ad0c21bddffc8b347566",
+   "previousBlob": null,
+   "added": 139,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/workspace/remote-caching.md",
+   "mode": "100644",
+   "blob": "18e9226b0d20e25a13c545d46b1e8cf74123a08d",
+   "previousBlob": null,
+   "added": 272,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/workspace/running-targets.md",
+   "mode": "100644",
+   "blob": "2fd05153df0a29a60e254bb83f15b1a7267ccf2e",
+   "previousBlob": null,
+   "added": 162,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/workspace/structure.md",
+   "mode": "100644",
+   "blob": "ebd62398921973b1c7fa070207971a009533a42b",
+   "previousBlob": null,
+   "added": 168,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

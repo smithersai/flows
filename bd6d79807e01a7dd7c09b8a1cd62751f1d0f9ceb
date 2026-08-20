@@ -1,0 +1,86 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "bd6d79807e01a7dd7c09b8a1cd62751f1d0f9ceb",
+ "tree": "47dc07eb15218ec34473a009b4ca3e9b7bc32b89",
+ "epic": {
+  "index": 13,
+  "id": "server",
+  "name": "Shared application contracts and worker backend",
+  "sourceCommit": "5e1bcec6b1db3f2e990cb2b79bec0050dfc34ba3",
+  "sourceSubject": "✨ feat(server): add shared application contracts and worker backend",
+  "childIndex": 18,
+  "childCount": 20,
+  "head": "b02e63ed129878a014ee9484e2d27a74aba94be1"
+ },
+ "atomic": {
+  "globalIndex": 646,
+  "globalCount": 845,
+  "purpose": "📝 docs(server): document server",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "server",
+  "component": "apps/server",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "96c7e6973224e8cc0363992c409a14bc493a60b8",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "96c7e6973224e8cc0363992c409a14bc493a60b8",
+  "next": "ebb4a43d1093ac19f5104f5fa13ddc2f55ca7981",
+  "epicFirst": "210032b4effd3e4b5015806fab6679f7153e0fef",
+  "epicLast": "b02e63ed129878a014ee9484e2d27a74aba94be1",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 313,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/server/DEPLOY.md",
+   "mode": "100644",
+   "blob": "32b1393975c39c613bffa0a59df1427afa6bed27",
+   "previousBlob": null,
+   "added": 167,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/server/INVITES.md",
+   "mode": "100644",
+   "blob": "d6894f68172a52b995577f21622e96e04ae83035",
+   "previousBlob": null,
+   "added": 146,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

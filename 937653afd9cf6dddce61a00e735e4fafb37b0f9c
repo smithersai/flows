@@ -1,0 +1,104 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "937653afd9cf6dddce61a00e735e4fafb37b0f9c",
+ "tree": "a403729d2ad8193af5926f1502765c716d8e3e0c",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 43,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 555,
+  "globalCount": 845,
+  "purpose": "✨ feat(targets): add the BiomeCheck, RustToolchain, Cargo modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "targets",
+  "component": "packages/targets/src",
+  "unitKey": "BiomeCheck",
+  "mergedUnitKeys": [
+   "BiomeCheck",
+   "RustToolchain",
+   "Cargo"
+  ]
+ },
+ "dependencies": {
+  "parent": "520e3aecadaae18423e2c74acf6d432db9b5872b",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [
+   "cafb6ee211054a8f7bf1229774fbb9e909f9b007",
+   "efd1f69d0dbcd437153aea782a5404079bcb96d8",
+   "61a0cc4fd2023b48395f5c5b9d8d22336a0fdf99",
+   "520e3aecadaae18423e2c74acf6d432db9b5872b"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "520e3aecadaae18423e2c74acf6d432db9b5872b",
+  "next": "6752d6ceee921a01244d90d269a612ef1b74fd14",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 599,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/targets/src/BiomeCheck.ts",
+   "mode": "100644",
+   "blob": "48d44f5a673322439fcaecad330e982ba3857506",
+   "previousBlob": null,
+   "added": 143,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/src/RustToolchain.ts",
+   "mode": "100644",
+   "blob": "9ff605fabfed76e556bb8d5eacf0f64491066710",
+   "previousBlob": null,
+   "added": 181,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/src/Cargo.ts",
+   "mode": "100644",
+   "blob": "d2875e5f785db6903722cc5dc74c8319dbfb3e7c",
+   "previousBlob": null,
+   "added": 275,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

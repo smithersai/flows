@@ -1,0 +1,225 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "9baaa53860be1b2ffc241ddc0c99ddd92a29f1e0",
+ "tree": "0210ce030ace9b29b4b6b11af6b484c26a2ad991",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 12,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 660,
+  "globalCount": 845,
+  "purpose": "🧹 chore(ui): scaffold the smithers-ui package",
+  "type": "chore",
+  "kind": "scaffold",
+  "scope": "ui",
+  "component": "apps/ui",
+  "unitKey": "~scaffold",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "91c0d0e2f30257961420a458e012782a3b26825a",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "commit": "3b57deac5ef23a0e1e2fa660e6bcf9351049a95b"
+   },
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   },
+   {
+    "package": "@smthrs/chain",
+    "commit": "b729433ee7b80987881f5505e8663c9995e4fa27"
+   },
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/crypto",
+    "commit": "3ac9a18fee84c753c34d31ae7baae150fa503fe6"
+   },
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   },
+   {
+    "package": "@smthrs/harness",
+    "commit": "6efc2c90189369916690397a40ed7cce75754114"
+   },
+   {
+    "package": "@smthrs/jj",
+    "commit": "a67499b875ddce7aa9fe4a7cc5414fc0ab9eb398"
+   },
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   },
+   {
+    "package": "@smthrs/memory",
+    "commit": "b0730cfb8c6d3d2a449dcfc6a984435879f62107"
+   },
+   {
+    "package": "@smthrs/model",
+    "commit": "5d7f346b5c7d5b6d6470e58b2aed91e31cba613a"
+   },
+   {
+    "package": "@smthrs/patterns",
+    "commit": "9e6c7183c2eb1028fd0b3f8e1736586a353cafd0"
+   },
+   {
+    "package": "@smthrs/platform-browser",
+    "commit": "ca23816b16d5e35de879f35fe042c979b3f78807"
+   },
+   {
+    "package": "@smthrs/registry",
+    "commit": "1ae2f3b78daa4ba33deb87bfe057eee002727dcd"
+   }
+  ]
+ },
+ "related": {
+  "previous": "91c0d0e2f30257961420a458e012782a3b26825a",
+  "next": "ace4c3062af394b3645242bfd5562c3de27ad96c",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 9,
+  "added": 510,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/.gitignore",
+   "mode": "100644",
+   "blob": "98d6228c7757ba15f7527d7776cceba9de99cb55",
+   "previousBlob": null,
+   "added": 29,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/BUILD.ts",
+   "mode": "100644",
+   "blob": "22c90ef1ce67c012663349ad167d61d0f63db554",
+   "previousBlob": null,
+   "added": 91,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/electrobun.config.ts",
+   "mode": "100644",
+   "blob": "788d57da6534e780b69025138a119e2e6052c396",
+   "previousBlob": null,
+   "added": 34,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/package.json",
+   "mode": "100644",
+   "blob": "31da019bd3cf94d33930c41989d0a8d21a827976",
+   "previousBlob": null,
+   "added": 81,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/postcss.config.js",
+   "mode": "100644",
+   "blob": "e873f1a4f23581ca2b36097583e6895276767d48",
+   "previousBlob": null,
+   "added": 6,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/tailwind.config.js",
+   "mode": "100644",
+   "blob": "7089aeb25643fcbc796d0998afe38274e5d27a80",
+   "previousBlob": null,
+   "added": 8,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/tsconfig.json",
+   "mode": "100644",
+   "blob": "1ab1a774a254ee8ce29e0001d937019e854b88b1",
+   "previousBlob": null,
+   "added": 36,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/vite.config.ts",
+   "mode": "100644",
+   "blob": "f127cfbd134fa0ac339533c12412eb6322c34c62",
+   "previousBlob": null,
+   "added": 187,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/vite.start.config.ts",
+   "mode": "100644",
+   "blob": "38604ace853fe83afbfeca91abcfb9590d8ed1c4",
+   "previousBlob": null,
+   "added": 38,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  }
+ ]
+}

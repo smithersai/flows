@@ -1,0 +1,106 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "ad8bef08c1c8979e8600ba9e2facb343249cd804",
+ "tree": "8c0bb3a32f62b77463901c6817906e7ff6d63c48",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 23,
+  "childCount": 61,
+  "head": "a5193915fd7f1bc7634e32c28838552e883641db"
+ },
+ "atomic": {
+  "globalIndex": 148,
+  "globalCount": 845,
+  "purpose": "✨ feat(kernel): add CapabilitySet",
+  "type": "feat",
+  "kind": "module",
+  "scope": "kernel",
+  "component": "packages/kernel",
+  "unitKey": "CapabilitySet",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "1822e15c5911462e2797c9c2927fe20dcecc10e0",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   },
+   {
+    "package": "@smthrs/jj",
+    "commit": "a67499b875ddce7aa9fe4a7cc5414fc0ab9eb398"
+   },
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   },
+   {
+    "package": "@smthrs/platform-browser",
+    "commit": "ca23816b16d5e35de879f35fe042c979b3f78807"
+   }
+  ]
+ },
+ "related": {
+  "previous": "1822e15c5911462e2797c9c2927fe20dcecc10e0",
+  "next": "6771c7e72889f1a229e0dfd4d17be31461c9099d",
+  "epicFirst": "5037300288116821b95e1046a67ca324243eeeeb",
+  "epicLast": "a5193915fd7f1bc7634e32c28838552e883641db",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 595,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/kernel/src/CapabilitySet.ts",
+   "mode": "100644",
+   "blob": "0b4311cf69e7d5087e79b50fedf71946fd327959",
+   "previousBlob": null,
+   "added": 218,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/kernel/test/CapabilitySet.test.ts",
+   "mode": "100644",
+   "blob": "53a43642c0f879f0e5002c179370ffc78658fbb4",
+   "previousBlob": null,
+   "added": 308,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/kernel/test/CapabilitySetEquality.test.ts",
+   "mode": "100644",
+   "blob": "34ea9fa308e44ba35e36ddb43dd84944129b84a4",
+   "previousBlob": null,
+   "added": 69,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

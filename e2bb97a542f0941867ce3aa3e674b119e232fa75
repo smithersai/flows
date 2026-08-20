@@ -1,0 +1,103 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "e2bb97a542f0941867ce3aa3e674b119e232fa75",
+ "tree": "a6ffb4726d8ae891de00a96fcea59c670f077283",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 64,
+  "childCount": 96,
+  "head": "c93705a8b036d030082a6877bd6668709293285d"
+ },
+ "atomic": {
+  "globalIndex": 250,
+  "globalCount": 845,
+  "purpose": "✨ feat(engine-store): add the OwnerIdentity, EngineStore, Migrations modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "engine-store",
+  "component": "packages/engine-store/src",
+  "unitKey": "OwnerIdentity",
+  "mergedUnitKeys": [
+   "OwnerIdentity",
+   "EngineStore",
+   "Migrations"
+  ]
+ },
+ "dependencies": {
+  "parent": "b711f85e99144528246fdc7e10ff28d55dfa3a88",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "b99e4ffd9a87baf764aace571008b88ef841e23d",
+   "9123f49c124e0267fbe38a2cc90282ad1bccc0c2",
+   "455867d72e555abc6350fae874587cf5704d28e7",
+   "a6ffad71242ca45b01781631ef586864fc8f00c5",
+   "1b2d917f9299e104d701a5e38b74cedd19846579",
+   "911cd6e9d09f1da3b72864b41dbbb83034e27e89",
+   "b43b3b12d0f84a013434387f26580ee78f0854af",
+   "b711f85e99144528246fdc7e10ff28d55dfa3a88"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "b711f85e99144528246fdc7e10ff28d55dfa3a88",
+  "next": "650ead85ae444efb526bd0be47bbc32459d0fa50",
+  "epicFirst": "eec277e2e1bfd7b6ae08c5d31c63df081ea52207",
+  "epicLast": "c93705a8b036d030082a6877bd6668709293285d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 567,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/OwnerIdentity.ts",
+   "mode": "100644",
+   "blob": "d22be0675c27f550506a970412942a2454f9a5c7",
+   "previousBlob": null,
+   "added": 130,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/EngineStore.ts",
+   "mode": "100644",
+   "blob": "e0a4b436b8ee19fa518128499c104faa3836fc8b",
+   "previousBlob": null,
+   "added": 355,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/Migrations.ts",
+   "mode": "100644",
+   "blob": "1746a1a9927f141cc1b4ece94f15a4babb809985",
+   "previousBlob": null,
+   "added": 82,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

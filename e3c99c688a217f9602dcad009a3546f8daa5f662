@@ -1,0 +1,101 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "e3c99c688a217f9602dcad009a3546f8daa5f662",
+ "tree": "804f6f1dc66f51e67d70592b73cd2116dbd1ab93",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 51,
+  "childCount": 66,
+  "head": "28962374658aba2757a5405dab6454616510b6b6"
+ },
+ "atomic": {
+  "globalIndex": 376,
+  "globalCount": 845,
+  "purpose": "✨ feat(memory): add Maintenance",
+  "type": "feat",
+  "kind": "module",
+  "scope": "memory",
+  "component": "packages/memory",
+  "unitKey": "Maintenance",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "ab11f83aaa30868e1ec4e9fc7c01fe8777535f09",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [
+   "644fe5aa922057552f71ca92b209fcdaba71042a",
+   "4673391e2fc864668661424c1a3d6f3183b83c07"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   },
+   {
+    "package": "@smthrs/model",
+    "commit": "5d7f346b5c7d5b6d6470e58b2aed91e31cba613a"
+   },
+   {
+    "package": "@smthrs/patterns",
+    "commit": "9e6c7183c2eb1028fd0b3f8e1736586a353cafd0"
+   }
+  ]
+ },
+ "related": {
+  "previous": "ab11f83aaa30868e1ec4e9fc7c01fe8777535f09",
+  "next": "91e341e3e8d70715dd4cf05d9364e33d0b0d8707",
+  "epicFirst": "65dffaa9668923ae816eeaa5bce0901a958729b0",
+  "epicLast": "28962374658aba2757a5405dab6454616510b6b6",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 516,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/memory/src/Maintenance.ts",
+   "mode": "100644",
+   "blob": "1b46a29e94903b165f4c945615b0e2db922a66c7",
+   "previousBlob": null,
+   "added": 215,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/memory/test/Maintenance.test.ts",
+   "mode": "100644",
+   "blob": "4875a21a2feac303e9dae6ed73c1ae2e2fdaff13",
+   "previousBlob": null,
+   "added": 301,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

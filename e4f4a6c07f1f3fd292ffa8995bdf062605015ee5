@@ -1,0 +1,118 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "e4f4a6c07f1f3fd292ffa8995bdf062605015ee5",
+ "tree": "a6d143d72ff825cb07f73d77dc039cb44a05cfdf",
+ "epic": {
+  "index": 18,
+  "id": "workflows",
+  "name": "Repository automation workflows",
+  "sourceCommit": "9ea4941fc404fb4f12e3384b96a37e0739be3916",
+  "sourceSubject": "✨ feat(workflows): add repository automation workflows",
+  "childIndex": 8,
+  "childCount": 9,
+  "head": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "atomic": {
+  "globalIndex": 844,
+  "globalCount": 845,
+  "purpose": "✅ test(smithers): cover smithers",
+  "type": "test",
+  "kind": "tests",
+  "scope": "smithers",
+  "component": ".smithers",
+  "unitKey": "tests",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "daacc95abcdfb80abd1c7a2e9baddc59628740b0",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui",
+   "docs-site",
+   "factory"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "commit": "fec516964e3e6a618aace55755a6d0befd72daa8"
+   }
+  ]
+ },
+ "related": {
+  "previous": "daacc95abcdfb80abd1c7a2e9baddc59628740b0",
+  "next": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3",
+  "epicFirst": "fed6cbe14b940882dcae210c48223700336f43b7",
+  "epicLast": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 1259,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": ".smithers/tests/alpha-agent-eval-judge.test.tsx",
+   "mode": "100644",
+   "blob": "8297425d2655c5e7fd467cfcd5764531efe59ece",
+   "previousBlob": null,
+   "added": 716,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": ".smithers/tests/alpha-agent.test.tsx",
+   "mode": "100644",
+   "blob": "6d47af66f59bbf8247caaa06a3b4e7569c84dd04",
+   "previousBlob": null,
+   "added": 205,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": ".smithers/tests/alpha-ui-evals.test.tsx",
+   "mode": "100644",
+   "blob": "38affc55f9f3f197b9266707aa8c60f5b8758d8c",
+   "previousBlob": null,
+   "added": 136,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": ".smithers/tests/alpha-ui.test.tsx",
+   "mode": "100644",
+   "blob": "2e725ed0bee8c3343d18e89b445fbb1fd23a8120",
+   "previousBlob": null,
+   "added": 202,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

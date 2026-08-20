@@ -1,0 +1,154 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "f39e5735bf6e948acbc223b2b53ce60c4a35dfc3",
+ "tree": "b1035133f21f9d948d6c8ec804c857e372f21ce0",
+ "epic": {
+  "index": 9,
+  "id": "agent",
+  "name": "Harness, chain, tools and CLI",
+  "sourceCommit": "a8caaa3dc45df0c14d6b10d0db9faf8a7ea7e542",
+  "sourceSubject": "✨ feat(agent): compose the harness, chain, tools, and CLI",
+  "childIndex": 74,
+  "childCount": 85,
+  "head": "012fadccb450058987918de5ef55d315135be71d"
+ },
+ "atomic": {
+  "globalIndex": 465,
+  "globalCount": 845,
+  "purpose": "📝 docs(chain): document ., prompts",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "chain",
+  "component": "packages/chain",
+  "unitKey": ".",
+  "mergedUnitKeys": [
+   ".",
+   "prompts"
+  ]
+ },
+ "dependencies": {
+  "parent": "1281e55e13f1cfa63603ca67c28ada2cecad340c",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   },
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/memory",
+    "commit": "b0730cfb8c6d3d2a449dcfc6a984435879f62107"
+   },
+   {
+    "package": "@smthrs/model",
+    "commit": "5d7f346b5c7d5b6d6470e58b2aed91e31cba613a"
+   },
+   {
+    "package": "@smthrs/registry",
+    "commit": "1ae2f3b78daa4ba33deb87bfe057eee002727dcd"
+   },
+   {
+    "package": "@smthrs/testing",
+    "commit": "a0e5f174f9c26f37d0db19e8811f39431063418e"
+   }
+  ]
+ },
+ "related": {
+  "previous": "1281e55e13f1cfa63603ca67c28ada2cecad340c",
+  "next": "374dca6e547aede9af0748964a6a99f92d9e4201",
+  "epicFirst": "f86ed77ef384765a9a6a60ef7e3b84bfa04b8ac7",
+  "epicLast": "012fadccb450058987918de5ef55d315135be71d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 6,
+  "added": 128,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/chain/CHANGELOG.md",
+   "mode": "100644",
+   "blob": "b5a5bd1cb978569448b6191b02454752d284da25",
+   "previousBlob": null,
+   "added": 25,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/README.md",
+   "mode": "100644",
+   "blob": "72d68b9776fbad1a4f3d34e4d7849fe8e11a8431",
+   "previousBlob": null,
+   "added": 15,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/prompts/base.mdx",
+   "mode": "100644",
+   "blob": "cedae77de0fa5af03ddf52496969d1b180e51386",
+   "previousBlob": null,
+   "added": 32,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/prompts/concierge.mdx",
+   "mode": "100644",
+   "blob": "5fb3492c053290026830641d372db05fabc179f9",
+   "previousBlob": null,
+   "added": 23,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/prompts/contract.mdx",
+   "mode": "100644",
+   "blob": "ec37685025260b8500edc189a9a5acf44fad94d5",
+   "previousBlob": null,
+   "added": 29,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/chain/prompts/rules.mdx",
+   "mode": "100644",
+   "blob": "5dc26ce59bb27ef0366008fe8338debdfeaf12eb",
+   "previousBlob": null,
+   "added": 4,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

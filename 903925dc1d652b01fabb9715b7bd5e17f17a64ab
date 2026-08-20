@@ -1,0 +1,106 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "903925dc1d652b01fabb9715b7bd5e17f17a64ab",
+ "tree": "733e6b4227591317181ca0f923bac778aac85651",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 30,
+  "childCount": 61,
+  "head": "a5193915fd7f1bc7634e32c28838552e883641db"
+ },
+ "atomic": {
+  "globalIndex": 155,
+  "globalCount": 845,
+  "purpose": "✅ test(kernel): cover FileSystem",
+  "type": "test",
+  "kind": "tests",
+  "scope": "kernel",
+  "component": "packages/kernel",
+  "unitKey": "FileSystem",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "fa47259987fb4978ba8fafdc253de94f8e01a839",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   },
+   {
+    "package": "@smthrs/jj",
+    "commit": "a67499b875ddce7aa9fe4a7cc5414fc0ab9eb398"
+   },
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   },
+   {
+    "package": "@smthrs/platform-browser",
+    "commit": "ca23816b16d5e35de879f35fe042c979b3f78807"
+   }
+  ]
+ },
+ "related": {
+  "previous": "fa47259987fb4978ba8fafdc253de94f8e01a839",
+  "next": "57e30605973d10ac8231c7b313bab29c7dee66a3",
+  "epicFirst": "5037300288116821b95e1046a67ca324243eeeeb",
+  "epicLast": "a5193915fd7f1bc7634e32c28838552e883641db",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 1238,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/kernel/test/FileSystem.integration.test.ts",
+   "mode": "100644",
+   "blob": "5975839676a2b25dbdb516f2bcf836378d67d75e",
+   "previousBlob": null,
+   "added": 231,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/kernel/test/FileSystem.test.ts",
+   "mode": "100644",
+   "blob": "7a20f3faffdd83e67440a0ca0ec902f0d6994ad8",
+   "previousBlob": null,
+   "added": 497,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/kernel/test/FileSystemOperations.test.ts",
+   "mode": "100644",
+   "blob": "5faa64e4dbfff680d7ec761e293b4b6114021fef",
+   "previousBlob": null,
+   "added": 510,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

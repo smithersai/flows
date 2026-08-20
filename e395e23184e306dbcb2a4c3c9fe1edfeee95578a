@@ -1,0 +1,76 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "e395e23184e306dbcb2a4c3c9fe1edfeee95578a",
+ "tree": "b800d31dc5e92a6747b875a9bb52985f833c7c17",
+ "epic": {
+  "index": 13,
+  "id": "server",
+  "name": "Shared application contracts and worker backend",
+  "sourceCommit": "5e1bcec6b1db3f2e990cb2b79bec0050dfc34ba3",
+  "sourceSubject": "✨ feat(server): add shared application contracts and worker backend",
+  "childIndex": 16,
+  "childCount": 20,
+  "head": "b02e63ed129878a014ee9484e2d27a74aba94be1"
+ },
+ "atomic": {
+  "globalIndex": 644,
+  "globalCount": 845,
+  "purpose": "✅ test(server): cover src (1/2)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "server",
+  "component": "apps/server",
+  "unitKey": "src",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "d865840ba46c0340063d71de7f244ea4be340d44",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "d865840ba46c0340063d71de7f244ea4be340d44",
+  "next": "96c7e6973224e8cc0363992c409a14bc493a60b8",
+  "epicFirst": "210032b4effd3e4b5015806fab6679f7153e0fef",
+  "epicLast": "b02e63ed129878a014ee9484e2d27a74aba94be1",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 2303,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/server/src/index.test.ts",
+   "mode": "100644",
+   "blob": "5e0111c467287bc3a3b8af8184d17e1e7d2bd464",
+   "previousBlob": null,
+   "added": 2303,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ],
+ "sizeJustification": "Single indivisible file (apps/server/src/index.test.ts); splitting it further would create partial-file states that never existed."
+}

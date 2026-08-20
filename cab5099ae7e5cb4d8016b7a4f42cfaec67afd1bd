@@ -1,0 +1,90 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "cab5099ae7e5cb4d8016b7a4f42cfaec67afd1bd",
+ "tree": "e57a34f09ce4a6d678b1ae7def8d388aab4a5e78",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 21,
+  "childCount": 96,
+  "head": "c93705a8b036d030082a6877bd6668709293285d"
+ },
+ "atomic": {
+  "globalIndex": 207,
+  "globalCount": 845,
+  "purpose": "✅ test(engine-store): cover engine-store (13/23)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "engine-store",
+  "component": "packages/engine-store/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "1ca0d2014c4f25aed47bc56b2a0f2fe55358d6f3",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "1ca0d2014c4f25aed47bc56b2a0f2fe55358d6f3",
+  "next": "ede564e832ebd0cca8fdc9d37fe93133f8ca358b",
+  "epicFirst": "eec277e2e1bfd7b6ae08c5d31c63df081ea52207",
+  "epicLast": "c93705a8b036d030082a6877bd6668709293285d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 1268,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/PlanSchedulerProduction.test.ts",
+   "mode": "100644",
+   "blob": "d7b757a206b2017e398d63fb4c00ef4cc68c33de",
+   "previousBlob": null,
+   "added": 660,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/RemoteCacheProtocol.test.ts",
+   "mode": "100644",
+   "blob": "db4ea2ea5d78b1f307ce47092ff3c93bb08dddd4",
+   "previousBlob": null,
+   "added": 438,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/Replay.test.ts",
+   "mode": "100644",
+   "blob": "9444192fc8b8c8a3b49c3c7e173e3c2747341db6",
+   "previousBlob": null,
+   "added": 170,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

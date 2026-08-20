@@ -1,0 +1,118 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "e759260fb56afe1d6f5ce1b9c990cc85dc98f4d2",
+ "tree": "01a89194906805d71e110279fb0643ca07334819",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 130,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 778,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the mainview modules (2/4)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:mainview",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "9cfafeb8c7dac9762560efdaa95544c3f4556f21",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "936580f83e9247b8d2c86c38a6c4ef634dde2411",
+   "2564c29586d596a1ea144b004044e8da5ce6d143",
+   "1ca17ad40f58cc06ff1e53a3e6944a3205bbd5f6",
+   "9cfafeb8c7dac9762560efdaa95544c3f4556f21",
+   "a701836259f43899fc1445ebce5b9941044812d7",
+   "073fd2736d249f37dedb31cd104b2e69ba331df0",
+   "f2f4ea0ef0875dbd9f3a02155990ec55c4bdc224",
+   "e0ea030ac10573a07f6acdcf40c6b3fa818b55ef"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "9cfafeb8c7dac9762560efdaa95544c3f4556f21",
+  "next": "1ca17ad40f58cc06ff1e53a3e6944a3205bbd5f6",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 1485,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/ChatCards.tsx",
+   "mode": "100644",
+   "blob": "dfe9606329f748608644a5ac022379949e776713",
+   "previousBlob": null,
+   "added": 1136,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/client.tsx",
+   "mode": "100644",
+   "blob": "2d1ded0d6698f2028d0958b4e07ed5effeff0c10",
+   "previousBlob": null,
+   "added": 12,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/ConnectorsSurface.tsx",
+   "mode": "100644",
+   "blob": "f947685680b020f725b5139ff787b1456baf49b9",
+   "previousBlob": null,
+   "added": 285,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/ControllerBoot.client.ts",
+   "mode": "100644",
+   "blob": "fe7b2fd166b536e7d02dc2da42676801a65e6bee",
+   "previousBlob": null,
+   "added": 52,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

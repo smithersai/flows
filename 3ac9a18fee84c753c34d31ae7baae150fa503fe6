@@ -1,0 +1,66 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "3ac9a18fee84c753c34d31ae7baae150fa503fe6",
+ "tree": "d4d1e757fc1fbafecd32966c6f828bfee64d339f",
+ "epic": {
+  "index": 2,
+  "id": "core",
+  "name": "Canonical leaf contracts",
+  "sourceCommit": "9cd3ac554b7b6acecfceddce69f6a6b6afa257b6",
+  "sourceSubject": "✨ feat(core): add canonical leaf contracts",
+  "childIndex": 13,
+  "childCount": 14,
+  "head": "661ab4abf442fdbc7f5039a9846f9822f28b505a"
+ },
+ "atomic": {
+  "globalIndex": 15,
+  "globalCount": 845,
+  "purpose": "✨ feat(crypto): export the public crypto surface",
+  "type": "feat",
+  "kind": "index",
+  "scope": "crypto",
+  "component": "packages/crypto",
+  "unitKey": "~index",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "f083bed806b51df5a506ae9f154dc056a6df3e57",
+  "epicPredecessors": [
+   "repo"
+  ],
+  "sourceImports": [
+   "f083bed806b51df5a506ae9f154dc056a6df3e57"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "f083bed806b51df5a506ae9f154dc056a6df3e57",
+  "next": "661ab4abf442fdbc7f5039a9846f9822f28b505a",
+  "epicFirst": "c0c561bff5109eb97831d6eda26e84d1d4aa5583",
+  "epicLast": "661ab4abf442fdbc7f5039a9846f9822f28b505a",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 9,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/crypto/src/index.ts",
+   "mode": "100644",
+   "blob": "5bcee863d68e84d6e6e813e771baf8b6f3a69e92",
+   "previousBlob": null,
+   "added": 9,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

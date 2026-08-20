@@ -1,0 +1,131 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "301f9a172d821b0d3726d993e87786a2f60c1d3e",
+ "tree": "712c1a770652bf3a0ea7c9a6adc7f527351aebb1",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 92,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 740,
+  "globalCount": 845,
+  "purpose": "✅ test(ui): cover mainview/state (3/8)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "mainview/state",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "44b3ea84030d52bdd058bbf4c18bcaac9a1ddcc4",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "44b3ea84030d52bdd058bbf4c18bcaac9a1ddcc4",
+  "next": "d3e8aa24303ee5cf0e88aa2e022dcfd660dafa19",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 6,
+  "added": 1389,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/CardFrames.test.tsx",
+   "mode": "100644",
+   "blob": "f7f5beebb2eb922403c19da7f338bbee5a63cdca",
+   "previousBlob": null,
+   "added": 308,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/ChatShell.test.tsx",
+   "mode": "100644",
+   "blob": "4e842107199daeec7ad6302d386bf433679adfdb",
+   "previousBlob": null,
+   "added": 307,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/ClientErrors.test.ts",
+   "mode": "100644",
+   "blob": "5d4e9ecdd04debd6cde459ac1ea11bb2de312625",
+   "previousBlob": null,
+   "added": 250,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/ComposerHotPath.test.tsx",
+   "mode": "100644",
+   "blob": "93420ca93d960ea3f3e808d0483538903205caca",
+   "previousBlob": null,
+   "added": 273,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/ComposerRefusals.test.ts",
+   "mode": "100644",
+   "blob": "8469039c6d3abe3ccf3357bff42b136e2a44e7bd",
+   "previousBlob": null,
+   "added": 118,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/DebugReads.test.ts",
+   "mode": "100644",
+   "blob": "c769019db2a2d0880b6187596f64aa05e5c720ea",
+   "previousBlob": null,
+   "added": 133,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

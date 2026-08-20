@@ -1,0 +1,120 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "4c98a36c27e2e5b7ee683d2a38bad11c2ced5954",
+ "tree": "e56d90771c32013fd2d2b2bfd481c6a0636b7fb6",
+ "epic": {
+  "index": 10,
+  "id": "platform",
+  "name": "Conformance, scoring, evaluation and telemetry",
+  "sourceCommit": "317910c088e178d40f3b1553a182a7ee2be5dd24",
+  "sourceSubject": "✅ test(platform): add conformance, scoring, evaluation, and telemetry",
+  "childIndex": 17,
+  "childCount": 36,
+  "head": "7815804a6f1b8fd9568d8a0031bb0b58ee098100"
+ },
+ "atomic": {
+  "globalIndex": 493,
+  "globalCount": 845,
+  "purpose": "✨ feat(testing): add Vitest",
+  "type": "feat",
+  "kind": "module",
+  "scope": "testing",
+  "component": "packages/testing",
+  "unitKey": "Vitest",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "69a13d83bd178f969caf56037d4ad85b7297bc56",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/engine",
+    "commit": "b17af994607bc2ef084b62d75c0b2509f8b56d23"
+   },
+   {
+    "package": "@smthrs/flow",
+    "commit": "8f2310ef99183d31a7cb6a91238af374d246498b"
+   },
+   {
+    "package": "@smthrs/jj",
+    "commit": "a67499b875ddce7aa9fe4a7cc5414fc0ab9eb398"
+   },
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   },
+   {
+    "package": "@smthrs/plan",
+    "commit": "a6c062c1ea8185f0a2b743039e577306a8ad4a47"
+   },
+   {
+    "package": "@smthrs/harness",
+    "commit": "6efc2c90189369916690397a40ed7cce75754114"
+   },
+   {
+    "package": "@smthrs/model",
+    "commit": "5d7f346b5c7d5b6d6470e58b2aed91e31cba613a"
+   }
+  ]
+ },
+ "related": {
+  "previous": "69a13d83bd178f969caf56037d4ad85b7297bc56",
+  "next": "7feff6e27c826eb72eae159e84484f29319fed55",
+  "epicFirst": "979f13d307eb3917b8f17afabcbde76137e83652",
+  "epicLast": "7815804a6f1b8fd9568d8a0031bb0b58ee098100",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 179,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/testing/src/Vitest.ts",
+   "mode": "100644",
+   "blob": "52626a737cd81657319b8dab438ddf7c03ddf148",
+   "previousBlob": null,
+   "added": 123,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/testing/test/Vitest.test.ts",
+   "mode": "100644",
+   "blob": "e8dc11eb4c0a4cc19d1b7b88748773dc134e3d21",
+   "previousBlob": null,
+   "added": 56,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

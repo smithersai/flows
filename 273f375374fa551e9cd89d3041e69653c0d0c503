@@ -1,0 +1,93 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "273f375374fa551e9cd89d3041e69653c0d0c503",
+ "tree": "8a25594528b5db02f45cee174cec1d1abc9ad9e3",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 25,
+  "childCount": 66,
+  "head": "28962374658aba2757a5405dab6454616510b6b6"
+ },
+ "atomic": {
+  "globalIndex": 350,
+  "globalCount": 845,
+  "purpose": "✨ feat(gateway): export the public gateway surface",
+  "type": "feat",
+  "kind": "index",
+  "scope": "gateway",
+  "component": "packages/gateway",
+  "unitKey": "~index",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "54f039f442d4e6b5744a9e7a655c0a0596985e87",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [
+   "54f039f442d4e6b5744a9e7a655c0a0596985e87"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/control",
+    "commit": "40bf3f68fb8b79abcb73506a5980f5eaa9e92e36"
+   },
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   },
+   {
+    "package": "@smthrs/notifications",
+    "commit": "1fb5a051f5ccc772c2e8cce3b8a29472c51afd48"
+   },
+   {
+    "package": "@smthrs/run-store",
+    "commit": "9633d567508a5d82ee51d5ed34014e850f417731"
+   },
+   {
+    "package": "@smthrs/sync",
+    "commit": "fe2f612d03e13b414eb28e2f50a685d212be384f"
+   }
+  ]
+ },
+ "related": {
+  "previous": "54f039f442d4e6b5744a9e7a655c0a0596985e87",
+  "next": "602e56470c83282c4654f97b0f5478ff1732b40e",
+  "epicFirst": "65dffaa9668923ae816eeaa5bce0901a958729b0",
+  "epicLast": "28962374658aba2757a5405dab6454616510b6b6",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 34,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/gateway/src/index.ts",
+   "mode": "100644",
+   "blob": "81c8e72c62487fe8482ce1b94d79d2c3c3b08260",
+   "previousBlob": null,
+   "added": 34,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

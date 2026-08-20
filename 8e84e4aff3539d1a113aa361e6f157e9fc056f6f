@@ -1,0 +1,93 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "8e84e4aff3539d1a113aa361e6f157e9fc056f6f",
+ "tree": "de6472a19fa19c6aa30f4c543ac658b4ca72aedd",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 33,
+  "childCount": 66,
+  "head": "28962374658aba2757a5405dab6454616510b6b6"
+ },
+ "atomic": {
+  "globalIndex": 358,
+  "globalCount": 845,
+  "purpose": "✨ feat(model): add ToolStream",
+  "type": "feat",
+  "kind": "module",
+  "scope": "model",
+  "component": "packages/model",
+  "unitKey": "ToolStream",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "4ab57e8ebfeb39f9547c31bb7f31b861e8521dd7",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [
+   "3c7d5e2fa7baca72bd497508f2d25d5b36dfc901",
+   "c1089df974a536e0ea97ead5078bac2d5bd7ffe8"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "4ab57e8ebfeb39f9547c31bb7f31b861e8521dd7",
+  "next": "f06aaf60478140cf15bcb2a0a695b6726362da5a",
+  "epicFirst": "65dffaa9668923ae816eeaa5bce0901a958729b0",
+  "epicLast": "28962374658aba2757a5405dab6454616510b6b6",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 235,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/model/src/ToolStream.ts",
+   "mode": "100644",
+   "blob": "4ff57bc2beccdf72dfb3dcbe9520f7008bd91dee",
+   "previousBlob": null,
+   "added": 149,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/test/ToolStream.test.ts",
+   "mode": "100644",
+   "blob": "16025e236c2baf89888ca14df0cd8f846fa33340",
+   "previousBlob": null,
+   "added": 86,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

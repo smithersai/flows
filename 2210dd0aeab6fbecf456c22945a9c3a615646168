@@ -1,0 +1,104 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "2210dd0aeab6fbecf456c22945a9c3a615646168",
+ "tree": "89d17abd0ce05608d7a46ded2b2a47da8355553a",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 5,
+  "childCount": 43,
+  "head": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9"
+ },
+ "atomic": {
+  "globalIndex": 287,
+  "globalCount": 845,
+  "purpose": "✨ feat(core): add Node",
+  "type": "feat",
+  "kind": "module",
+  "scope": "core",
+  "component": "packages/core",
+  "unitKey": "Node",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "289d6dd19d000ec4bb098660f031777efb65441c",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [
+   "289d6dd19d000ec4bb098660f031777efb65441c",
+   "637e81297bd46a960f5b1dd05495dec90730f908",
+   "e0780a78cd2150acaebeeeef617aa682ba801573"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "commit": "3b57deac5ef23a0e1e2fa660e6bcf9351049a95b"
+   },
+   {
+    "package": "@smthrs/crypto",
+    "commit": "3ac9a18fee84c753c34d31ae7baae150fa503fe6"
+   }
+  ]
+ },
+ "related": {
+  "previous": "289d6dd19d000ec4bb098660f031777efb65441c",
+  "next": "c50399d1bf1dbd2cc08815c9f6cf85f26f0a93ea",
+  "epicFirst": "f7a85bfa43ff3fa63e2ad6200bd2d4d7ec1397a2",
+  "epicLast": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 697,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/core/src/Node.ts",
+   "mode": "100644",
+   "blob": "f57f5c87d686f1b1dfd3668e45a3202e0f66812d",
+   "previousBlob": null,
+   "added": 341,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/core/test/Node.test.ts",
+   "mode": "100644",
+   "blob": "8fdde4fb0cd76c480ea03493b52111da8c42096a",
+   "previousBlob": null,
+   "added": 293,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/core/test/Node.types.test.ts",
+   "mode": "100644",
+   "blob": "f2bcd09ed0331b90aca720334a3e0cc26cb47308",
+   "previousBlob": null,
+   "added": 63,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

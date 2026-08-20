@@ -1,0 +1,116 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "2311214999642effd6d8730c4961d015c4b3ac57",
+ "tree": "4e7231c91da3062270ae52729553289eda8c6fe9",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 40,
+  "childCount": 96,
+  "head": "c93705a8b036d030082a6877bd6668709293285d"
+ },
+ "atomic": {
+  "globalIndex": 226,
+  "globalCount": 845,
+  "purpose": "✨ feat(sync): add the SyncPrincipal, BranchServer, RunCatalog modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "sync",
+  "component": "packages/sync",
+  "unitKey": "SyncPrincipal",
+  "mergedUnitKeys": [
+   "SyncPrincipal",
+   "BranchServer",
+   "RunCatalog"
+  ]
+ },
+ "dependencies": {
+  "parent": "3895698db29f26373906e7f07952c2116867ad3e",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "dd2b8e3a3c76b69d30c8fc5648dd92c41ba1d8c3",
+   "8ad10cf2613cb0d60bb349553991c28e1129c960",
+   "eaaea07a3c91fad820152b5ec73ba028efeed2cd",
+   "3895698db29f26373906e7f07952c2116867ad3e",
+   "0623ddac0035450f5d6b8123277e9a7a2286273e"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   }
+  ]
+ },
+ "related": {
+  "previous": "3895698db29f26373906e7f07952c2116867ad3e",
+  "next": "244111213aafa994c7d3a1bff32a6db1434d5703",
+  "epicFirst": "eec277e2e1bfd7b6ae08c5d31c63df081ea52207",
+  "epicLast": "c93705a8b036d030082a6877bd6668709293285d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 641,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/sync/src/SyncPrincipal.ts",
+   "mode": "100644",
+   "blob": "f408475187a4b9c3c5c6b71defe6b8308e68b130",
+   "previousBlob": null,
+   "added": 94,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/src/BranchServer.ts",
+   "mode": "100644",
+   "blob": "05101ad70c752f1897b0367fc09528caa094d241",
+   "previousBlob": null,
+   "added": 102,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/test/BranchServer.test.ts",
+   "mode": "100644",
+   "blob": "c3fa1dab729f48bcdc555e74af96619a78fa4b18",
+   "previousBlob": null,
+   "added": 350,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/sync/src/RunCatalog.ts",
+   "mode": "100644",
+   "blob": "04b625dd0f0ec3db0f259fd792709f19606abc1c",
+   "previousBlob": null,
+   "added": 95,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

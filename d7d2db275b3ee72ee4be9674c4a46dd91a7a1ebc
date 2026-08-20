@@ -1,0 +1,97 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "d7d2db275b3ee72ee4be9674c4a46dd91a7a1ebc",
+ "tree": "6e9b422f853f30eb47e7d5b0122fd3f92e7f50e4",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 37,
+  "childCount": 66,
+  "head": "28962374658aba2757a5405dab6454616510b6b6"
+ },
+ "atomic": {
+  "globalIndex": 362,
+  "globalCount": 845,
+  "purpose": "✨ feat(model): add OpenAIResponses",
+  "type": "feat",
+  "kind": "module",
+  "scope": "model",
+  "component": "packages/model",
+  "unitKey": "OpenAIResponses",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "f67be10ea2523bf2206e212ea3ce742b9d76f8eb",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [
+   "f67be10ea2523bf2206e212ea3ce742b9d76f8eb",
+   "4ab57e8ebfeb39f9547c31bb7f31b861e8521dd7",
+   "3c7d5e2fa7baca72bd497508f2d25d5b36dfc901",
+   "7fb5d5a75cf25b2e32c72cd5d9c2900ad58c40de",
+   "c1089df974a536e0ea97ead5078bac2d5bd7ffe8",
+   "8e84e4aff3539d1a113aa361e6f157e9fc056f6f"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "f67be10ea2523bf2206e212ea3ce742b9d76f8eb",
+  "next": "0deffd5347a30c03247ae0f9922b294e6f7b4fec",
+  "epicFirst": "65dffaa9668923ae816eeaa5bce0901a958729b0",
+  "epicLast": "28962374658aba2757a5405dab6454616510b6b6",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 1208,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/model/src/OpenAIResponses.ts",
+   "mode": "100644",
+   "blob": "7157a7801f04b0074c5e242e0f0eff03917d95a4",
+   "previousBlob": null,
+   "added": 635,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/test/OpenAIResponses.test.ts",
+   "mode": "100644",
+   "blob": "21256874a5bd4524801eb827f184844f0a778323",
+   "previousBlob": null,
+   "added": 573,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

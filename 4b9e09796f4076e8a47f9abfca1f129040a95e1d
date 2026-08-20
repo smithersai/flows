@@ -1,0 +1,142 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "4b9e09796f4076e8a47f9abfca1f129040a95e1d",
+ "tree": "3a61bbc671a771d8134bc295c68e05bb273ad06f",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 51,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 699,
+  "globalCount": 845,
+  "purpose": "📝 docs(ui): document honesty",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "ui",
+  "component": "apps/ui/canary-repros",
+  "unitKey": "honesty",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "6d473b387da3cb0d4c7ea07b0009e7e1419c3cac",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "6d473b387da3cb0d4c7ea07b0009e7e1419c3cac",
+  "next": "2f56ba17cccaf14e5e92fe27b75fdaeace9a5f2b",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 7,
+  "added": 657,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/honesty/22.6.md",
+   "mode": "100644",
+   "blob": "0ccf0643f0ce1e188214ee9af31f522815aaa668",
+   "previousBlob": null,
+   "added": 121,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/honesty/22.7.md",
+   "mode": "100644",
+   "blob": "324a3cf4ad2a01450412a5332cd37713baf8de8b",
+   "previousBlob": null,
+   "added": 87,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/honesty/23.4.md",
+   "mode": "100644",
+   "blob": "06e167a9258d6bf3e75073208778fbdd726863ee",
+   "previousBlob": null,
+   "added": 68,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/honesty/23.5.md",
+   "mode": "100644",
+   "blob": "cec2df6d7200d9974900521ea656cff90f8cd2ca",
+   "previousBlob": null,
+   "added": 86,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/honesty/24.1.md",
+   "mode": "100644",
+   "blob": "995e923adeac036ce2732367e4de7a75be04263c",
+   "previousBlob": null,
+   "added": 96,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/honesty/24.2.md",
+   "mode": "100644",
+   "blob": "0d54a559a6fc937e9a2de1616c1e0bc51a8c1e3d",
+   "previousBlob": null,
+   "added": 120,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/honesty/24.3.md",
+   "mode": "100644",
+   "blob": "858ec3dab67b4dab1cfbf659b4f6c4371a734bd4",
+   "previousBlob": null,
+   "added": 79,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

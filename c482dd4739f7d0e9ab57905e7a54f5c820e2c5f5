@@ -1,0 +1,95 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "c482dd4739f7d0e9ab57905e7a54f5c820e2c5f5",
+ "tree": "5aeae48eda5fc762cb393756e8ba7affa0b2f5c7",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 62,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 574,
+  "globalCount": 845,
+  "purpose": "✅ test(targets): cover targets (2/7)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "targets",
+  "component": "packages/targets/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "b51d2b767e9c4376652ce11fa95b93de9c0ff00d",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "b51d2b767e9c4376652ce11fa95b93de9c0ff00d",
+  "next": "462973e5a2dc590e610e0fc4de2da236067456b5",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 1206,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/targets/test/GeneratedRootFiles.test.ts",
+   "mode": "100644",
+   "blob": "ce3cb7d55cd7c4f5d75e6062f20be22a8501036b",
+   "previousBlob": null,
+   "added": 227,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/test/GithubAutomation.test.ts",
+   "mode": "100644",
+   "blob": "e0884534c9eb330e7a7adbad5374a85b4d11d915",
+   "previousBlob": null,
+   "added": 313,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/test/GithubCiGen.test.ts",
+   "mode": "100644",
+   "blob": "80021df0a5288d4c519a27a1b53ffc5f854039d2",
+   "previousBlob": null,
+   "added": 666,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

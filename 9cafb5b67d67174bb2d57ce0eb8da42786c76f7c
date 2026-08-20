@@ -1,0 +1,87 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "9cafb5b67d67174bb2d57ce0eb8da42786c76f7c",
+ "tree": "fe2d8ad1637828be4434fe62dfa1d3080b16fe30",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 82,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 730,
+  "globalCount": 845,
+  "purpose": "✅ test(ui): cover dev",
+  "type": "test",
+  "kind": "tests",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dev",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "987c4a25a202465de4dbf842c221a741845271a4",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "987c4a25a202465de4dbf842c221a741845271a4",
+  "next": "3c00a4e9a3f5313365d57834eeafb2b9008aef17",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 292,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/dev/AgentApi.test.ts",
+   "mode": "100644",
+   "blob": "7e2ff1da27e0d4b138e2bd8ddb552698f6689b63",
+   "previousBlob": null,
+   "added": 168,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/dev/AgentApiContext.test.ts",
+   "mode": "100644",
+   "blob": "712453693085f25a5892a78f043b9c9f806b938a",
+   "previousBlob": null,
+   "added": 124,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

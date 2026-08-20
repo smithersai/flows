@@ -1,0 +1,78 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "834003a11aa59c10d238877693fef1c39b0b4d7d",
+ "tree": "da45dc034cbdf665c5b33c6acb6d4ea12b3ffd7b",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 135,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 783,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the mainview/state module (1/5)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:mainview/state",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "fd9a4f96a0cceaa9b2e4d86948d2703ce24634bd",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "936580f83e9247b8d2c86c38a6c4ef634dde2411"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "fd9a4f96a0cceaa9b2e4d86948d2703ce24634bd",
+  "next": "f2f4ea0ef0875dbd9f3a02155990ec55c4bdc224",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 186,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/AgentTurnPolicy.ts",
+   "mode": "100644",
+   "blob": "1468c5c17a3a5ed6ab6988bd702441ce62a88abe",
+   "previousBlob": null,
+   "added": 186,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,83 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "1bdfdf41e188fb7ce6ecd8bb04bcf6deb6c913dd",
+ "tree": "d1ffe2ee85f6c86dcb6632abe3de614a63c1a9e4",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 19,
+  "childCount": 55,
+  "head": "9633d567508a5d82ee51d5ed34014e850f417731"
+ },
+ "atomic": {
+  "globalIndex": 35,
+  "globalCount": 845,
+  "purpose": "✨ feat(journal): add Consensus",
+  "type": "feat",
+  "kind": "module",
+  "scope": "journal",
+  "component": "packages/journal",
+  "unitKey": "Consensus",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "b6d56ab89992dca688a29a4f6745173e02707fd3",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [
+   "b6d56ab89992dca688a29a4f6745173e02707fd3"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   }
+  ]
+ },
+ "related": {
+  "previous": "b6d56ab89992dca688a29a4f6745173e02707fd3",
+  "next": "a0cfaf2c4979213d9909cab96af4d1ad55f2ca53",
+  "epicFirst": "0b1fe1d563a03d93618ff339540cb77a2ed44d4b",
+  "epicLast": "9633d567508a5d82ee51d5ed34014e850f417731",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 922,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/journal/src/Consensus.ts",
+   "mode": "100644",
+   "blob": "22b82fb278c9c101c0b13a338d750fd387743219",
+   "previousBlob": null,
+   "added": 635,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/journal/test/ConsensusConformance.ts",
+   "mode": "100644",
+   "blob": "fc6a7022a43e384bc91a518ca2d44100867f64dc",
+   "previousBlob": null,
+   "added": 287,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

@@ -1,0 +1,84 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "2ce76c5d90cd699180fea74b4adf6bfe90435312",
+ "tree": "e10834f2e6c822df1eeb6dd04473a9a294be7967",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 74,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 586,
+  "globalCount": 845,
+  "purpose": "📦 build(repo): add repo workspace configuration (1/3)",
+  "type": "build",
+  "kind": "scaffold",
+  "scope": "repo",
+  "component": "~root",
+  "unitKey": "~scaffold",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "4e027244acfb6a09f3f3eec78aac56686c2f1abb",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "4e027244acfb6a09f3f3eec78aac56686c2f1abb",
+  "next": "d08f9e91c44f5563965b8f38d05134c4fc7f080e",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 310,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "BUILD.ts",
+   "mode": "100644",
+   "blob": "f0781884b0135f11e7abc7367105fa60e26d721d",
+   "previousBlob": null,
+   "added": 201,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "eslint.jsdoc.js",
+   "mode": "100644",
+   "blob": "f72cd759d7a61de87a290e6a8337874e2aa9c8fc",
+   "previousBlob": null,
+   "added": 109,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  }
+ ]
+}

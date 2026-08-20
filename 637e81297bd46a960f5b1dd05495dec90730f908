@@ -1,0 +1,103 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "637e81297bd46a960f5b1dd05495dec90730f908",
+ "tree": "29e1698963d5831d1d3bcff6a7b04938edae85c2",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 2,
+  "childCount": 43,
+  "head": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9"
+ },
+ "atomic": {
+  "globalIndex": 284,
+  "globalCount": 845,
+  "purpose": "✨ feat(core): add the sha256, Effects modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "core",
+  "component": "packages/core",
+  "unitKey": "internal/sha256",
+  "mergedUnitKeys": [
+   "internal/sha256",
+   "Effects"
+  ]
+ },
+ "dependencies": {
+  "parent": "f7a85bfa43ff3fa63e2ad6200bd2d4d7ec1397a2",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "commit": "3b57deac5ef23a0e1e2fa660e6bcf9351049a95b"
+   },
+   {
+    "package": "@smthrs/crypto",
+    "commit": "3ac9a18fee84c753c34d31ae7baae150fa503fe6"
+   }
+  ]
+ },
+ "related": {
+  "previous": "f7a85bfa43ff3fa63e2ad6200bd2d4d7ec1397a2",
+  "next": "e0780a78cd2150acaebeeeef617aa682ba801573",
+  "epicFirst": "f7a85bfa43ff3fa63e2ad6200bd2d4d7ec1397a2",
+  "epicLast": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 422,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/core/src/internal/sha256.ts",
+   "mode": "100644",
+   "blob": "ef12786c2445b4948565b02176a6cf54c8e82688",
+   "previousBlob": null,
+   "added": 175,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/core/src/Effects.ts",
+   "mode": "100644",
+   "blob": "442a40a3c4c6db90c5db0a71b42cf02917f7f666",
+   "previousBlob": null,
+   "added": 152,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/core/test/Effects.test.ts",
+   "mode": "100644",
+   "blob": "efcd0365d734d7f6306bb7c4f2da8797391e4e17",
+   "previousBlob": null,
+   "added": 95,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

@@ -1,0 +1,122 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "0357a915e4b367fb773900475496b920823d37ff",
+ "tree": "79f9d5e0cc10e0c9fe10f939f84b0c3a50c12156",
+ "epic": {
+  "index": 9,
+  "id": "agent",
+  "name": "Harness, chain, tools and CLI",
+  "sourceCommit": "a8caaa3dc45df0c14d6b10d0db9faf8a7ea7e542",
+  "sourceSubject": "✨ feat(agent): compose the harness, chain, tools, and CLI",
+  "childIndex": 2,
+  "childCount": 85,
+  "head": "012fadccb450058987918de5ef55d315135be71d"
+ },
+ "atomic": {
+  "globalIndex": 393,
+  "globalCount": 845,
+  "purpose": "✨ feat(harness): add Cell",
+  "type": "feat",
+  "kind": "module",
+  "scope": "harness",
+  "component": "packages/harness",
+  "unitKey": "Cell",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "f86ed77ef384765a9a6a60ef7e3b84bfa04b8ac7",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   },
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   },
+   {
+    "package": "@smthrs/model",
+    "commit": "5d7f346b5c7d5b6d6470e58b2aed91e31cba613a"
+   },
+   {
+    "package": "@smthrs/notifications",
+    "commit": "1fb5a051f5ccc772c2e8cce3b8a29472c51afd48"
+   },
+   {
+    "package": "@smthrs/registry",
+    "commit": "1ae2f3b78daa4ba33deb87bfe057eee002727dcd"
+   }
+  ]
+ },
+ "related": {
+  "previous": "f86ed77ef384765a9a6a60ef7e3b84bfa04b8ac7",
+  "next": "3a524e646c577db63899b2556ecb4e920b269539",
+  "epicFirst": "f86ed77ef384765a9a6a60ef7e3b84bfa04b8ac7",
+  "epicLast": "012fadccb450058987918de5ef55d315135be71d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 1011,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/harness/src/Cell.ts",
+   "mode": "100644",
+   "blob": "e82c6d600c8e4f249017ebdcd8aa1eaf92b34082",
+   "previousBlob": null,
+   "added": 561,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/harness/test/Cell.test.ts",
+   "mode": "100644",
+   "blob": "0882b3b785a5a5591fd7a9cb2943b285860a9362",
+   "previousBlob": null,
+   "added": 293,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/harness/test/CellPrompt.test.ts",
+   "mode": "100644",
+   "blob": "1e4b0662a6a6b971f667e5d0b0a0a2a2fb8aa7c6",
+   "previousBlob": null,
+   "added": 157,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

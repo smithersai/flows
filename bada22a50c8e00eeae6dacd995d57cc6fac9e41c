@@ -1,0 +1,113 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "bada22a50c8e00eeae6dacd995d57cc6fac9e41c",
+ "tree": "6bf2579f2c8fbafda3e661dc30113d3bdcb88e14",
+ "epic": {
+  "index": 9,
+  "id": "agent",
+  "name": "Harness, chain, tools and CLI",
+  "sourceCommit": "a8caaa3dc45df0c14d6b10d0db9faf8a7ea7e542",
+  "sourceSubject": "✨ feat(agent): compose the harness, chain, tools, and CLI",
+  "childIndex": 12,
+  "childCount": 85,
+  "head": "012fadccb450058987918de5ef55d315135be71d"
+ },
+ "atomic": {
+  "globalIndex": 403,
+  "globalCount": 845,
+  "purpose": "✨ feat(harness): add Steering",
+  "type": "feat",
+  "kind": "module",
+  "scope": "harness",
+  "component": "packages/harness",
+  "unitKey": "Steering",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "4bd432f8e77602c18df0e7f1525365a98683dd67",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control"
+  ],
+  "sourceImports": [
+   "3a524e646c577db63899b2556ecb4e920b269539"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   },
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   },
+   {
+    "package": "@smthrs/model",
+    "commit": "5d7f346b5c7d5b6d6470e58b2aed91e31cba613a"
+   },
+   {
+    "package": "@smthrs/notifications",
+    "commit": "1fb5a051f5ccc772c2e8cce3b8a29472c51afd48"
+   },
+   {
+    "package": "@smthrs/registry",
+    "commit": "1ae2f3b78daa4ba33deb87bfe057eee002727dcd"
+   }
+  ]
+ },
+ "related": {
+  "previous": "4bd432f8e77602c18df0e7f1525365a98683dd67",
+  "next": "6bcf6cd51903a4d05eb1521eefcc295cf5b32c1f",
+  "epicFirst": "f86ed77ef384765a9a6a60ef7e3b84bfa04b8ac7",
+  "epicLast": "012fadccb450058987918de5ef55d315135be71d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 788,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/harness/src/Steering.ts",
+   "mode": "100644",
+   "blob": "c3455416019bca016c436c4444c7f104c7d30b84",
+   "previousBlob": null,
+   "added": 384,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/harness/test/Steering.test.ts",
+   "mode": "100644",
+   "blob": "139b0389aed0a8689d7c35bd9d4d7cd4467952a8",
+   "previousBlob": null,
+   "added": 404,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

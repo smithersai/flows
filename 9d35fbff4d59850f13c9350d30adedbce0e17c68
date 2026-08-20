@@ -1,0 +1,62 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "9d35fbff4d59850f13c9350d30adedbce0e17c68",
+ "tree": "713adf6698d87bc8727a2545aaa52569573fba87",
+ "epic": {
+  "index": 1,
+  "id": "repo",
+  "name": "Workspace foundation",
+  "sourceCommit": "1d2d737dde97656fff8e9c1f31704f62e76a54c9",
+  "sourceSubject": "🧹 chore(repo): establish the workspace foundation",
+  "childIndex": 2,
+  "childCount": 2,
+  "head": "9d35fbff4d59850f13c9350d30adedbce0e17c68"
+ },
+ "atomic": {
+  "globalIndex": 2,
+  "globalCount": 845,
+  "purpose": "📝 docs(repo): document repo",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "repo",
+  "component": "~root",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "77ecb27886e902c7d3717c452b984b4222156d16",
+  "epicPredecessors": [],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "77ecb27886e902c7d3717c452b984b4222156d16",
+  "next": "c0c561bff5109eb97831d6eda26e84d1d4aa5583",
+  "epicFirst": "77ecb27886e902c7d3717c452b984b4222156d16",
+  "epicLast": "9d35fbff4d59850f13c9350d30adedbce0e17c68",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 32,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "README.md",
+   "mode": "100644",
+   "blob": "2ebe4c904bd4931876f80f5a88016df1bce72f57",
+   "previousBlob": null,
+   "added": 32,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

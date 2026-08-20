@@ -1,0 +1,74 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "7ac6c66e98d0371ae2b1457f100997519f8b12b1",
+ "tree": "98bf3f07c014da354863da31a6b30b9cdfa4402f",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 36,
+  "childCount": 55,
+  "head": "9633d567508a5d82ee51d5ed34014e850f417731"
+ },
+ "atomic": {
+  "globalIndex": 52,
+  "globalCount": 845,
+  "purpose": "✨ feat(run-store): add AttemptStore",
+  "type": "feat",
+  "kind": "module",
+  "scope": "run-store",
+  "component": "packages/run-store",
+  "unitKey": "AttemptStore",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "c450d42643088ef249103a473f4f4fb138ff8d0a",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   },
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   }
+  ]
+ },
+ "related": {
+  "previous": "c450d42643088ef249103a473f4f4fb138ff8d0a",
+  "next": "c1554e4e46551687558a2729b035e4b813ea7ae9",
+  "epicFirst": "0b1fe1d563a03d93618ff339540cb77a2ed44d4b",
+  "epicLast": "9633d567508a5d82ee51d5ed34014e850f417731",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 835,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/run-store/src/AttemptStore.ts",
+   "mode": "100644",
+   "blob": "07b228df0c0a552ef9e4d137dd91f58e682f02a1",
+   "previousBlob": null,
+   "added": 835,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

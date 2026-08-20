@@ -1,0 +1,102 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "43e3cae3b6ddc34bb556040c0b78e1bb6985c147",
+ "tree": "559fbc1b7991d6552526d5459bac1abd02188784",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 11,
+  "childCount": 55,
+  "head": "9633d567508a5d82ee51d5ed34014e850f417731"
+ },
+ "atomic": {
+  "globalIndex": 27,
+  "globalCount": 845,
+  "purpose": "✨ feat(database): add the node, DatabaseMetrics, WriteRetry modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "database",
+  "component": "packages/database",
+  "unitKey": "dir:node",
+  "mergedUnitKeys": [
+   "dir:node",
+   "DatabaseMetrics",
+   "internal/WriteRetry"
+  ]
+ },
+ "dependencies": {
+  "parent": "b7ebc246af48ac84aa21898999ffb2322d968457",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "b7ebc246af48ac84aa21898999ffb2322d968457",
+  "next": "17f70993343c366b87395a6670441e2dd55a4162",
+  "epicFirst": "0b1fe1d563a03d93618ff339540cb77a2ed44d4b",
+  "epicLast": "9633d567508a5d82ee51d5ed34014e850f417731",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 374,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/database/src/node/NodeDatabase.ts",
+   "mode": "100644",
+   "blob": "b2aa8c0d0d85a802c947406102fc48daf4097029",
+   "previousBlob": null,
+   "added": 113,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/database/src/DatabaseMetrics.ts",
+   "mode": "100644",
+   "blob": "129d0a1a0b4c09629c181111d6b22d39681ac54a",
+   "previousBlob": null,
+   "added": 28,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/database/test/DatabaseMetrics.test.ts",
+   "mode": "100644",
+   "blob": "637c4bf4f4ae463420b146e8e7b165c8a4b6d1e3",
+   "previousBlob": null,
+   "added": 77,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/database/src/internal/WriteRetry.ts",
+   "mode": "100644",
+   "blob": "848a9a7554e04a77392c286e51028fa3ee1b521c",
+   "previousBlob": null,
+   "added": 156,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

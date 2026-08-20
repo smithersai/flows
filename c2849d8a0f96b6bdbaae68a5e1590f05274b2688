@@ -1,0 +1,93 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "c2849d8a0f96b6bdbaae68a5e1590f05274b2688",
+ "tree": "a511b3846d7003e0937c0c9b22cfc16f24f2282b",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 53,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 565,
+  "globalCount": 845,
+  "purpose": "✨ feat(targets): add the Install, JsrPublish modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "targets",
+  "component": "packages/targets/src",
+  "unitKey": "Install",
+  "mergedUnitKeys": [
+   "Install",
+   "JsrPublish"
+  ]
+ },
+ "dependencies": {
+  "parent": "df8777b0c0a925f935c876db6bf98dc9fcf66fc7",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [
+   "efd1f69d0dbcd437153aea782a5404079bcb96d8",
+   "61a0cc4fd2023b48395f5c5b9d8d22336a0fdf99",
+   "520e3aecadaae18423e2c74acf6d432db9b5872b",
+   "6752d6ceee921a01244d90d269a612ef1b74fd14",
+   "cafb6ee211054a8f7bf1229774fbb9e909f9b007"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "df8777b0c0a925f935c876db6bf98dc9fcf66fc7",
+  "next": "14c8d690079c97c7922e1168ecf6a4cccdb99408",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 198,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/targets/src/Install.ts",
+   "mode": "100644",
+   "blob": "1215fd80c38ef512043bca7dc6bdb6841402feed",
+   "previousBlob": null,
+   "added": 118,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/src/JsrPublish.ts",
+   "mode": "100644",
+   "blob": "df33832104a0a6a13f37fa2a54d5491280b12383",
+   "previousBlob": null,
+   "added": 80,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

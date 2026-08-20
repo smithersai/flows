@@ -1,0 +1,75 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "b12a49d1c0517cd9ebfda21d126041c2bfdec95f",
+ "tree": "8093a317e12fccd13bb45904ac6beb6668006f59",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 4,
+  "childCount": 54,
+  "head": "8f2310ef99183d31a7cb6a91238af374d246498b"
+ },
+ "atomic": {
+  "globalIndex": 75,
+  "globalCount": 845,
+  "purpose": "✅ test(keys): cover keys",
+  "type": "test",
+  "kind": "tests",
+  "scope": "keys",
+  "component": "packages/keys",
+  "unitKey": "test",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "e145b0e5dfced2a00c300f9b139b14f6820bf771",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "commit": "3b57deac5ef23a0e1e2fa660e6bcf9351049a95b"
+   },
+   {
+    "package": "@smthrs/crypto",
+    "commit": "3ac9a18fee84c753c34d31ae7baae150fa503fe6"
+   }
+  ]
+ },
+ "related": {
+  "previous": "e145b0e5dfced2a00c300f9b139b14f6820bf771",
+  "next": "0f28c8762a24637cf7c2f46e72818e6679e69a80",
+  "epicFirst": "8d222879944a121d441c2c37d5ed2b7943a88b54",
+  "epicLast": "8f2310ef99183d31a7cb6a91238af374d246498b",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 155,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/keys/test/Purity.test.ts",
+   "mode": "100644",
+   "blob": "e1b0ddeca5e2c5925c59f4d67077eba149ecd11e",
+   "previousBlob": null,
+   "added": 155,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

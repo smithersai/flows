@@ -1,0 +1,115 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "595424fd9a2135d1a511b6aad01599f4232dbc00",
+ "tree": "46b48d0af0f1c9bd1e8a4a9b68e3e1d44330c0b0",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 119,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 767,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the suites modules (7/11)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/e2e",
+  "unitKey": "dir:suites",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "c47d29e29c1157dd4f9414b01927020c18ad8a8a",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "53a74dc269f5c72c65e52e9ade4074d5a535a4ee",
+   "7982cd350eb2156b8e994448fc24c6ca5ef6706b",
+   "7bb169599c6fa8e1c6d918ca7b73f966a7afc1a6",
+   "c3d19605a3b40f86461e4e72fe4bcf82fb4c6acd",
+   "07fec5329e44178598f92873b7c74f6b442571c9"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "c47d29e29c1157dd4f9414b01927020c18ad8a8a",
+  "next": "8243fcc7da4102d39c15f0d5cb8c449498058aa9",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 1277,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/suites/firstrun-copy.e2e.ts",
+   "mode": "100644",
+   "blob": "5351ed504ec2132d42e31094fdbadb7e6fbdebd6",
+   "previousBlob": null,
+   "added": 358,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/suites/github-pane.e2e.ts",
+   "mode": "100644",
+   "blob": "2b6c68efe9de296ea90accf96cba6e0ec4bd38a5",
+   "previousBlob": null,
+   "added": 312,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/suites/harness-selftest.e2e.ts",
+   "mode": "100644",
+   "blob": "bfaa249e788b60163a7b332fa4c239e3a936148f",
+   "previousBlob": null,
+   "added": 120,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/suites/honesty.e2e.ts",
+   "mode": "100644",
+   "blob": "78a982711426554851cadf6bf11c6fcf3c286e11",
+   "previousBlob": null,
+   "added": 487,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

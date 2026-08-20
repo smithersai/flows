@@ -1,0 +1,98 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "0b9820c557b0ad82704571cd392d4446b125c16e",
+ "tree": "a2570855851d982dcf071153d2b428d50538c838",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 47,
+  "childCount": 55,
+  "head": "9633d567508a5d82ee51d5ed34014e850f417731"
+ },
+ "atomic": {
+  "globalIndex": 63,
+  "globalCount": 845,
+  "purpose": "✨ feat(step-cache): add CacheStore",
+  "type": "feat",
+  "kind": "module",
+  "scope": "step-cache",
+  "component": "packages/step-cache",
+  "unitKey": "CacheStore",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "93c6ab9119f1c0ed263d34ecc05e81fe19a42a8d",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [
+   "93c6ab9119f1c0ed263d34ecc05e81fe19a42a8d"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "commit": "3b57deac5ef23a0e1e2fa660e6bcf9351049a95b"
+   },
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   }
+  ]
+ },
+ "related": {
+  "previous": "93c6ab9119f1c0ed263d34ecc05e81fe19a42a8d",
+  "next": "ad382f70b2c672c6eb57f057970598f647b6400c",
+  "epicFirst": "0b1fe1d563a03d93618ff339540cb77a2ed44d4b",
+  "epicLast": "9633d567508a5d82ee51d5ed34014e850f417731",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 1296,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/step-cache/src/CacheStore.ts",
+   "mode": "100644",
+   "blob": "a5e1da3f71c4d945624b1eb33d3f214d2bb94c4c",
+   "previousBlob": null,
+   "added": 463,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/step-cache/test/CacheStore.test.ts",
+   "mode": "100644",
+   "blob": "39059cedd944f26ba52639430bdf23d6045499dd",
+   "previousBlob": null,
+   "added": 574,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/step-cache/test/CacheStoreDurable.test.ts",
+   "mode": "100644",
+   "blob": "6bcc944f8500ac0374f0919a7be2f588f14e1da4",
+   "previousBlob": null,
+   "added": 259,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

@@ -1,0 +1,108 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "cdcfd7442f78b542081b07920573a40c92b4bace",
+ "tree": "9eff447976bb59b625911f5ed9954b99c793ef0a",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 108,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 756,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the ui modules (5/6)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/.smithers",
+  "unitKey": "dir:ui",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "eb53289a25fc2ec66641afbdfde9a86b69894bc6",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "039560274bb4a4c0358fa6b2ef654ea4e018583e",
+   "b9977998620d655035132392609d9a999ef7385b",
+   "eb53289a25fc2ec66641afbdfde9a86b69894bc6",
+   "32e46c4c2dddca0dca123cfca056de073ef89481"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "commit": "fec516964e3e6a618aace55755a6d0befd72daa8"
+   }
+  ]
+ },
+ "related": {
+  "previous": "eb53289a25fc2ec66641afbdfde9a86b69894bc6",
+  "next": "16e45c3929a4ec0d1c0830c241d3293151b44f25",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 1125,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/ui/docs-driven-development.tsx",
+   "mode": "100644",
+   "blob": "001b970aa800dbc16e0ce722f184d04069f83a30",
+   "previousBlob": null,
+   "added": 972,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/ui/production-readiness-swarm.tsx",
+   "mode": "100644",
+   "blob": "a662b3711e722f04cf9ef6ec9bc387a6a05b8773",
+   "previousBlob": null,
+   "added": 131,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/ui/share-pack.tsx",
+   "mode": "100644",
+   "blob": "25c5f53803c139d32a66dd0267cfc56fae8d8f04",
+   "previousBlob": null,
+   "added": 22,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

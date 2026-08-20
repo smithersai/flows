@@ -1,0 +1,66 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a8d4aec45c9574e877a7c673a68b2a08cc19e448",
+ "tree": "a42749161266da816398a29205df58fd6c8322d3",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 25,
+  "childCount": 54,
+  "head": "8f2310ef99183d31a7cb6a91238af374d246498b"
+ },
+ "atomic": {
+  "globalIndex": 96,
+  "globalCount": 845,
+  "purpose": "✅ test(flow): cover flow (4/6)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "flow",
+  "component": "packages/flow/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "be7149fa0e5db0e0f0ffaabfbc16458afefd5f89",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "be7149fa0e5db0e0f0ffaabfbc16458afefd5f89",
+  "next": "ce03df99f9e4b2b7542c03ef2789cc7f7b778393",
+  "epicFirst": "8d222879944a121d441c2c37d5ed2b7943a88b54",
+  "epicLast": "8f2310ef99183d31a7cb6a91238af374d246498b",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 800,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/flow/test/Graph.test.ts",
+   "mode": "100644",
+   "blob": "cafb9576f2164e5128f9f7ebc20d95f83ba10080",
+   "previousBlob": null,
+   "added": 800,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

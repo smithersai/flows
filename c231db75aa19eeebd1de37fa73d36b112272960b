@@ -1,0 +1,100 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "c231db75aa19eeebd1de37fa73d36b112272960b",
+ "tree": "53847016fee2693c83d5ae0f634027378104ea55",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 9,
+  "childCount": 61,
+  "head": "a5193915fd7f1bc7634e32c28838552e883641db"
+ },
+ "atomic": {
+  "globalIndex": 134,
+  "globalCount": 845,
+  "purpose": "✨ feat(jj): add the node, bun, wasm modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "jj",
+  "component": "packages/jj",
+  "unitKey": "dir:node",
+  "mergedUnitKeys": [
+   "dir:node",
+   "dir:bun",
+   "dir:wasm"
+  ]
+ },
+ "dependencies": {
+  "parent": "28618c413db1eba7c7d7293f51e4dd00f486b883",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [
+   "eb11fb20f82fb91bc18cfb8ee00fc665ff0f5f4f"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   }
+  ]
+ },
+ "related": {
+  "previous": "28618c413db1eba7c7d7293f51e4dd00f486b883",
+  "next": "a67499b875ddce7aa9fe4a7cc5414fc0ab9eb398",
+  "epicFirst": "5037300288116821b95e1046a67ca324243eeeeb",
+  "epicLast": "a5193915fd7f1bc7634e32c28838552e883641db",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 146,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/jj/src/node/NodeJj.ts",
+   "mode": "100644",
+   "blob": "48d363a2a4cc3c97833f48f0806c10ca098fce68",
+   "previousBlob": null,
+   "added": 125,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/jj/src/bun/BunJj.ts",
+   "mode": "100644",
+   "blob": "eb6fd0a1be59b4374956dae6e39f970095a5ca14",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/jj/wasm/flows_jj.wasm",
+   "mode": "100755",
+   "blob": "bc3c9f5df5a05fcec2b5ea1319313eb942cd05a0",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  }
+ ]
+}

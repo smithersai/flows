@@ -1,0 +1,109 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "d49c9f4c00237cc485175099f6f627b1bc9e190f",
+ "tree": "53718d019595d1f7311ea3fe7ee1a362a7311c0a",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 85,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 597,
+  "globalCount": 845,
+  "purpose": "✨ feat(build-cli): add Workspace",
+  "type": "feat",
+  "kind": "module",
+  "scope": "build-cli",
+  "component": "packages/build-cli",
+  "unitKey": "Workspace",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "fefabbd3af081906fdcb4539c6aeef5640b27c3d",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [
+   "fefabbd3af081906fdcb4539c6aeef5640b27c3d",
+   "f4817599cf9e7b6906d82ba5f2902fb8cd9492b8"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "commit": "3b57deac5ef23a0e1e2fa660e6bcf9351049a95b"
+   },
+   {
+    "package": "@smthrs/crypto",
+    "commit": "3ac9a18fee84c753c34d31ae7baae150fa503fe6"
+   },
+   {
+    "package": "@smthrs/engine",
+    "commit": "b17af994607bc2ef084b62d75c0b2509f8b56d23"
+   },
+   {
+    "package": "@smthrs/flow",
+    "commit": "8f2310ef99183d31a7cb6a91238af374d246498b"
+   },
+   {
+    "package": "@smthrs/keys",
+    "commit": "e145b0e5dfced2a00c300f9b139b14f6820bf771"
+   },
+   {
+    "package": "@smthrs/plan",
+    "commit": "a6c062c1ea8185f0a2b743039e577306a8ad4a47"
+   },
+   {
+    "package": "@smthrs/build",
+    "commit": "5bf1e298eb942dbd7a992794dad1bb0981ae7613"
+   },
+   {
+    "package": "@smthrs/targets",
+    "commit": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+   }
+  ]
+ },
+ "related": {
+  "previous": "fefabbd3af081906fdcb4539c6aeef5640b27c3d",
+  "next": "4ef100d3a1f22af2133ec3269f8b817ea78fe121",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 1374,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build-cli/src/Workspace.ts",
+   "mode": "100644",
+   "blob": "fe0b611078167bf35e9fc739b86b880a90f4da1e",
+   "previousBlob": null,
+   "added": 1374,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

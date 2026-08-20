@@ -1,0 +1,111 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "ebb4a43d1093ac19f5104f5fa13ddc2f55ca7981",
+ "tree": "eaa3f6db0ac82c2dc1cdbfcca387850024d2eb08",
+ "epic": {
+  "index": 13,
+  "id": "server",
+  "name": "Shared application contracts and worker backend",
+  "sourceCommit": "5e1bcec6b1db3f2e990cb2b79bec0050dfc34ba3",
+  "sourceSubject": "✨ feat(server): add shared application contracts and worker backend",
+  "childIndex": 19,
+  "childCount": 20,
+  "head": "b02e63ed129878a014ee9484e2d27a74aba94be1"
+ },
+ "atomic": {
+  "globalIndex": 647,
+  "globalCount": 845,
+  "purpose": "✨ feat(server): add the scripts/canary modules (2/3)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "server",
+  "component": "apps/server",
+  "unitKey": "dir:scripts/canary",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "bd6d79807e01a7dd7c09b8a1cd62751f1d0f9ceb",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples"
+  ],
+  "sourceImports": [
+   "2c25981c24aef87a1fdfa30d6bffe1fb102ab93e",
+   "b02e63ed129878a014ee9484e2d27a74aba94be1"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "bd6d79807e01a7dd7c09b8a1cd62751f1d0f9ceb",
+  "next": "b02e63ed129878a014ee9484e2d27a74aba94be1",
+  "epicFirst": "210032b4effd3e4b5015806fab6679f7153e0fef",
+  "epicLast": "b02e63ed129878a014ee9484e2d27a74aba94be1",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 1372,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/server/scripts/canary/uptime-checks.ts",
+   "mode": "100644",
+   "blob": "e1adf9ce7f271aa06ae824c396d353f881fb1ae1",
+   "previousBlob": null,
+   "added": 763,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/server/scripts/canary/uptime-probe.ts",
+   "mode": "100644",
+   "blob": "8b11cbd86f98adb2353973b57883aeb386334a15",
+   "previousBlob": null,
+   "added": 108,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/server/scripts/canary/uptime-report.ts",
+   "mode": "100644",
+   "blob": "a368aea2e09b1a1d8e62b989b2def214dcbf063d",
+   "previousBlob": null,
+   "added": 78,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/server/scripts/canary/workers-health.ts",
+   "mode": "100644",
+   "blob": "ee3bb47535e2065ad7c347b65cff2e07dfc3242e",
+   "previousBlob": null,
+   "added": 423,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

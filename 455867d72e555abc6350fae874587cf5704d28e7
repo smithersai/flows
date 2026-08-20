@@ -1,0 +1,149 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "455867d72e555abc6350fae874587cf5704d28e7",
+ "tree": "c8f9ca08740b7a235f2c1ca98a8c12b7f56a3f14",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 59,
+  "childCount": 96,
+  "head": "c93705a8b036d030082a6877bd6668709293285d"
+ },
+ "atomic": {
+  "globalIndex": 245,
+  "globalCount": 845,
+  "purpose": "✨ feat(engine-store): add the internal modules (2/5)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "engine-store",
+  "component": "packages/engine-store/src",
+  "unitKey": "dir:internal",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "9123f49c124e0267fbe38a2cc90282ad1bccc0c2",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "b99e4ffd9a87baf764aace571008b88ef841e23d",
+   "932c886e664f4fc8b9b579105ddfc77122c755a9",
+   "1b2d917f9299e104d701a5e38b74cedd19846579"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "9123f49c124e0267fbe38a2cc90282ad1bccc0c2",
+  "next": "4e56bebed3471482be52aee7722842127632a620",
+  "epicFirst": "eec277e2e1bfd7b6ae08c5d31c63df081ea52207",
+  "epicLast": "c93705a8b036d030082a6877bd6668709293285d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 8,
+  "added": 1478,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/internal/AttemptAdmission.ts",
+   "mode": "100644",
+   "blob": "8622d26a63c36409c77f50a944452261ec4f526c",
+   "previousBlob": null,
+   "added": 79,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/internal/AttemptProbe.ts",
+   "mode": "100644",
+   "blob": "79dfa4a1df0f15ec2704c42aa7157612c4050307",
+   "previousBlob": null,
+   "added": 91,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/internal/CachePublication.ts",
+   "mode": "100644",
+   "blob": "98bfea85a862881e78a717dee4250044862bde76",
+   "previousBlob": null,
+   "added": 157,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/internal/DeferredPersistence.ts",
+   "mode": "100644",
+   "blob": "7ebeea569047a93cdd27819563980cb65012d528",
+   "previousBlob": null,
+   "added": 363,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/internal/EffectRecords.ts",
+   "mode": "100644",
+   "blob": "9a7d1018ccc1cc94e88b089114dfb796c0818221",
+   "previousBlob": null,
+   "added": 137,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/internal/EngineStateSchema.ts",
+   "mode": "100644",
+   "blob": "3832dffc5d995965d43dcb48f9b97de071c3999b",
+   "previousBlob": null,
+   "added": 135,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/internal/FileEnumeration.ts",
+   "mode": "100644",
+   "blob": "6c270fd975f932015591865b7053cc919ed0315f",
+   "previousBlob": null,
+   "added": 155,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/internal/JournalRecords.ts",
+   "mode": "100644",
+   "blob": "01efb2215e7272bc8f8b41fbd701cfb2d602f93b",
+   "previousBlob": null,
+   "added": 361,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

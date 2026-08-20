@@ -1,0 +1,111 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "1ab8af522880a27e005a55bb4aad0677b1de7d30",
+ "tree": "9b495fd525eaa0f1253f138015b392ff3b250abb",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 22,
+  "childCount": 43,
+  "head": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9"
+ },
+ "atomic": {
+  "globalIndex": 304,
+  "globalCount": 845,
+  "purpose": "✅ test(registry): cover registry",
+  "type": "test",
+  "kind": "tests",
+  "scope": "registry",
+  "component": "packages/registry",
+  "unitKey": "test",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "1ae2f3b78daa4ba33deb87bfe057eee002727dcd",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "1ae2f3b78daa4ba33deb87bfe057eee002727dcd",
+  "next": "747d0814f6c979f865fb1cd1c0563e21a53a0db5",
+  "epicFirst": "f7a85bfa43ff3fa63e2ad6200bd2d4d7ec1397a2",
+  "epicLast": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 888,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/registry/test/Artifacts.test.ts",
+   "mode": "100644",
+   "blob": "1469ac16ef35072664d08ea798104821b8a77650",
+   "previousBlob": null,
+   "added": 16,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/registry/test/Skill.test.ts",
+   "mode": "100644",
+   "blob": "da5f43344dbd6bcd7defccfbdcd82124983a6f76",
+   "previousBlob": null,
+   "added": 144,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/registry/test/discovery-filesystem.test.ts",
+   "mode": "100644",
+   "blob": "629bd12bf9580447c31af5a2e0386733bd5a5fbe",
+   "previousBlob": null,
+   "added": 537,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/registry/test/errors-descriptor.test.ts",
+   "mode": "100644",
+   "blob": "0e2cfca2f0d1ca9a6c6f766917ae8e42a301946a",
+   "previousBlob": null,
+   "added": 191,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

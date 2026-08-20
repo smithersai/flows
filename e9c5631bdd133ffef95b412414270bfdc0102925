@@ -1,0 +1,139 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "e9c5631bdd133ffef95b412414270bfdc0102925",
+ "tree": "67169e49d809a871e515026dc626e85b587df065",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 66,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 578,
+  "globalCount": 845,
+  "purpose": "✅ test(targets): cover targets (6/7)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "targets",
+  "component": "packages/targets/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "3d7e112975c2b32c3c98cd5d7c2386b19eb08530",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "3d7e112975c2b32c3c98cd5d7c2386b19eb08530",
+  "next": "56a0c24bb89be703d224363d0ef4ab79e1844a62",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 7,
+  "added": 1480,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/targets/test/Secret.test.ts",
+   "mode": "100644",
+   "blob": "7bec2147e43f9689dfad0d6f1d7b2d0537817cfa",
+   "previousBlob": null,
+   "added": 315,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/test/Smithers.test.ts",
+   "mode": "100644",
+   "blob": "ab00e166b1c59ec4586962eed166b5791ccd693d",
+   "previousBlob": null,
+   "added": 58,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/test/Target.test.ts",
+   "mode": "100644",
+   "blob": "13c745ab562b3b1cfe652e4a1cdb1e88e88ede3b",
+   "previousBlob": null,
+   "added": 161,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/test/ToolBuild.test.ts",
+   "mode": "100644",
+   "blob": "92cc7a23e6a0dc6c4e908cf7f27f9389469e468f",
+   "previousBlob": null,
+   "added": 295,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/test/ToolBuildCapture.test.ts",
+   "mode": "100644",
+   "blob": "38fbd33e17f721472cddb3496c895f13e3ce9602",
+   "previousBlob": null,
+   "added": 594,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/test/Toolchain.test.ts",
+   "mode": "100644",
+   "blob": "08ef9926c5d385d0aee5a840e48eda7b5b2ada9c",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/test/ToolRun.test.ts",
+   "mode": "100644",
+   "blob": "d1c9db73e85efc003b239de9ee565f33d1e4bd65",
+   "previousBlob": null,
+   "added": 57,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

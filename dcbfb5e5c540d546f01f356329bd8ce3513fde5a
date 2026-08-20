@@ -1,0 +1,113 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "dcbfb5e5c540d546f01f356329bd8ce3513fde5a",
+ "tree": "f521e43f25560e64cb0b247b208c38016f2cbe38",
+ "epic": {
+  "index": 15,
+  "id": "tui",
+  "name": "Terminal application",
+  "sourceCommit": "ca5777391956c8a52c077feff63d7e5f4c84896a",
+  "sourceSubject": "✨ feat(tui): add the terminal application",
+  "childIndex": 6,
+  "childCount": 7,
+  "head": "bf2d85b5e202b9f23ce0675d93001594e672969b"
+ },
+ "atomic": {
+  "globalIndex": 801,
+  "globalCount": 845,
+  "purpose": "✅ test(tui): cover state, ui",
+  "type": "test",
+  "kind": "tests",
+  "scope": "tui",
+  "component": "apps/tui",
+  "unitKey": "src/state",
+  "mergedUnitKeys": [
+   "src/state",
+   "src/ui"
+  ]
+ },
+ "dependencies": {
+  "parent": "10bdb99dbcc8bca2be71372f55cbb5bbfb9255aa",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "10bdb99dbcc8bca2be71372f55cbb5bbfb9255aa",
+  "next": "bf2d85b5e202b9f23ce0675d93001594e672969b",
+  "epicFirst": "9d82d9a71ebc365ca2fd0f7ee437415b4f872a64",
+  "epicLast": "bf2d85b5e202b9f23ce0675d93001594e672969b",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 570,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/tui/src/state/ChatController.test.ts",
+   "mode": "100644",
+   "blob": "c235a33acf1d0f602537df9f7e38d86594effd59",
+   "previousBlob": null,
+   "added": 91,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/tui/src/state/Transcript.test.ts",
+   "mode": "100644",
+   "blob": "8e516ca5efa99f9bd2ac8d6a9bd0fdf4dc52365b",
+   "previousBlob": null,
+   "added": 189,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/tui/src/state/TurnRequest.test.ts",
+   "mode": "100644",
+   "blob": "90952827e5e8bc9962743810092df0a528b74eb9",
+   "previousBlob": null,
+   "added": 50,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/tui/src/ui/App.test.tsx",
+   "mode": "100644",
+   "blob": "9474d7fb61231f2d0fa894771bf380105dfd0001",
+   "previousBlob": null,
+   "added": 240,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

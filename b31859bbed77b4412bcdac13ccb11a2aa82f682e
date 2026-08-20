@@ -1,0 +1,139 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "b31859bbed77b4412bcdac13ccb11a2aa82f682e",
+ "tree": "a5f8d4260f71687395f23376bce80c2816be583e",
+ "epic": {
+  "index": 9,
+  "id": "agent",
+  "name": "Harness, chain, tools and CLI",
+  "sourceCommit": "a8caaa3dc45df0c14d6b10d0db9faf8a7ea7e542",
+  "sourceSubject": "✨ feat(agent): compose the harness, chain, tools, and CLI",
+  "childIndex": 35,
+  "childCount": 85,
+  "head": "012fadccb450058987918de5ef55d315135be71d"
+ },
+ "atomic": {
+  "globalIndex": 426,
+  "globalCount": 845,
+  "purpose": "✨ feat(std): add the Fetch, HttpPost, LanguageServer and 1 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "std",
+  "component": "packages/std",
+  "unitKey": "Fetch",
+  "mergedUnitKeys": [
+   "Fetch",
+   "HttpPost",
+   "LanguageServer",
+   "Lsp"
+  ]
+ },
+ "dependencies": {
+  "parent": "858790b2830a6118f24ca4c991af44c5e822ae14",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control"
+  ],
+  "sourceImports": [
+   "a6b678804d7b4fd0cff05d4dd88e2de5631bcf8b"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   },
+   {
+    "package": "@smthrs/control",
+    "commit": "40bf3f68fb8b79abcb73506a5980f5eaa9e92e36"
+   },
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "858790b2830a6118f24ca4c991af44c5e822ae14",
+  "next": "c0ce5b863b8e51e8e2e9ca297b357a492e4aa037",
+  "epicFirst": "f86ed77ef384765a9a6a60ef7e3b84bfa04b8ac7",
+  "epicLast": "012fadccb450058987918de5ef55d315135be71d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 5,
+  "added": 583,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/std/src/Fetch.ts",
+   "mode": "100644",
+   "blob": "6f19f26ddbe3dff6ca064089b0252e978332af32",
+   "previousBlob": null,
+   "added": 144,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/std/src/HttpPost.ts",
+   "mode": "100644",
+   "blob": "5acaffc2bdd71f053a30bf1497a6ed6118cdbb85",
+   "previousBlob": null,
+   "added": 147,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/std/src/LanguageServer.ts",
+   "mode": "100644",
+   "blob": "ba76b559f2cabc07ac4ade1d7b327cff9cf48e09",
+   "previousBlob": null,
+   "added": 84,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/std/src/Lsp.ts",
+   "mode": "100644",
+   "blob": "258d61e929c3830997ae05d26b15b04ffc59cef9",
+   "previousBlob": null,
+   "added": 148,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/std/test/Lsp.test.ts",
+   "mode": "100644",
+   "blob": "ebc661974bf3eb8ac6f29b6f04d7cc99314014ba",
+   "previousBlob": null,
+   "added": 60,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

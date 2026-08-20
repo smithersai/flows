@@ -1,0 +1,82 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "932c886e664f4fc8b9b579105ddfc77122c755a9",
+ "tree": "3a0e7f7eb521754b6b33cfba7d56baba7f180d7e",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 3,
+  "childCount": 96,
+  "head": "c93705a8b036d030082a6877bd6668709293285d"
+ },
+ "atomic": {
+  "globalIndex": 189,
+  "globalCount": 845,
+  "purpose": "✨ feat(engine-store): add the ArtifactSync, CacheSync modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "engine-store",
+  "component": "packages/engine-store/src",
+  "unitKey": "ArtifactSync",
+  "mergedUnitKeys": [
+   "ArtifactSync",
+   "CacheSync"
+  ]
+ },
+ "dependencies": {
+  "parent": "27976acc1725843ae47a6321ab3925a381bd6efc",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "27976acc1725843ae47a6321ab3925a381bd6efc",
+  "next": "e7be1e20cf0cac9c983899b0b73d53a7624bc5d3",
+  "epicFirst": "eec277e2e1bfd7b6ae08c5d31c63df081ea52207",
+  "epicLast": "c93705a8b036d030082a6877bd6668709293285d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 360,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/ArtifactSync.ts",
+   "mode": "100644",
+   "blob": "77251b6e52f4d62680e7665d15713c411ce7a01a",
+   "previousBlob": null,
+   "added": 224,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/CacheSync.ts",
+   "mode": "100644",
+   "blob": "fe04bcc704e91d9a0329296b1a478d2cc583694d",
+   "previousBlob": null,
+   "added": 136,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

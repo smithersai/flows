@@ -1,0 +1,83 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "9b8364228ee4fcb7eeaa08d793c39c1769e16243",
+ "tree": "ddef54f5cf04b6176ced2efaae962e04cb5bd375",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 41,
+  "childCount": 66,
+  "head": "28962374658aba2757a5405dab6454616510b6b6"
+ },
+ "atomic": {
+  "globalIndex": 366,
+  "globalCount": 845,
+  "purpose": "✨ feat(model): add OpenAICompatible",
+  "type": "feat",
+  "kind": "module",
+  "scope": "model",
+  "component": "packages/model",
+  "unitKey": "OpenAICompatible",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "066d62f5e12cebf10fe3e4e85256f060a37f17b5",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [
+   "f67be10ea2523bf2206e212ea3ce742b9d76f8eb",
+   "d7d2db275b3ee72ee4be9674c4a46dd91a7a1ebc",
+   "066d62f5e12cebf10fe3e4e85256f060a37f17b5"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "066d62f5e12cebf10fe3e4e85256f060a37f17b5",
+  "next": "5d7f346b5c7d5b6d6470e58b2aed91e31cba613a",
+  "epicFirst": "65dffaa9668923ae816eeaa5bce0901a958729b0",
+  "epicLast": "28962374658aba2757a5405dab6454616510b6b6",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 41,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/model/src/OpenAICompatible.ts",
+   "mode": "100644",
+   "blob": "33e8e00d608a8d649f3b15ead4e7b439b96a1387",
+   "previousBlob": null,
+   "added": 41,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

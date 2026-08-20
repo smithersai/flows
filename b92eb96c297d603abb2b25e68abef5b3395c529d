@@ -1,0 +1,86 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "b92eb96c297d603abb2b25e68abef5b3395c529d",
+ "tree": "ade67d75d91ccfab76f97539e9b6b0f13c78e2e0",
+ "epic": {
+  "index": 13,
+  "id": "server",
+  "name": "Shared application contracts and worker backend",
+  "sourceCommit": "5e1bcec6b1db3f2e990cb2b79bec0050dfc34ba3",
+  "sourceSubject": "✨ feat(server): add shared application contracts and worker backend",
+  "childIndex": 9,
+  "childCount": 20,
+  "head": "b02e63ed129878a014ee9484e2d27a74aba94be1"
+ },
+ "atomic": {
+  "globalIndex": 637,
+  "globalCount": 845,
+  "purpose": "✨ feat(server): add clientErrorLog",
+  "type": "feat",
+  "kind": "module",
+  "scope": "server",
+  "component": "apps/server",
+  "unitKey": "clientErrorLog",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "2c25981c24aef87a1fdfa30d6bffe1fb102ab93e",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "2c25981c24aef87a1fdfa30d6bffe1fb102ab93e",
+  "next": "e53c81244e948d90730907b2bf01aa6062ecf67f",
+  "epicFirst": "210032b4effd3e4b5015806fab6679f7153e0fef",
+  "epicLast": "b02e63ed129878a014ee9484e2d27a74aba94be1",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 504,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/server/src/clientErrorLog.ts",
+   "mode": "100644",
+   "blob": "1678f987a7e7f67693d5dec1fe867b899ff7c1e4",
+   "previousBlob": null,
+   "added": 189,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/server/src/clientErrorLog.test.ts",
+   "mode": "100644",
+   "blob": "e9491d069480ae8f9a8fb1dd60df6997c8e995f7",
+   "previousBlob": null,
+   "added": 315,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

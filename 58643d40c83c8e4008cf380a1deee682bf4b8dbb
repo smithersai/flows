@@ -1,0 +1,72 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "58643d40c83c8e4008cf380a1deee682bf4b8dbb",
+ "tree": "ea61baa2089a7d82acbf1851085c5d090640dc3e",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 3,
+  "childCount": 55,
+  "head": "9633d567508a5d82ee51d5ed34014e850f417731"
+ },
+ "atomic": {
+  "globalIndex": 19,
+  "globalCount": 845,
+  "purpose": "✨ feat(artifacts): add ArtifactStore",
+  "type": "feat",
+  "kind": "module",
+  "scope": "artifacts",
+  "component": "packages/artifacts",
+  "unitKey": "ArtifactStore",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "ec90423e6bcd390cbd2a991e5f5febfcef714900",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [
+   "ec90423e6bcd390cbd2a991e5f5febfcef714900"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/crypto",
+    "commit": "3ac9a18fee84c753c34d31ae7baae150fa503fe6"
+   }
+  ]
+ },
+ "related": {
+  "previous": "ec90423e6bcd390cbd2a991e5f5febfcef714900",
+  "next": "ac8471e7795d6a95874991df181d0d79178318a0",
+  "epicFirst": "0b1fe1d563a03d93618ff339540cb77a2ed44d4b",
+  "epicLast": "9633d567508a5d82ee51d5ed34014e850f417731",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 617,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/artifacts/src/ArtifactStore.ts",
+   "mode": "100644",
+   "blob": "20eb549d5ddd9672a9fcd1a0c1860e3a71c0ed1a",
+   "previousBlob": null,
+   "added": 617,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

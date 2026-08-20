@@ -1,0 +1,82 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "0deffd5347a30c03247ae0f9922b294e6f7b4fec",
+ "tree": "9e8371a819719b7cea3432cb6cc1707816b9cf2a",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 38,
+  "childCount": 66,
+  "head": "28962374658aba2757a5405dab6454616510b6b6"
+ },
+ "atomic": {
+  "globalIndex": 363,
+  "globalCount": 845,
+  "purpose": "✨ feat(model): add RequestExecutor",
+  "type": "feat",
+  "kind": "module",
+  "scope": "model",
+  "component": "packages/model",
+  "unitKey": "RequestExecutor",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "d7d2db275b3ee72ee4be9674c4a46dd91a7a1ebc",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [
+   "f67be10ea2523bf2206e212ea3ce742b9d76f8eb",
+   "3c7d5e2fa7baca72bd497508f2d25d5b36dfc901"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "d7d2db275b3ee72ee4be9674c4a46dd91a7a1ebc",
+  "next": "1e40546f6559a58c46e29cffef56b9f219091bfe",
+  "epicFirst": "65dffaa9668923ae816eeaa5bce0901a958729b0",
+  "epicLast": "28962374658aba2757a5405dab6454616510b6b6",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 691,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/model/src/RequestExecutor.ts",
+   "mode": "100644",
+   "blob": "9e43ba66e0b0df085946477d97e8e62c71795378",
+   "previousBlob": null,
+   "added": 691,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,76 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "650ead85ae444efb526bd0be47bbc32459d0fa50",
+ "tree": "dc521be8bff76655a152b1e2bcc682dc79760b4f",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 65,
+  "childCount": 96,
+  "head": "c93705a8b036d030082a6877bd6668709293285d"
+ },
+ "atomic": {
+  "globalIndex": 251,
+  "globalCount": 845,
+  "purpose": "✨ feat(engine-store): add PlanScheduler",
+  "type": "feat",
+  "kind": "module",
+  "scope": "engine-store",
+  "component": "packages/engine-store/src",
+  "unitKey": "PlanScheduler",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "e2bb97a542f0941867ce3aa3e674b119e232fa75",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "3f3525339467e1d760eee5916a80920d2503e180",
+   "9123f49c124e0267fbe38a2cc90282ad1bccc0c2",
+   "455867d72e555abc6350fae874587cf5704d28e7",
+   "961ccaaa6d1290e877ddf4e698403e71022d2640",
+   "e869bb8c4f46995afe93e126841cdc64b966d574",
+   "1b2d917f9299e104d701a5e38b74cedd19846579",
+   "b43b3b12d0f84a013434387f26580ee78f0854af"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "e2bb97a542f0941867ce3aa3e674b119e232fa75",
+  "next": "c6b3697b9aadd84d656b5f1179422382009e6892",
+  "epicFirst": "eec277e2e1bfd7b6ae08c5d31c63df081ea52207",
+  "epicLast": "c93705a8b036d030082a6877bd6668709293285d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 1525,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/PlanScheduler.ts",
+   "mode": "100644",
+   "blob": "fd8dac7032693f52bb7a179bd03f254d8e30adde",
+   "previousBlob": null,
+   "added": 1525,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,85 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "dffd087311a0d6085f987750c58debff62e10a50",
+ "tree": "08f1f7bcdf76c665adbf70a5b4f12e0da8c5f195",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 117,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 765,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the suites module (5/11)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/e2e",
+  "unitKey": "dir:suites",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "256a064528c7e1ff5c359687d585587192b7b9f4",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "7982cd350eb2156b8e994448fc24c6ca5ef6706b",
+   "c3d19605a3b40f86461e4e72fe4bcf82fb4c6acd",
+   "53a74dc269f5c72c65e52e9ade4074d5a535a4ee",
+   "f032649d5f5d191dbd7a7750f056e199d8555921",
+   "09e4193e0599df92adaf75dcf8c2fd1d33128a2d",
+   "0b1d4ae37c9d46347945776b96bec542209975c1",
+   "7bb169599c6fa8e1c6d918ca7b73f966a7afc1a6"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "256a064528c7e1ff5c359687d585587192b7b9f4",
+  "next": "c47d29e29c1157dd4f9414b01927020c18ad8a8a",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 2173,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/suites/commands-registry.e2e.ts",
+   "mode": "100644",
+   "blob": "ae289877292984b7cb2f38c1a6ab1dc31660d921",
+   "previousBlob": null,
+   "added": 2173,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ],
+ "sizeJustification": "Single indivisible file (apps/ui/e2e/suites/commands-registry.e2e.ts); splitting it further would create partial-file states that never existed."
+}

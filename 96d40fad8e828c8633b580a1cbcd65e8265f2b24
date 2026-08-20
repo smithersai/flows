@@ -1,0 +1,86 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "96d40fad8e828c8633b580a1cbcd65e8265f2b24",
+ "tree": "01c9bfa2dcad62a5ef222b94d42a2bf4f77c949d",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 17,
+  "childCount": 54,
+  "head": "8f2310ef99183d31a7cb6a91238af374d246498b"
+ },
+ "atomic": {
+  "globalIndex": 88,
+  "globalCount": 845,
+  "purpose": "✅ test(plan): cover plan",
+  "type": "test",
+  "kind": "tests",
+  "scope": "plan",
+  "component": "packages/plan",
+  "unitKey": "test",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "a6c062c1ea8185f0a2b743039e577306a8ad4a47",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   },
+   {
+    "package": "@smthrs/keys",
+    "commit": "e145b0e5dfced2a00c300f9b139b14f6820bf771"
+   }
+  ]
+ },
+ "related": {
+  "previous": "a6c062c1ea8185f0a2b743039e577306a8ad4a47",
+  "next": "5b67993c06ca466935967b972fa284ca005982ba",
+  "epicFirst": "8d222879944a121d441c2c37d5ed2b7943a88b54",
+  "epicLast": "8f2310ef99183d31a7cb6a91238af374d246498b",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 21,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/plan/test/Crypto.ts",
+   "mode": "100644",
+   "blob": "3c5ec52edeb6f328f6a7a293956f9a726e0c2aa6",
+   "previousBlob": null,
+   "added": 11,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/plan/test/Sha256.test.ts",
+   "mode": "100644",
+   "blob": "2b3c8416119b7136544a4adc6981260be0c8af93",
+   "previousBlob": null,
+   "added": 10,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

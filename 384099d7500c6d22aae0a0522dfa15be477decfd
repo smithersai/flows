@@ -1,0 +1,96 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "384099d7500c6d22aae0a0522dfa15be477decfd",
+ "tree": "af90b0dd7f8f739ede3c1ab3fb86fecdeddd30f3",
+ "epic": {
+  "index": 18,
+  "id": "workflows",
+  "name": "Repository automation workflows",
+  "sourceCommit": "9ea4941fc404fb4f12e3384b96a37e0739be3916",
+  "sourceSubject": "✨ feat(workflows): add repository automation workflows",
+  "childIndex": 2,
+  "childCount": 9,
+  "head": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "atomic": {
+  "globalIndex": 838,
+  "globalCount": 845,
+  "purpose": "✨ feat(smithers): add the evals modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "smithers",
+  "component": ".smithers",
+  "unitKey": "dir:evals",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "fed6cbe14b940882dcae210c48223700336f43b7",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui",
+   "docs-site",
+   "factory"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "commit": "fec516964e3e6a618aace55755a6d0befd72daa8"
+   }
+  ]
+ },
+ "related": {
+  "previous": "fed6cbe14b940882dcae210c48223700336f43b7",
+  "next": "028cff00e144e601086e17a4ab94dec95fb8338f",
+  "epicFirst": "fed6cbe14b940882dcae210c48223700336f43b7",
+  "epicLast": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 1076,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": ".smithers/evals/alpha-ui-baseline.json",
+   "mode": "100644",
+   "blob": "46c8db0f17907cb4d2c27f56ee3da2aa3cba7051",
+   "previousBlob": null,
+   "added": 1059,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": ".smithers/evals/alpha-ui-cases.jsonl",
+   "mode": "100644",
+   "blob": "653d2ef439899978f0bbe87f3489260216620d1e",
+   "previousBlob": null,
+   "added": 17,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

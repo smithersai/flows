@@ -1,0 +1,161 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a05ae7ef0aff11a5d8977a65ac232f2c93a40b64",
+ "tree": "59ae6ca03a03bbaa4f60f5dafedd36b19b7b02cf",
+ "epic": {
+  "index": 9,
+  "id": "agent",
+  "name": "Harness, chain, tools and CLI",
+  "sourceCommit": "a8caaa3dc45df0c14d6b10d0db9faf8a7ea7e542",
+  "sourceSubject": "✨ feat(agent): compose the harness, chain, tools, and CLI",
+  "childIndex": 78,
+  "childCount": 85,
+  "head": "012fadccb450058987918de5ef55d315135be71d"
+ },
+ "atomic": {
+  "globalIndex": 469,
+  "globalCount": 845,
+  "purpose": "✨ feat(cli): add the Output, Verb modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "cli",
+  "component": "packages/cli",
+  "unitKey": "Output",
+  "mergedUnitKeys": [
+   "Output",
+   "Verb"
+  ]
+ },
+ "dependencies": {
+  "parent": "a511437ef0c357469bd5ea8a2060cd0ebd0d75ab",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/agent",
+    "commit": "b0dba50a345f90c5aaa20e5177e68a82df0809a5"
+   },
+   {
+    "package": "@smthrs/control",
+    "commit": "40bf3f68fb8b79abcb73506a5980f5eaa9e92e36"
+   },
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   },
+   {
+    "package": "@smthrs/engine-store",
+    "commit": "c6b3697b9aadd84d656b5f1179422382009e6892"
+   },
+   {
+    "package": "@smthrs/flows",
+    "commit": "2b51cd84706f3813ae6a830e3ab8d472bfad1757"
+   },
+   {
+    "package": "@smthrs/harness",
+    "commit": "6efc2c90189369916690397a40ed7cce75754114"
+   },
+   {
+    "package": "@smthrs/jj",
+    "commit": "a67499b875ddce7aa9fe4a7cc5414fc0ab9eb398"
+   },
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   },
+   {
+    "package": "@smthrs/memory",
+    "commit": "b0730cfb8c6d3d2a449dcfc6a984435879f62107"
+   },
+   {
+    "package": "@smthrs/model",
+    "commit": "5d7f346b5c7d5b6d6470e58b2aed91e31cba613a"
+   },
+   {
+    "package": "@smthrs/notifications",
+    "commit": "1fb5a051f5ccc772c2e8cce3b8a29472c51afd48"
+   },
+   {
+    "package": "@smthrs/platform-node",
+    "commit": "ee046808e1233898d8f029a65b2f8f9eeb83caeb"
+   },
+   {
+    "package": "@smthrs/registry",
+    "commit": "1ae2f3b78daa4ba33deb87bfe057eee002727dcd"
+   },
+   {
+    "package": "@smthrs/run-store",
+    "commit": "9633d567508a5d82ee51d5ed34014e850f417731"
+   },
+   {
+    "package": "@smthrs/std",
+    "commit": "62ce9eeebf23fff526debdb0dc8160d71960b2f4"
+   }
+  ]
+ },
+ "related": {
+  "previous": "a511437ef0c357469bd5ea8a2060cd0ebd0d75ab",
+  "next": "3a96c0173dd23ab235cf49c6e736c5fa3f50903d",
+  "epicFirst": "f86ed77ef384765a9a6a60ef7e3b84bfa04b8ac7",
+  "epicLast": "012fadccb450058987918de5ef55d315135be71d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 210,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/cli/src/Output.ts",
+   "mode": "100644",
+   "blob": "7e026c8f99ec3f324725e4e1ff222546f7b24ab0",
+   "previousBlob": null,
+   "added": 108,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/cli/src/Verb.ts",
+   "mode": "100644",
+   "blob": "0bc0cb757dc05fbfaecce043822aab6dc3e270a6",
+   "previousBlob": null,
+   "added": 53,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/cli/test/Verb.test.ts",
+   "mode": "100644",
+   "blob": "09bd1ef30a92ed9d0fff6fc6e2ca7c4da06ae716",
+   "previousBlob": null,
+   "added": 49,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

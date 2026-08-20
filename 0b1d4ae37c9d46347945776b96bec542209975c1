@@ -1,0 +1,78 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "0b1d4ae37c9d46347945776b96bec542209975c1",
+ "tree": "78de6e0f0236786107a63a7f5c3b4468a1d31b03",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 142,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 790,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the mainview/flows module (3/3)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:mainview/flows",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "09e4193e0599df92adaf75dcf8c2fd1d33128a2d",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "07fec5329e44178598f92873b7c74f6b442571c9"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "09e4193e0599df92adaf75dcf8c2fd1d33128a2d",
+  "next": "d1f3fd8eff2620ef9a3b93f19229f0e2678f9e5c",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 281,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/flows/SlashPayload.ts",
+   "mode": "100644",
+   "blob": "bfa67e4e6df61d2696fb27449b4df5589e1ddb9a",
+   "previousBlob": null,
+   "added": 281,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

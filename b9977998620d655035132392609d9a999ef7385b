@@ -1,0 +1,106 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "b9977998620d655035132392609d9a999ef7385b",
+ "tree": "d11c75f4fbcd08f411d95d0cb3ecbe087fc83338",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 104,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 752,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the ui modules (1/6)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/.smithers",
+  "unitKey": "dir:ui",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "91e7af0906f11ec53cb0f2c30c1a049f2fec44fb",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "039560274bb4a4c0358fa6b2ef654ea4e018583e",
+   "16e45c3929a4ec0d1c0830c241d3293151b44f25"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "commit": "fec516964e3e6a618aace55755a6d0befd72daa8"
+   }
+  ]
+ },
+ "related": {
+  "previous": "91e7af0906f11ec53cb0f2c30c1a049f2fec44fb",
+  "next": "039560274bb4a4c0358fa6b2ef654ea4e018583e",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 1493,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/ui/create-skill.tsx",
+   "mode": "100644",
+   "blob": "80248ef51d397a95383114c2de59799b50a4a88e",
+   "previousBlob": null,
+   "added": 5,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/ui/create-workflow.tsx",
+   "mode": "100644",
+   "blob": "3b53cfcb61770b74839befa6cf684f4574c324bd",
+   "previousBlob": null,
+   "added": 1485,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/ui/crepeTheme.generated.ts",
+   "mode": "100644",
+   "blob": "d4a53dc176c93eaae69b7a4ee066eaf6d8c9cd62",
+   "previousBlob": null,
+   "added": 3,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

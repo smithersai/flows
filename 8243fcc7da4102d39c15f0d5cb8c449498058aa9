@@ -1,0 +1,94 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "8243fcc7da4102d39c15f0d5cb8c449498058aa9",
+ "tree": "edbbc6d76bfb711196551c1113d2b2c6096fbf4c",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 120,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 768,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the suites modules (8/11)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/e2e",
+  "unitKey": "dir:suites",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "595424fd9a2135d1a511b6aad01599f4232dbc00",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "1def8db7eb29e0066f6b01771aeedfe597bf9c53",
+   "514d89cd44090b5737976110fd9e7c7242a619f9",
+   "c3d19605a3b40f86461e4e72fe4bcf82fb4c6acd",
+   "53a74dc269f5c72c65e52e9ade4074d5a535a4ee",
+   "7982cd350eb2156b8e994448fc24c6ca5ef6706b",
+   "7bb169599c6fa8e1c6d918ca7b73f966a7afc1a6"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "595424fd9a2135d1a511b6aad01599f4232dbc00",
+  "next": "794d5c395ba761e7066dc42c1642cacea33772da",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 1226,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/suites/model-stream.e2e.ts",
+   "mode": "100644",
+   "blob": "b46b32325c6c0aee8b08e2a417e3415b583c0002",
+   "previousBlob": null,
+   "added": 437,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/suites/reco-actions.e2e.ts",
+   "mode": "100644",
+   "blob": "262252cab5135bb8ae1de6a5b4683f579153396f",
+   "previousBlob": null,
+   "added": 789,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

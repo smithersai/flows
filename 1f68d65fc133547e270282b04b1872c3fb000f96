@@ -1,0 +1,84 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "1f68d65fc133547e270282b04b1872c3fb000f96",
+ "tree": "ae9d20a7478d099aa853ca13d7483e9b17fdc21d",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 78,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 590,
+  "globalCount": 845,
+  "purpose": "📦 build(repo): add repo workspace configuration (3/3)",
+  "type": "build",
+  "kind": "scaffold",
+  "scope": "repo",
+  "component": "~root",
+  "unitKey": "~scaffold",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "2cf5a136878b77530e14c3b743f3ee065ab8bd6f",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "2cf5a136878b77530e14c3b743f3ee065ab8bd6f",
+  "next": "2766a8a432242b83a58e1f0a48cc41d483a3c709",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 48,
+  "deleted": 19
+ },
+ "provenance": {
+  "strategy": "hunk-split or whole-file evolution of a path introduced earlier",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "pnpm-workspace.yaml",
+   "mode": "100644",
+   "blob": "c289ff329d6094e9a9a40cc1d4e318d25834d684",
+   "previousBlob": null,
+   "added": 33,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "M",
+   "path": "tsconfig.json",
+   "mode": "100644",
+   "blob": "d816c42bb98ccc78ed163be8ec94475edad99e25",
+   "previousBlob": "d26226128303af4ff1f6bc32acfc0c3a20d74e04",
+   "added": 15,
+   "deleted": 19,
+   "binary": false,
+   "role": "scaffold"
+  }
+ ]
+}

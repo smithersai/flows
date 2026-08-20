@@ -1,0 +1,95 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a1619ff354c69c4902439985283064309ac94693",
+ "tree": "4775769c6153b1ee63a15b1627f43ea8cfa10b57",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 7,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 519,
+  "globalCount": 845,
+  "purpose": "📝 docs(build): document extending",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "build",
+  "component": "packages/build/docs",
+  "unitKey": "extending",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "72497c635c2b4449ac2398c90c07be5a7852fee0",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "72497c635c2b4449ac2398c90c07be5a7852fee0",
+  "next": "5f988df5569c40e67aa5eff7a08fa1b5ff4a0f60",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 720,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build/docs/extending/default-rules.md",
+   "mode": "100644",
+   "blob": "4701da31d6907963ec922c73cf4528a6c1567dd2",
+   "previousBlob": null,
+   "added": 155,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/extending/writing-macros.md",
+   "mode": "100644",
+   "blob": "a83fd6b87cbb6f2dc58576a78e25afcd1b03d4f5",
+   "previousBlob": null,
+   "added": 239,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/extending/writing-targets.md",
+   "mode": "100644",
+   "blob": "69694e9d0bdf3bf93d8d942a342e62dc5fd600f4",
+   "previousBlob": null,
+   "added": 326,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

@@ -1,0 +1,166 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "2564c29586d596a1ea144b004044e8da5ce6d143",
+ "tree": "7517a24d7d8e3992a827c9aa64305ea607b0cf6f",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 125,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 773,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the mainview/cards modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:mainview/cards",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "df9bb905e79a3d63ec44f86f44a319433a13efb5",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "936580f83e9247b8d2c86c38a6c4ef634dde2411"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "df9bb905e79a3d63ec44f86f44a319433a13efb5",
+  "next": "a701836259f43899fc1445ebce5b9941044812d7",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 9,
+  "added": 730,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/cards/BranchesCard.tsx",
+   "mode": "100644",
+   "blob": "d4b8a0d74a8a6ce9ccc6f5bda626241ded2f59fc",
+   "previousBlob": null,
+   "added": 39,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/cards/EnvCard.tsx",
+   "mode": "100644",
+   "blob": "fb25454cfcf7855fa9e2307b0df3270414d449d8",
+   "previousBlob": null,
+   "added": 57,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/cards/FileCards.tsx",
+   "mode": "100644",
+   "blob": "e0c3c8cc2420a3678bf4a9871c1fc595695d578a",
+   "previousBlob": null,
+   "added": 85,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/cards/IssueCards.tsx",
+   "mode": "100644",
+   "blob": "5b5e8dce221b2a73f6e9c9b20ce49c724ea90ebf",
+   "previousBlob": null,
+   "added": 121,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/cards/KeysCard.tsx",
+   "mode": "100644",
+   "blob": "c95a076b4470b673b57c7cc39ab66f3723bf27c0",
+   "previousBlob": null,
+   "added": 43,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/cards/LandingCards.tsx",
+   "mode": "100644",
+   "blob": "fe1e6baae4bb74696db05bbc8f0d938797efc60e",
+   "previousBlob": null,
+   "added": 139,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/cards/NotificationsCard.tsx",
+   "mode": "100644",
+   "blob": "5686bc5ceb6f6d3a591f61ab44907d1fc665d795",
+   "previousBlob": null,
+   "added": 58,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/cards/RepoImportCard.tsx",
+   "mode": "100644",
+   "blob": "d100ddc0d4b92b8acd8e68def55ede3402100e27",
+   "previousBlob": null,
+   "added": 36,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/cards/ThemePickerCard.tsx",
+   "mode": "100644",
+   "blob": "36c84af13759c4deac99dd7485d40e2176f538e2",
+   "previousBlob": null,
+   "added": 152,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

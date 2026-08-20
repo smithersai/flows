@@ -1,0 +1,90 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "0d238900e44c2ef4f17907336b81dafcb3394d93",
+ "tree": "c1c2a734cd8aacb7eca84456159c985f2ef5e4c6",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 128,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 776,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the mainview/routes modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:mainview/routes",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "1def8db7eb29e0066f6b01771aeedfe597bf9c53",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "9cfafeb8c7dac9762560efdaa95544c3f4556f21",
+   "1ca17ad40f58cc06ff1e53a3e6944a3205bbd5f6"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "1def8db7eb29e0066f6b01771aeedfe597bf9c53",
+  "next": "9cfafeb8c7dac9762560efdaa95544c3f4556f21",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 76,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/routes/__root.tsx",
+   "mode": "100644",
+   "blob": "c7cd2c09a803d1f66b6815509e1a7f2e58c7c6c5",
+   "previousBlob": null,
+   "added": 72,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/routes/index.tsx",
+   "mode": "100644",
+   "blob": "ba6f0d6125e5bdd0982e0c25a5132759042407bd",
+   "previousBlob": null,
+   "added": 4,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

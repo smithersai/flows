@@ -1,0 +1,87 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "e2a3c44127537cda9c02e83612c04b94fee72a10",
+ "tree": "0a4d50073b8b8586c24d04e44d43b703aea9286a",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 78,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 726,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the mainview/styles modules (2/3)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:mainview/styles",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "5181d0bbc9a917f253dcb3b2d8dc17b4296af3f9",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "5181d0bbc9a917f253dcb3b2d8dc17b4296af3f9",
+  "next": "0c346e68bcbe0769a055954a5eb31a91c1a1a864",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 1098,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/styles/chat.css",
+   "mode": "100644",
+   "blob": "6ae640790701a7678f7e57b1f2952be48e9d8535",
+   "previousBlob": null,
+   "added": 1038,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/styles/surfaces.css",
+   "mode": "100644",
+   "blob": "73a6e3d05653151a478e4091a208f7028425527a",
+   "previousBlob": null,
+   "added": 60,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

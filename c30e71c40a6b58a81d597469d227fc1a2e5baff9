@@ -1,0 +1,94 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "c30e71c40a6b58a81d597469d227fc1a2e5baff9",
+ "tree": "10a064b323d048340e0231a40bd548cc4f536209",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 12,
+  "childCount": 61,
+  "head": "a5193915fd7f1bc7634e32c28838552e883641db"
+ },
+ "atomic": {
+  "globalIndex": 137,
+  "globalCount": 845,
+  "purpose": "✅ test(jj): cover jj (2/2)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "jj",
+  "component": "packages/jj",
+  "unitKey": "test",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "4399df0bff62818155c60bd3981e9baf62e520d7",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   }
+  ]
+ },
+ "related": {
+  "previous": "4399df0bff62818155c60bd3981e9baf62e520d7",
+  "next": "996a2b50e6832ee70c0c139f02704b63a4147467",
+  "epicFirst": "5037300288116821b95e1046a67ca324243eeeeb",
+  "epicLast": "a5193915fd7f1bc7634e32c28838552e883641db",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 1447,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/jj/test/NodeJjClassification.test.ts",
+   "mode": "100644",
+   "blob": "7ad4f97bad1a300355e2ff62a1c51c792c37f9e4",
+   "previousBlob": null,
+   "added": 251,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/jj/test/RootedSyncFs.ts",
+   "mode": "100644",
+   "blob": "7ffd8a11abca6f01d15392f1c14cacddac369fcb",
+   "previousBlob": null,
+   "added": 37,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/jj/test/WasiPreview1.test.ts",
+   "mode": "100644",
+   "blob": "baee6ec2261b9aa0844bf21c7d1473f1cc592fda",
+   "previousBlob": null,
+   "added": 1159,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

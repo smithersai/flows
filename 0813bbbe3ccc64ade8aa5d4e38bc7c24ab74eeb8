@@ -1,0 +1,81 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "0813bbbe3ccc64ade8aa5d4e38bc7c24ab74eeb8",
+ "tree": "3407498f5bc8e022d79366483a0f8e67a999264b",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 33,
+  "childCount": 55,
+  "head": "9633d567508a5d82ee51d5ed34014e850f417731"
+ },
+ "atomic": {
+  "globalIndex": 49,
+  "globalCount": 845,
+  "purpose": "📝 docs(journal): document journal",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "journal",
+  "component": "packages/journal",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "e12f5235bbdedf8de9a57bbdb113493ff9d3c751",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   }
+  ]
+ },
+ "related": {
+  "previous": "e12f5235bbdedf8de9a57bbdb113493ff9d3c751",
+  "next": "db602e9c27386a18b7627bb5403fea15222aae5a",
+  "epicFirst": "0b1fe1d563a03d93618ff339540cb77a2ed44d4b",
+  "epicLast": "9633d567508a5d82ee51d5ed34014e850f417731",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 177,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/journal/CHANGELOG.md",
+   "mode": "100644",
+   "blob": "7d0bd6ee991163a35f7589fb356f1df772025479",
+   "previousBlob": null,
+   "added": 27,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/journal/README.md",
+   "mode": "100644",
+   "blob": "6f98cbcfc0c0bcc34328206700dcef5e57d4d997",
+   "previousBlob": null,
+   "added": 150,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

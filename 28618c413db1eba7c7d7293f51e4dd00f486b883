@@ -1,0 +1,96 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "28618c413db1eba7c7d7293f51e4dd00f486b883",
+ "tree": "8f5d722c3996ef2c7c59ac234c00abd5a008cc06",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 8,
+  "childCount": 61,
+  "head": "a5193915fd7f1bc7634e32c28838552e883641db"
+ },
+ "atomic": {
+  "globalIndex": 133,
+  "globalCount": 845,
+  "purpose": "✨ feat(jj): add the browser modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "jj",
+  "component": "packages/jj",
+  "unitKey": "dir:browser",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "eb11fb20f82fb91bc18cfb8ee00fc665ff0f5f4f",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [
+   "eb11fb20f82fb91bc18cfb8ee00fc665ff0f5f4f"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   }
+  ]
+ },
+ "related": {
+  "previous": "eb11fb20f82fb91bc18cfb8ee00fc665ff0f5f4f",
+  "next": "c231db75aa19eeebd1de37fa73d36b112272960b",
+  "epicFirst": "5037300288116821b95e1046a67ca324243eeeeb",
+  "epicLast": "a5193915fd7f1bc7634e32c28838552e883641db",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 1475,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/jj/src/browser/BrowserJj.ts",
+   "mode": "100644",
+   "blob": "40ad6c22dde6d2fb04954f28bdbd9b8dcfa02801",
+   "previousBlob": null,
+   "added": 298,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/jj/src/browser/WasiFs.ts",
+   "mode": "100644",
+   "blob": "ea8115f8ac6c6b747bd33998fc12fa63d35a5744",
+   "previousBlob": null,
+   "added": 126,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/jj/src/browser/WasiPreview1.ts",
+   "mode": "100644",
+   "blob": "7240b29b7ce666236a657557e9544462f262bbd9",
+   "previousBlob": null,
+   "added": 1051,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

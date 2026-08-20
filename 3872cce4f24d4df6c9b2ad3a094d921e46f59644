@@ -1,0 +1,155 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "3872cce4f24d4df6c9b2ad3a094d921e46f59644",
+ "tree": "22eced6f7c840b8ead9539ed91a72e297cb6bc3a",
+ "epic": {
+  "index": 16,
+  "id": "docs-site",
+  "name": "Documentation site",
+  "sourceCommit": "2fd742db8891870cec6454b507fc94b3c65aa275",
+  "sourceSubject": "📚 docs(site): document the complete system",
+  "childIndex": 13,
+  "childCount": 17,
+  "head": "a71bed29530440d675e58d1dd55d8c65de45dbf2"
+ },
+ "atomic": {
+  "globalIndex": 815,
+  "globalCount": 845,
+  "purpose": "📝 docs(pages): document api (2/2)",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "pages",
+  "component": "docs/pages",
+  "unitKey": "api",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "ba611c4a5d6b7bc8ebdd21e30b173a5172d5c104",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "ba611c4a5d6b7bc8ebdd21e30b173a5172d5c104",
+  "next": "cc6eb97d718340a50a7d368e8550fdca337f6ca1",
+  "epicFirst": "d92b6bd2642c1332bcd06cb6e7fc430acdf97cda",
+  "epicLast": "a71bed29530440d675e58d1dd55d8c65de45dbf2",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 8,
+  "added": 677,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "docs/pages/api/platform-browser.md",
+   "mode": "100644",
+   "blob": "e46eb40fd90b6bf4a65c1adb8d9674e45823ff1d",
+   "previousBlob": null,
+   "added": 76,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/api/platform-bun.md",
+   "mode": "100644",
+   "blob": "e7b9a45e7ff16ea4896c294e24069367ddb204c5",
+   "previousBlob": null,
+   "added": 54,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/api/platform-node.md",
+   "mode": "100644",
+   "blob": "faa0c49579826199f3789cd9bd5985f460053952",
+   "previousBlob": null,
+   "added": 50,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/api/run-store.md",
+   "mode": "100644",
+   "blob": "3c25eb7885ac64812d8b682e2f535184230b805b",
+   "previousBlob": null,
+   "added": 105,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/api/sandbox.md",
+   "mode": "100644",
+   "blob": "b87c6396b2fa4b433ec1d34b2da1008364b785e6",
+   "previousBlob": null,
+   "added": 74,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/api/step-cache.md",
+   "mode": "100644",
+   "blob": "354d41c6264d604474af304b8ae8bab2024cfb14",
+   "previousBlob": null,
+   "added": 86,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/api/sync.md",
+   "mode": "100644",
+   "blob": "d128b4c49c0c647f0294f4f83d47c663a6177775",
+   "previousBlob": null,
+   "added": 97,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/api/time-travel.md",
+   "mode": "100644",
+   "blob": "af9dbde7a0bd0b72d641cae3ed8b602ad577728b",
+   "previousBlob": null,
+   "added": 135,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

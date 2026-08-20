@@ -1,0 +1,95 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "6795a6004c5055c11b125c8051c6a8778ce179f6",
+ "tree": "189698964ac0315cc6995be408bcbcdcd0ef53e8",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 146,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 794,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the state/controller modules (3/4)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:mainview/state/controller",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "0dd03545f5ea30a4aec05cdcc8826779e6452c0a",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "f032649d5f5d191dbd7a7750f056e199d8555921",
+   "09e4193e0599df92adaf75dcf8c2fd1d33128a2d",
+   "936580f83e9247b8d2c86c38a6c4ef634dde2411",
+   "07fec5329e44178598f92873b7c74f6b442571c9",
+   "834003a11aa59c10d238877693fef1c39b0b4d7d",
+   "0dd03545f5ea30a4aec05cdcc8826779e6452c0a",
+   "dc151173e420d6ce8fda47487037fbb20a84711e"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "0dd03545f5ea30a4aec05cdcc8826779e6452c0a",
+  "next": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 1391,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/controller/turns.ts",
+   "mode": "100644",
+   "blob": "586d6e433209b9da2d00068eb179501c9df5cab0",
+   "previousBlob": null,
+   "added": 898,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/controller/workflow-pump.ts",
+   "mode": "100644",
+   "blob": "7bd0a5d65d85e0ba24b8476ba9de6993ec163a75",
+   "previousBlob": null,
+   "added": 493,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

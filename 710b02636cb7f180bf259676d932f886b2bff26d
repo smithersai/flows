@@ -1,0 +1,87 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "710b02636cb7f180bf259676d932f886b2bff26d",
+ "tree": "fb009c83af2cedb4119db6c3c4e8b486f200370d",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 49,
+  "childCount": 55,
+  "head": "9633d567508a5d82ee51d5ed34014e850f417731"
+ },
+ "atomic": {
+  "globalIndex": 65,
+  "globalCount": 845,
+  "purpose": "✨ feat(step-cache): add RemoteCacheStore",
+  "type": "feat",
+  "kind": "module",
+  "scope": "step-cache",
+  "component": "packages/step-cache",
+  "unitKey": "RemoteCacheStore",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "ad382f70b2c672c6eb57f057970598f647b6400c",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [
+   "0b9820c557b0ad82704571cd392d4446b125c16e"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "commit": "3b57deac5ef23a0e1e2fa660e6bcf9351049a95b"
+   },
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   }
+  ]
+ },
+ "related": {
+  "previous": "ad382f70b2c672c6eb57f057970598f647b6400c",
+  "next": "a907f76614a1aed065dcbdc5b44cc4f4d0e970a0",
+  "epicFirst": "0b1fe1d563a03d93618ff339540cb77a2ed44d4b",
+  "epicLast": "9633d567508a5d82ee51d5ed34014e850f417731",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 542,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/step-cache/src/RemoteCacheStore.ts",
+   "mode": "100644",
+   "blob": "4b8b707ff45afb870231b6dbe9224893019bd16c",
+   "previousBlob": null,
+   "added": 210,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/step-cache/test/RemoteCacheStore.test.ts",
+   "mode": "100644",
+   "blob": "da33df3c6d8f0136e38e1d0ad65db3d2a23aed2b",
+   "previousBlob": null,
+   "added": 332,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

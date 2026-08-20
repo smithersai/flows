@@ -1,0 +1,86 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "028cff00e144e601086e17a4ab94dec95fb8338f",
+ "tree": "4dde6d52b4b5a7b613dd38713d89004ae2fe5fcb",
+ "epic": {
+  "index": 18,
+  "id": "workflows",
+  "name": "Repository automation workflows",
+  "sourceCommit": "9ea4941fc404fb4f12e3384b96a37e0739be3916",
+  "sourceSubject": "✨ feat(workflows): add repository automation workflows",
+  "childIndex": 3,
+  "childCount": 9,
+  "head": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "atomic": {
+  "globalIndex": 839,
+  "globalCount": 845,
+  "purpose": "✨ feat(smithers): add the evals/alpha-agent module (1/2)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "smithers",
+  "component": ".smithers",
+  "unitKey": "dir:evals/alpha-agent",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "384099d7500c6d22aae0a0522dfa15be477decfd",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui",
+   "docs-site",
+   "factory"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "commit": "fec516964e3e6a618aace55755a6d0befd72daa8"
+   }
+  ]
+ },
+ "related": {
+  "previous": "384099d7500c6d22aae0a0522dfa15be477decfd",
+  "next": "423fa01019c0c645e877fe9c93924b4dce78cb61",
+  "epicFirst": "fed6cbe14b940882dcae210c48223700336f43b7",
+  "epicLast": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 5415,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": ".smithers/evals/alpha-agent/baseline-report.json",
+   "mode": "100644",
+   "blob": "bc6544f981c77386ed7b446c4ebe57e11b8e09ff",
+   "previousBlob": null,
+   "added": 5415,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ],
+ "sizeJustification": "Single indivisible file (.smithers/evals/alpha-agent/baseline-report.json); splitting it further would create partial-file states that never existed. Generated/derived artifact."
+}

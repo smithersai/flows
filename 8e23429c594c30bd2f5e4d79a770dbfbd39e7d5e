@@ -1,0 +1,72 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "8e23429c594c30bd2f5e4d79a770dbfbd39e7d5e",
+ "tree": "1092e75c81b6e81a075a47467ed662d87613e4fa",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 62,
+  "childCount": 96,
+  "head": "c93705a8b036d030082a6877bd6668709293285d"
+ },
+ "atomic": {
+  "globalIndex": 248,
+  "globalCount": 845,
+  "purpose": "✨ feat(engine-store): add the internal module (5/5)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "engine-store",
+  "component": "packages/engine-store/src",
+  "unitKey": "dir:internal",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "a6ffad71242ca45b01781631ef586864fc8f00c5",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "1b2d917f9299e104d701a5e38b74cedd19846579",
+   "911cd6e9d09f1da3b72864b41dbbb83034e27e89",
+   "b43b3b12d0f84a013434387f26580ee78f0854af"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "a6ffad71242ca45b01781631ef586864fc8f00c5",
+  "next": "b711f85e99144528246fdc7e10ff28d55dfa3a88",
+  "epicFirst": "eec277e2e1bfd7b6ae08c5d31c63df081ea52207",
+  "epicLast": "c93705a8b036d030082a6877bd6668709293285d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 163,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/internal/SandboxedExecution.ts",
+   "mode": "100644",
+   "blob": "e9cbe2a83aaf8658a0c6b6be9b144f2e6dcd540b",
+   "previousBlob": null,
+   "added": 163,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,91 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "10bdb99dbcc8bca2be71372f55cbb5bbfb9255aa",
+ "tree": "027ed30bafc5fb92dd83d2b6fb31be0b6a709ad5",
+ "epic": {
+  "index": 15,
+  "id": "tui",
+  "name": "Terminal application",
+  "sourceCommit": "ca5777391956c8a52c077feff63d7e5f4c84896a",
+  "sourceSubject": "✨ feat(tui): add the terminal application",
+  "childIndex": 5,
+  "childCount": 7,
+  "head": "bf2d85b5e202b9f23ce0675d93001594e672969b"
+ },
+ "atomic": {
+  "globalIndex": 800,
+  "globalCount": 845,
+  "purpose": "✅ test(tui): cover agent, tui",
+  "type": "test",
+  "kind": "tests",
+  "scope": "tui",
+  "component": "apps/tui",
+  "unitKey": "src/agent",
+  "mergedUnitKeys": [
+   "src/agent",
+   "src/e2e"
+  ]
+ },
+ "dependencies": {
+  "parent": "57f8fa9bc49561163161c4f22d67802182d183fa",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "57f8fa9bc49561163161c4f22d67802182d183fa",
+  "next": "dcbfb5e5c540d546f01f356329bd8ce3513fde5a",
+  "epicFirst": "9d82d9a71ebc365ca2fd0f7ee437415b4f872a64",
+  "epicLast": "bf2d85b5e202b9f23ce0675d93001594e672969b",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 530,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/tui/src/agent/WebAgent.test.ts",
+   "mode": "100644",
+   "blob": "847138d29214ac1ac4c3b3e5db0fb0e53db9f4c6",
+   "previousBlob": null,
+   "added": 61,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/tui/src/e2e/WorkerTurn.test.tsx",
+   "mode": "100644",
+   "blob": "dbcae61e7258df0c4604558401ba0f0c43734d2e",
+   "previousBlob": null,
+   "added": 469,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

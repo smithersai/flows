@@ -1,0 +1,90 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "437aed96d9c83b342ee0651f9d7443bab83ee713",
+ "tree": "a81188bfc4d6d8a3b1d48befda1e8b830cf7311d",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 38,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 550,
+  "globalCount": 845,
+  "purpose": "✨ feat(targets): add the GeneratedFile, Secret modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "targets",
+  "component": "packages/targets/src",
+  "unitKey": "GeneratedFile",
+  "mergedUnitKeys": [
+   "GeneratedFile",
+   "Secret"
+  ]
+ },
+ "dependencies": {
+  "parent": "efd1f69d0dbcd437153aea782a5404079bcb96d8",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [
+   "efd1f69d0dbcd437153aea782a5404079bcb96d8",
+   "f56a4142dd45914bb9a0f98b208bef41854e3f52"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "efd1f69d0dbcd437153aea782a5404079bcb96d8",
+  "next": "0e3dcd628e447431adad531f68c79fc900658e1d",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 658,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/targets/src/GeneratedFile.ts",
+   "mode": "100644",
+   "blob": "1b0ba1847e8b2e7867a458de62c7d80c06ed70f4",
+   "previousBlob": null,
+   "added": 518,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/targets/src/Secret.ts",
+   "mode": "100644",
+   "blob": "69771c82329d4ca5e649c222911a30ee31c3a5d6",
+   "previousBlob": null,
+   "added": 140,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

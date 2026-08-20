@@ -1,0 +1,83 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a0cfaf2c4979213d9909cab96af4d1ad55f2ca53",
+ "tree": "4ce1dde0e438010a47eaed632bd807f137d18a17",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 20,
+  "childCount": 55,
+  "head": "9633d567508a5d82ee51d5ed34014e850f417731"
+ },
+ "atomic": {
+  "globalIndex": 36,
+  "globalCount": 845,
+  "purpose": "✨ feat(journal): add Projection",
+  "type": "feat",
+  "kind": "module",
+  "scope": "journal",
+  "component": "packages/journal",
+  "unitKey": "Projection",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "1bdfdf41e188fb7ce6ecd8bb04bcf6deb6c913dd",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [
+   "b6d56ab89992dca688a29a4f6745173e02707fd3"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   }
+  ]
+ },
+ "related": {
+  "previous": "1bdfdf41e188fb7ce6ecd8bb04bcf6deb6c913dd",
+  "next": "3766c3a8c1f23813bc27d1cd18c8163afa59b7e2",
+  "epicFirst": "0b1fe1d563a03d93618ff339540cb77a2ed44d4b",
+  "epicLast": "9633d567508a5d82ee51d5ed34014e850f417731",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 255,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/journal/src/Projection.ts",
+   "mode": "100644",
+   "blob": "0d610f3e049b71938150db7e0e9d414c2d4628bb",
+   "previousBlob": null,
+   "added": 34,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/journal/test/Projection.test.ts",
+   "mode": "100644",
+   "blob": "e36b18eb34cf61064e46670167f19ec4d51964a7",
+   "previousBlob": null,
+   "added": 221,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

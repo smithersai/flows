@@ -1,0 +1,79 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "0287386cd677755e6439aa8018e0146c11328512",
+ "tree": "7ee7af3ead7afd89f3055fb42715c88023c05ef9",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 144,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 792,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the state/controller module (1/4)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:mainview/state/controller",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "d1f3fd8eff2620ef9a3b93f19229f0e2678f9e5c",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "936580f83e9247b8d2c86c38a6c4ef634dde2411",
+   "0dd03545f5ea30a4aec05cdcc8826779e6452c0a"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "d1f3fd8eff2620ef9a3b93f19229f0e2678f9e5c",
+  "next": "0dd03545f5ea30a4aec05cdcc8826779e6452c0a",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 926,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/controller/auth-billing.ts",
+   "mode": "100644",
+   "blob": "e0a0ec52d559cbe26e51c14feaa18f9aa5e3d29f",
+   "previousBlob": null,
+   "added": 926,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

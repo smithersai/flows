@@ -1,0 +1,92 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "e940c479920dead6aa6a309be15a3965a3d83bcc",
+ "tree": "27d2033701ef494f47266604d735351633b4d1f0",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 27,
+  "childCount": 55,
+  "head": "9633d567508a5d82ee51d5ed34014e850f417731"
+ },
+ "atomic": {
+  "globalIndex": 43,
+  "globalCount": 845,
+  "purpose": "✨ feat(journal): add Redaction",
+  "type": "feat",
+  "kind": "module",
+  "scope": "journal",
+  "component": "packages/journal",
+  "unitKey": "Redaction",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "13f4baa4437a7ec17517081fc08fe92169746a76",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   }
+  ]
+ },
+ "related": {
+  "previous": "13f4baa4437a7ec17517081fc08fe92169746a76",
+  "next": "455683f254fe47edbefe967367032d33cf17af2b",
+  "epicFirst": "0b1fe1d563a03d93618ff339540cb77a2ed44d4b",
+  "epicLast": "9633d567508a5d82ee51d5ed34014e850f417731",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 524,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/journal/src/Redaction.ts",
+   "mode": "100644",
+   "blob": "337859af3a7bb7201744829a995abbc14a774254",
+   "previousBlob": null,
+   "added": 209,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/journal/test/Redaction.property.test.ts",
+   "mode": "100644",
+   "blob": "b1ac65f06af22525209920cf497075e222fc4ed5",
+   "previousBlob": null,
+   "added": 130,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/journal/test/Redaction.test.ts",
+   "mode": "100644",
+   "blob": "9dc4b95b5d29b62cf0186275f8bb02e719b5335b",
+   "previousBlob": null,
+   "added": 185,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

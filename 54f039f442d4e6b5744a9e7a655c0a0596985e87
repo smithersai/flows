@@ -1,0 +1,117 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "54f039f442d4e6b5744a9e7a655c0a0596985e87",
+ "tree": "c6f4111c34ae3007f1812ef7542e24595c17a7e4",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 24,
+  "childCount": 66,
+  "head": "28962374658aba2757a5405dab6454616510b6b6"
+ },
+ "atomic": {
+  "globalIndex": 349,
+  "globalCount": 845,
+  "purpose": "✨ feat(gateway): add the GatewayError, GatewaySchema, SuperviseRuntime modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "gateway",
+  "component": "packages/gateway",
+  "unitKey": "GatewayError",
+  "mergedUnitKeys": [
+   "GatewayError",
+   "GatewaySchema",
+   "SuperviseRuntime"
+  ]
+ },
+ "dependencies": {
+  "parent": "7e07e22c3c9d95bbaa379b27219956014f6b777f",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/control",
+    "commit": "40bf3f68fb8b79abcb73506a5980f5eaa9e92e36"
+   },
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   },
+   {
+    "package": "@smthrs/notifications",
+    "commit": "1fb5a051f5ccc772c2e8cce3b8a29472c51afd48"
+   },
+   {
+    "package": "@smthrs/run-store",
+    "commit": "9633d567508a5d82ee51d5ed34014e850f417731"
+   },
+   {
+    "package": "@smthrs/sync",
+    "commit": "fe2f612d03e13b414eb28e2f50a685d212be384f"
+   }
+  ]
+ },
+ "related": {
+  "previous": "7e07e22c3c9d95bbaa379b27219956014f6b777f",
+  "next": "273f375374fa551e9cd89d3041e69653c0d0c503",
+  "epicFirst": "65dffaa9668923ae816eeaa5bce0901a958729b0",
+  "epicLast": "28962374658aba2757a5405dab6454616510b6b6",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 695,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/gateway/src/GatewayError.ts",
+   "mode": "100644",
+   "blob": "8120b58b67d0e1632e8f004ca5cebd143927cc4c",
+   "previousBlob": null,
+   "added": 47,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/gateway/src/GatewaySchema.ts",
+   "mode": "100644",
+   "blob": "ec3a699146518decc6963cbe4c77079d87dde53b",
+   "previousBlob": null,
+   "added": 492,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/gateway/src/SuperviseRuntime.ts",
+   "mode": "100644",
+   "blob": "9ec271eb77f53a60fc1f1ba6d8fbf483c9faaed2",
+   "previousBlob": null,
+   "added": 156,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

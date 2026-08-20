@@ -1,0 +1,143 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "e34d06537c11c364d2bf435fab5614b22f6e5dd1",
+ "tree": "8e7adaf8b5bb0afb263db8a8cb6e6a05a420d7bb",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 28,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 676,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the bunfig, gateway, preload and 3 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/.smithers",
+  "unitKey": "bunfig",
+  "mergedUnitKeys": [
+   "bunfig",
+   "gateway",
+   "preload",
+   "smithers",
+   "smithers.config",
+   "tsconfig.production-readiness"
+  ]
+ },
+ "dependencies": {
+  "parent": "53c1bbf5b9602ff1657736cee7656cbd7f436a48",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "commit": "fec516964e3e6a618aace55755a6d0befd72daa8"
+   }
+  ]
+ },
+ "related": {
+  "previous": "53c1bbf5b9602ff1657736cee7656cbd7f436a48",
+  "next": "a7eb088640d91ee27b12868462cd5137b0b1e26b",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 6,
+  "added": 77,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/bunfig.toml",
+   "mode": "100644",
+   "blob": "7d029e77cd75648eaba1b99eb4fb7be16cab4224",
+   "previousBlob": null,
+   "added": 1,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/gateway.ts",
+   "mode": "100644",
+   "blob": "fca258038c0957cb55c88bffd2cd570cc5b38e61",
+   "previousBlob": null,
+   "added": 47,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/preload.ts",
+   "mode": "100644",
+   "blob": "c7a7bad05c3de97a9fccf9c53e66fc1410a6ee07",
+   "previousBlob": null,
+   "added": 2,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/smithers.toon",
+   "mode": "100644",
+   "blob": "1a8f1f98e4bad2b467faa31ec63de0571f9a8c67",
+   "previousBlob": null,
+   "added": 12,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/smithers.config.ts",
+   "mode": "100644",
+   "blob": "bc9ae4c39caa8088dd1d1c5a4fbe5ac3e59bf78c",
+   "previousBlob": null,
+   "added": 2,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/tsconfig.production-readiness.json",
+   "mode": "100644",
+   "blob": "9b228ca5e779cc3166cda8efc842e269c143025e",
+   "previousBlob": null,
+   "added": 13,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

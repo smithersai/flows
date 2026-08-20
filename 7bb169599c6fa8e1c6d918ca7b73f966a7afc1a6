@@ -1,0 +1,131 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "7bb169599c6fa8e1c6d918ca7b73f966a7afc1a6",
+ "tree": "befd500e30ffbd6116bb56a1c2b7002bef7d9a49",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 68,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 716,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the launch-checklist modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "dir:launch-checklist",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "3fb1a4d67777b8db8159034ec17810050b8f2038",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "3fb1a4d67777b8db8159034ec17810050b8f2038",
+  "next": "7982cd350eb2156b8e994448fc24c6ca5ef6706b",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 6,
+  "added": 1385,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/launch-checklist/BrowserLaunch.ts",
+   "mode": "100644",
+   "blob": "af97b4f5245290a99cc304b1f1ee18c1c7c89cd4",
+   "previousBlob": null,
+   "added": 59,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/launch-checklist/Cli.ts",
+   "mode": "100644",
+   "blob": "c6e3a7a8105c20b9e19fd93607240b65c4952d32",
+   "previousBlob": null,
+   "added": 83,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/launch-checklist/Probes.ts",
+   "mode": "100644",
+   "blob": "2ed60f5219a5ffb6f83138b62828e610840ddb13",
+   "previousBlob": null,
+   "added": 194,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/launch-checklist/Rows.ts",
+   "mode": "100644",
+   "blob": "9369da3c47f1302510e160e68cb5908f85224df8",
+   "previousBlob": null,
+   "added": 783,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/launch-checklist/Runner.ts",
+   "mode": "100644",
+   "blob": "3564e93f4f33c85fac0d41608175960ec972ab9a",
+   "previousBlob": null,
+   "added": 157,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/launch-checklist/Types.ts",
+   "mode": "100644",
+   "blob": "cff3b13fb99cd8bcd54e479c6bbe8d5b61ea4e76",
+   "previousBlob": null,
+   "added": 109,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

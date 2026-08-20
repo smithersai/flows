@@ -1,0 +1,96 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "daacc95abcdfb80abd1c7a2e9baddc59628740b0",
+ "tree": "0eac49ab542948190dca24fe2d24f52e174927e7",
+ "epic": {
+  "index": 18,
+  "id": "workflows",
+  "name": "Repository automation workflows",
+  "sourceCommit": "9ea4941fc404fb4f12e3384b96a37e0739be3916",
+  "sourceSubject": "✨ feat(workflows): add repository automation workflows",
+  "childIndex": 7,
+  "childCount": 9,
+  "head": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "atomic": {
+  "globalIndex": 843,
+  "globalCount": 845,
+  "purpose": "✨ feat(smithers): add the workflows modules (2/2)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "smithers",
+  "component": ".smithers",
+  "unitKey": "dir:workflows",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "b3e84c7e415b6480963157855a6c25d594e22ae6",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui",
+   "docs-site",
+   "factory"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "commit": "fec516964e3e6a618aace55755a6d0befd72daa8"
+   }
+  ]
+ },
+ "related": {
+  "previous": "b3e84c7e415b6480963157855a6c25d594e22ae6",
+  "next": "e4f4a6c07f1f3fd292ffa8995bdf062605015ee5",
+  "epicFirst": "fed6cbe14b940882dcae210c48223700336f43b7",
+  "epicLast": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 1424,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": ".smithers/workflows/alpha-ui.tsx",
+   "mode": "100644",
+   "blob": "6751086705e8059d01ba2934677c30c7ccbaa625",
+   "previousBlob": null,
+   "added": 926,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": ".smithers/workflows/iso-ui-port.tsx",
+   "mode": "100644",
+   "blob": "9ae57948993cc784f1aaa660139860a6e58e2e6f",
+   "previousBlob": null,
+   "added": 498,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

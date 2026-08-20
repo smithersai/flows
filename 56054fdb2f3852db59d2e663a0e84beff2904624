@@ -1,0 +1,76 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "56054fdb2f3852db59d2e663a0e84beff2904624",
+ "tree": "8c7460ada163e892c6f076a11431c688eef86147",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 1,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 649,
+  "globalCount": 845,
+  "purpose": "🧹 chore(reports): add the agent-chain-ui-integration-plan-2026-08-11 review report",
+  "type": "chore",
+  "kind": "module",
+  "scope": "reports",
+  "component": "apps/reports",
+  "unitKey": "agent-chain-ui-integration-plan-2026-08-11",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "b02e63ed129878a014ee9484e2d27a74aba94be1",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "b02e63ed129878a014ee9484e2d27a74aba94be1",
+  "next": "07e3bedf3a9182fb121be8f8cf44c5e8252fdc53",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 260,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/reports/agent-chain-ui-integration-plan-2026-08-11.html",
+   "mode": "100644",
+   "blob": "d8cc1f37cdd896a81de6f6b2473dc27a052b3e03",
+   "previousBlob": null,
+   "added": 260,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

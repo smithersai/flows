@@ -1,0 +1,76 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "85a39445b2288731ba889a88c5d4c792f454a4dd",
+ "tree": "7fb7acce1c03af9ebcb48f5e84cee2fbf0a369e0",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 89,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 737,
+  "globalCount": 845,
+  "purpose": "✅ test(ui): cover mainview/native",
+  "type": "test",
+  "kind": "tests",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "mainview/native",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "21c44a874d3b9422a295dc866739478b56b47c5b",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "21c44a874d3b9422a295dc866739478b56b47c5b",
+  "next": "1fa03fb08e2b42bc69613964e869c067c07d72f6",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 282,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/native/WebAgent.test.ts",
+   "mode": "100644",
+   "blob": "c6573cf8441e63c3bdbdeaddb48b969cb8bf5fdd",
+   "previousBlob": null,
+   "added": 282,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

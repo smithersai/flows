@@ -1,0 +1,90 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "68ca6c901b5347f913bb7e9c19ad9be5ccd4c546",
+ "tree": "226e4ce1d16ca61c92da3e3b077c0ff842e92265",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 9,
+  "childCount": 96,
+  "head": "c93705a8b036d030082a6877bd6668709293285d"
+ },
+ "atomic": {
+  "globalIndex": 195,
+  "globalCount": 845,
+  "purpose": "✅ test(engine-store): cover engine-store (1/23)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "engine-store",
+  "component": "packages/engine-store/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "d2c5a46c78561ccf54c5ba9913a1a2bd331d82f5",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "d2c5a46c78561ccf54c5ba9913a1a2bd331d82f5",
+  "next": "24d3b50bc1365724723edefa639c383283d74bdd",
+  "epicFirst": "eec277e2e1bfd7b6ae08c5d31c63df081ea52207",
+  "epicLast": "c93705a8b036d030082a6877bd6668709293285d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 1350,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/ActionEdgeCases.test.ts",
+   "mode": "100644",
+   "blob": "a23db69ed13b15a807563a346943ce0e1218ac47",
+   "previousBlob": null,
+   "added": 576,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/ActionFailurePaths.test.ts",
+   "mode": "100644",
+   "blob": "f13cff11092243533da21b58183aba7dd67456d2",
+   "previousBlob": null,
+   "added": 414,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/ActionPersistence.test.ts",
+   "mode": "100644",
+   "blob": "67e948a0e54dc10f5b200dacb6a7f2af3318038d",
+   "previousBlob": null,
+   "added": 360,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

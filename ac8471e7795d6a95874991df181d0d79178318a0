@@ -1,0 +1,84 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "ac8471e7795d6a95874991df181d0d79178318a0",
+ "tree": "811f6ecfcfd9ad9cce562a26dfde669e7198e332",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 4,
+  "childCount": 55,
+  "head": "9633d567508a5d82ee51d5ed34014e850f417731"
+ },
+ "atomic": {
+  "globalIndex": 20,
+  "globalCount": 845,
+  "purpose": "✨ feat(artifacts): add ArtifactSweep",
+  "type": "feat",
+  "kind": "module",
+  "scope": "artifacts",
+  "component": "packages/artifacts",
+  "unitKey": "ArtifactSweep",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "58643d40c83c8e4008cf380a1deee682bf4b8dbb",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [
+   "58643d40c83c8e4008cf380a1deee682bf4b8dbb",
+   "ec90423e6bcd390cbd2a991e5f5febfcef714900"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/crypto",
+    "commit": "3ac9a18fee84c753c34d31ae7baae150fa503fe6"
+   }
+  ]
+ },
+ "related": {
+  "previous": "58643d40c83c8e4008cf380a1deee682bf4b8dbb",
+  "next": "8e2414253c83f8cbd1bbf2dfb521732b04bbbaf2",
+  "epicFirst": "0b1fe1d563a03d93618ff339540cb77a2ed44d4b",
+  "epicLast": "9633d567508a5d82ee51d5ed34014e850f417731",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 647,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/artifacts/src/ArtifactSweep.ts",
+   "mode": "100644",
+   "blob": "513b43675b1df018d6d110273a1c474e387f01ff",
+   "previousBlob": null,
+   "added": 235,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/artifacts/test/ArtifactSweep.test.ts",
+   "mode": "100644",
+   "blob": "9e29cfd9eddf83410dfbb2ec1e60a2fd0fb967ce",
+   "previousBlob": null,
+   "added": 412,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

@@ -1,0 +1,340 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "03b72c7b8f0e41458eac0bc0765c6845046863fe",
+ "tree": "c62c9f0f80756233ca2492858dd6cd80e499e73d",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 9,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 657,
+  "globalCount": 845,
+  "purpose": "🧹 chore(reports): add wave12-review-signed-in, wave12-review-signed-out and 8 more assets",
+  "type": "chore",
+  "kind": "module",
+  "scope": "reports",
+  "component": "apps/reports/live-checks",
+  "unitKey": "dir:wave12-review-signed-in",
+  "mergedUnitKeys": [
+   "dir:wave12-review-signed-in",
+   "dir:wave12-review-signed-out",
+   "dir:wave12-review-workflows",
+   "dir:wave12-signed-in",
+   "dir:wave12-signed-out",
+   "dir:wave12-workflows",
+   "dir:wave12b-approval",
+   "dir:wave12b-full-shape",
+   "dir:wave13",
+   "dir:wave13/truth-bar"
+  ]
+ },
+ "dependencies": {
+  "parent": "0b058baca16f42d657c6b6866f4a0aecfd9f1dfc",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "0b058baca16f42d657c6b6866f4a0aecfd9f1dfc",
+  "next": "cf298043d6db6bac1180b9c8fe557083f8bdec75",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 24,
+  "added": 0,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave12-review-signed-in/signed-in-chat.png",
+   "mode": "100644",
+   "blob": "5cde533045a0360d40adc60765ca35182424735b",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave12-review-signed-out/signed-out-chat.png",
+   "mode": "100644",
+   "blob": "55ffada504bdd2b03ce764cc23a10bd24d6a0e07",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave12-review-signed-out/signin-honest-page.png",
+   "mode": "100644",
+   "blob": "3a326322e1d3c4423712fd44eb2fd9ac335e6f49",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave12-review-workflows/conversation.png",
+   "mode": "100644",
+   "blob": "70a33aea00f91298a049b1eced7594289d043fac",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave12-review-workflows/which-repo.png",
+   "mode": "100644",
+   "blob": "89e90668e76304507dcbd4aed31a3dd5412c205c",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave12-signed-in/signed-in-chat.png",
+   "mode": "100644",
+   "blob": "a29d972fa3573a92ac5ac4ccb327bc9cb9648dec",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave12-signed-out/signed-out-chat.png",
+   "mode": "100644",
+   "blob": "55ffada504bdd2b03ce764cc23a10bd24d6a0e07",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave12-signed-out/signin-honest-page.png",
+   "mode": "100644",
+   "blob": "3a326322e1d3c4423712fd44eb2fd9ac335e6f49",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave12-workflows/conversation.png",
+   "mode": "100644",
+   "blob": "0c30b30f9ae0156da06c1f4c340da37aec97c950",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave12-workflows/run-card.png",
+   "mode": "100644",
+   "blob": "6eaac3a0aa07ef8e0e6d9132d52be54abacf862f",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave12-workflows/which-repo.png",
+   "mode": "100644",
+   "blob": "fa70893713f995c7964acf1f83dbf776ee70c59a",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave12b-approval/0-loaded.png",
+   "mode": "100644",
+   "blob": "d67ec03e2a2f0fdb2d008f62335012cf65cbbdb7",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave12b-approval/1-parked.png",
+   "mode": "100644",
+   "blob": "d67ec03e2a2f0fdb2d008f62335012cf65cbbdb7",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave12b-approval/2-settled.png",
+   "mode": "100644",
+   "blob": "698d7e3190a9621d44f942301f5dede87edc7ed7",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave12b-full-shape/conversation.png",
+   "mode": "100644",
+   "blob": "d7b5bdf85dacbf03430b0052b0d324b2836faeb4",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave12b-full-shape/run-card.png",
+   "mode": "100644",
+   "blob": "41ef36190505c59881c2f97ac0c2db504035687b",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave12b-full-shape/which-repo.png",
+   "mode": "100644",
+   "blob": "55ed3b869c574b84b8c3195aabaff913d5aec58b",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave13/correction-calm.png",
+   "mode": "100644",
+   "blob": "ef8571dc27746a088e7ec94b743189889e06a1ad",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave13/signed-in-balance.png",
+   "mode": "100644",
+   "blob": "db5eded98218d8be31a24dc62ae9661bacb34942",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave13/truth-bar/F-1.png",
+   "mode": "100644",
+   "blob": "e93b87c988d9bb9952d9eca077c04f65afb8a8d4",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave13/truth-bar/F-2.png",
+   "mode": "100644",
+   "blob": "18b96de8e63f17c815ac97192975f943c64c3ad9",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave13/truth-bar/F-3.png",
+   "mode": "100644",
+   "blob": "d1ddb3248da607e78b77cb4d53f6d7813f09d617",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave13/truth-bar/F-4.png",
+   "mode": "100644",
+   "blob": "ce07dca5634e200ea435cb683db39a5969dbdef5",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/wave13/truth-bar/F-5.png",
+   "mode": "100644",
+   "blob": "5c1a9acc5596c86b618b3529695a9d208c02a102",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,86 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "96fa5a64bacd65349e5b825a3d410ec3125a1bb1",
+ "tree": "79fdfc6b713ce63f37772eadb84c37aebe1c5b20",
+ "epic": {
+  "index": 13,
+  "id": "server",
+  "name": "Shared application contracts and worker backend",
+  "sourceCommit": "5e1bcec6b1db3f2e990cb2b79bec0050dfc34ba3",
+  "sourceSubject": "✨ feat(server): add shared application contracts and worker backend",
+  "childIndex": 7,
+  "childCount": 20,
+  "head": "b02e63ed129878a014ee9484e2d27a74aba94be1"
+ },
+ "atomic": {
+  "globalIndex": 635,
+  "globalCount": 845,
+  "purpose": "✨ feat(server): add the scripts modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "server",
+  "component": "apps/server",
+  "unitKey": "dir:scripts",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "686d1c50f8364e9833262eba0e676184f90044da",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "686d1c50f8364e9833262eba0e676184f90044da",
+  "next": "2c25981c24aef87a1fdfa30d6bffe1fb102ab93e",
+  "epicFirst": "210032b4effd3e4b5015806fab6679f7153e0fef",
+  "epicLast": "b02e63ed129878a014ee9484e2d27a74aba94be1",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 250,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/server/scripts/deploy.ts",
+   "mode": "100644",
+   "blob": "29efde14540dbb90ca2cdcf970ff5d8b9c336b4e",
+   "previousBlob": null,
+   "added": 125,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/server/scripts/seed-allowlist.mjs",
+   "mode": "100644",
+   "blob": "856b879cdf307e0758a86b8f1d2771fb87683e24",
+   "previousBlob": null,
+   "added": 125,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

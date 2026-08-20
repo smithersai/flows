@@ -1,0 +1,101 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a17c9da0f93a6d6d9722d5e17882a5f56863c79f",
+ "tree": "f7b6781f714ffa4b818c35b36792607ddeaf776b",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 13,
+  "childCount": 96,
+  "head": "c93705a8b036d030082a6877bd6668709293285d"
+ },
+ "atomic": {
+  "globalIndex": 199,
+  "globalCount": 845,
+  "purpose": "✅ test(engine-store): cover engine-store (5/23)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "engine-store",
+  "component": "packages/engine-store/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "c6de71762190204b87929883dd17a2bd0bf0d9ad",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "c6de71762190204b87929883dd17a2bd0bf0d9ad",
+  "next": "55621d758192ea0ed84f284e5447eeb31017aa51",
+  "epicFirst": "eec277e2e1bfd7b6ae08c5d31c63df081ea52207",
+  "epicLast": "c93705a8b036d030082a6877bd6668709293285d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 1391,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/CancelParked.test.ts",
+   "mode": "100644",
+   "blob": "1f16e6e55f048c8b47179d54f25e03011ed4f8fd",
+   "previousBlob": null,
+   "added": 160,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/CycleDetection.test.ts",
+   "mode": "100644",
+   "blob": "78fd7b6b4855dffb88420f599f07082a12eca63d",
+   "previousBlob": null,
+   "added": 569,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/CycleDetectionSql.test.ts",
+   "mode": "100644",
+   "blob": "5c15470dfba302b7ae0dc7fbdffd2be83b636309",
+   "previousBlob": null,
+   "added": 215,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/DeferredPersistence.test.ts",
+   "mode": "100644",
+   "blob": "68c694b1b6a48d4cf09efad71894e73a7c06ca02",
+   "previousBlob": null,
+   "added": 447,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

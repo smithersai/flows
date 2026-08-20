@@ -1,0 +1,113 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "f8c3f5ba544f055ff39e77a05759189e8dc8ac70",
+ "tree": "97408cfff381483585b83c3fb7374e5337639ba3",
+ "epic": {
+  "index": 9,
+  "id": "agent",
+  "name": "Harness, chain, tools and CLI",
+  "sourceCommit": "a8caaa3dc45df0c14d6b10d0db9faf8a7ea7e542",
+  "sourceSubject": "✨ feat(agent): compose the harness, chain, tools, and CLI",
+  "childIndex": 8,
+  "childCount": 85,
+  "head": "012fadccb450058987918de5ef55d315135be71d"
+ },
+ "atomic": {
+  "globalIndex": 399,
+  "globalCount": 845,
+  "purpose": "✨ feat(harness): add ContextWindow",
+  "type": "feat",
+  "kind": "module",
+  "scope": "harness",
+  "component": "packages/harness",
+  "unitKey": "ContextWindow",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "fe3ae400e2b75978e4942c797e97b6cc8471e92f",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control"
+  ],
+  "sourceImports": [
+   "fe3ae400e2b75978e4942c797e97b6cc8471e92f"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   },
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   },
+   {
+    "package": "@smthrs/model",
+    "commit": "5d7f346b5c7d5b6d6470e58b2aed91e31cba613a"
+   },
+   {
+    "package": "@smthrs/notifications",
+    "commit": "1fb5a051f5ccc772c2e8cce3b8a29472c51afd48"
+   },
+   {
+    "package": "@smthrs/registry",
+    "commit": "1ae2f3b78daa4ba33deb87bfe057eee002727dcd"
+   }
+  ]
+ },
+ "related": {
+  "previous": "fe3ae400e2b75978e4942c797e97b6cc8471e92f",
+  "next": "07b59146dada1379b1981019b9bce961b6760bc5",
+  "epicFirst": "f86ed77ef384765a9a6a60ef7e3b84bfa04b8ac7",
+  "epicLast": "012fadccb450058987918de5ef55d315135be71d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 1192,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/harness/src/ContextWindow.ts",
+   "mode": "100644",
+   "blob": "789f1988633c00026b0077c455aab4d798ab3684",
+   "previousBlob": null,
+   "added": 506,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/harness/test/ContextWindow.test.ts",
+   "mode": "100644",
+   "blob": "5a11430476a7a943d6b51a235458f12ceaff8941",
+   "previousBlob": null,
+   "added": 686,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

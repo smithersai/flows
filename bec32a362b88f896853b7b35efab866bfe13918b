@@ -1,0 +1,96 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "bec32a362b88f896853b7b35efab866bfe13918b",
+ "tree": "2baee46942770979a359a6293f44be277bbde409",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 39,
+  "childCount": 43,
+  "head": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9"
+ },
+ "atomic": {
+  "globalIndex": 321,
+  "globalCount": 845,
+  "purpose": "✅ test(plugin): cover plugin",
+  "type": "test",
+  "kind": "tests",
+  "scope": "plugin",
+  "component": "packages/plugin",
+  "unitKey": "test",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "a6af6b175284322f976513df83d400f4690412db",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/flow",
+    "commit": "8f2310ef99183d31a7cb6a91238af374d246498b"
+   }
+  ]
+ },
+ "related": {
+  "previous": "a6af6b175284322f976513df83d400f4690412db",
+  "next": "95a27ee64f7a9e2652e2ff7a31fa4c87cdb8098d",
+  "epicFirst": "f7a85bfa43ff3fa63e2ad6200bd2d4d7ec1397a2",
+  "epicLast": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 375,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/plugin/test/Augmentation.test.ts",
+   "mode": "100644",
+   "blob": "9eb0a540bd54e9119fa9506be7f84e311ed542cc",
+   "previousBlob": null,
+   "added": 71,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/plugin/test/CacheEnvironment.test.ts",
+   "mode": "100644",
+   "blob": "b91473421f922ce6edd193e18ca613df9f9d429e",
+   "previousBlob": null,
+   "added": 90,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/plugin/test/Dispatch.test.ts",
+   "mode": "100644",
+   "blob": "8ac600dabf3ef767bf4722b47cb94f8796f0931a",
+   "previousBlob": null,
+   "added": 214,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

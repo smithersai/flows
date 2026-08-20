@@ -1,0 +1,128 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "986d29d7da47b0cf76b921dffa6263e8d05b4704",
+ "tree": "dcd1421e45ddfb18e66817697e6850166b3208f2",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 41,
+  "childCount": 61,
+  "head": "a5193915fd7f1bc7634e32c28838552e883641db"
+ },
+ "atomic": {
+  "globalIndex": 166,
+  "globalCount": 845,
+  "purpose": "✅ test(kernel): cover kernel for contract",
+  "type": "test",
+  "kind": "tests",
+  "scope": "kernel",
+  "component": "packages/kernel",
+  "unitKey": "test/contract",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "e4a9c4db116dd616a605b1dd9a9974b42853ccd7",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   },
+   {
+    "package": "@smthrs/jj",
+    "commit": "a67499b875ddce7aa9fe4a7cc5414fc0ab9eb398"
+   },
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   },
+   {
+    "package": "@smthrs/platform-browser",
+    "commit": "ca23816b16d5e35de879f35fe042c979b3f78807"
+   }
+  ]
+ },
+ "related": {
+  "previous": "e4a9c4db116dd616a605b1dd9a9974b42853ccd7",
+  "next": "6da749369a6fbd6995d730da52a307430c319a5d",
+  "epicFirst": "5037300288116821b95e1046a67ca324243eeeeb",
+  "epicLast": "a5193915fd7f1bc7634e32c28838552e883641db",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 5,
+  "added": 343,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/kernel/test/contract/HostContract.ts",
+   "mode": "100644",
+   "blob": "f07b15e20e52179fbb5027764253b79a6af1ee15",
+   "previousBlob": null,
+   "added": 6,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/kernel/test/contract/HostContractHelpers.test.ts",
+   "mode": "100644",
+   "blob": "0e225502c96114bd549eaf466072ed62ab8747c8",
+   "previousBlob": null,
+   "added": 101,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/kernel/test/contract/SupportedHost.contract.test.ts",
+   "mode": "100644",
+   "blob": "8fdcee7ae7b439167ffcbd2cfeaf87ce20739228",
+   "previousBlob": null,
+   "added": 121,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/kernel/test/contract/TestHost.contract.test.ts",
+   "mode": "100644",
+   "blob": "ecacc48a35451fd097080f0cbccabbde4c846869",
+   "previousBlob": null,
+   "added": 38,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/kernel/test/contract/UnsupportedHost.contract.test.ts",
+   "mode": "100644",
+   "blob": "0d0d643326462c198a98a9e376f38075c71cfba6",
+   "previousBlob": null,
+   "added": 77,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

@@ -1,0 +1,95 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "cd5f99c69d1c6f0a6e37007cb3f8c81f3ce7e548",
+ "tree": "38f163788d02444b07e2113f82c69ee3f8eef14a",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 32,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 544,
+  "globalCount": 845,
+  "purpose": "✅ test(build): cover build",
+  "type": "test",
+  "kind": "tests",
+  "scope": "build",
+  "component": "packages/build/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "2ff087e5707d963b79611e1983e18a6b4e57c296",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "2ff087e5707d963b79611e1983e18a6b4e57c296",
+  "next": "ec9b05e3fafba9bdeeab430fc6e68af99c0bcd48",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 1011,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build/test/Install.test.ts",
+   "mode": "100644",
+   "blob": "47b106a857e75e0ea733d9d171cea91fb813d5a5",
+   "previousBlob": null,
+   "added": 296,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/test/PackageManager.test.ts",
+   "mode": "100644",
+   "blob": "26bacbed05ccdd3933206d1219510a11e2826c7b",
+   "previousBlob": null,
+   "added": 483,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/test/Runtime.test.ts",
+   "mode": "100644",
+   "blob": "96ef2597afe79daf6e78bf1be5e6e5fd2c053542",
+   "previousBlob": null,
+   "added": 232,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

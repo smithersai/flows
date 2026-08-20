@@ -1,0 +1,412 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "0b058baca16f42d657c6b6866f4a0aecfd9f1dfc",
+ "tree": "4577cb72578b8c70fe923b9d4a0733d1822a6d01",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 8,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 656,
+  "globalCount": 845,
+  "purpose": "🧹 chore(reports): add 2026-08-09_18-18-20, 2026-08-09_18-27-39 and 14 more assets",
+  "type": "chore",
+  "kind": "module",
+  "scope": "reports",
+  "component": "apps/reports/live-checks",
+  "unitKey": "dir:2026-08-09_18-18-20",
+  "mergedUnitKeys": [
+   "dir:2026-08-09_18-18-20",
+   "dir:2026-08-09_18-27-39",
+   "dir:2026-08-09_20-22-52",
+   "dir:2026-08-09_20-25-01",
+   "dir:2026-08-09_20-49-07",
+   "dir:2026-08-09_21-55-22",
+   "dir:2026-08-09_21-58-45",
+   "dir:2026-08-09T21-56-36-signed-in",
+   "dir:2026-08-09T21-58-51-signed-in",
+   "dir:2026-08-10T01-32-11-workflows",
+   "dir:2026-08-10T01-47-03-workflows",
+   "dir:2026-08-10T01-51-34-workflows",
+   "dir:2026-08-10T01-58-04-workflows",
+   "dir:2026-08-10T02-17-38-workflows",
+   "dir:2026-08-10T04-50-wave12-workflows",
+   "dir:2026-08-10T12-46-40-workflows"
+  ]
+ },
+ "dependencies": {
+  "parent": "323abd239d5e26db02b2f4f62ad0ae35708c96c0",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "323abd239d5e26db02b2f4f62ad0ae35708c96c0",
+  "next": "03b72c7b8f0e41458eac0bc0765c6845046863fe",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 30,
+  "added": 0,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/2026-08-09_18-18-20/landing.png",
+   "mode": "100644",
+   "blob": "2feb72154c4814ff7e33cb34f8db2cae3e3961ad",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/2026-08-09_18-18-20/signin-honest-page.png",
+   "mode": "100644",
+   "blob": "3a326322e1d3c4423712fd44eb2fd9ac335e6f49",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/2026-08-09_18-27-39/landing.png",
+   "mode": "100644",
+   "blob": "2feb72154c4814ff7e33cb34f8db2cae3e3961ad",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/2026-08-09_18-27-39/signin-honest-page.png",
+   "mode": "100644",
+   "blob": "3a326322e1d3c4423712fd44eb2fd9ac335e6f49",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/2026-08-09_20-22-52/signed-out-chat.png",
+   "mode": "100644",
+   "blob": "2feb72154c4814ff7e33cb34f8db2cae3e3961ad",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/2026-08-09_20-25-01/signed-in-chat-local-stack.png",
+   "mode": "100644",
+   "blob": "c65772d7000167c72cb602b5ec4783147ce0ef6b",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/2026-08-09_20-25-01/signed-out-chat.png",
+   "mode": "100644",
+   "blob": "e0a4c01fb69b5a2312612eb1dc05688bff532b13",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/2026-08-09_20-25-01/signin-honest-page.png",
+   "mode": "100644",
+   "blob": "3a326322e1d3c4423712fd44eb2fd9ac335e6f49",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/2026-08-09_20-49-07/signed-out-chat.png",
+   "mode": "100644",
+   "blob": "43a1446cabed68c6ae738f61657e4b0d50b40d0c",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/2026-08-09_20-49-07/signin-honest-page.png",
+   "mode": "100644",
+   "blob": "3a326322e1d3c4423712fd44eb2fd9ac335e6f49",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/2026-08-09_21-55-22/signed-out-chat.png",
+   "mode": "100644",
+   "blob": "bba59a7c49a35fb2517bdd6db8782901cefd1496",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/2026-08-09_21-55-22/signin-honest-page.png",
+   "mode": "100644",
+   "blob": "3a326322e1d3c4423712fd44eb2fd9ac335e6f49",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/2026-08-09_21-58-45/signed-out-chat.png",
+   "mode": "100644",
+   "blob": "1daa4dd78d457dd72fabc0760e1383352596e096",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/2026-08-09_21-58-45/signin-honest-page.png",
+   "mode": "100644",
+   "blob": "3a326322e1d3c4423712fd44eb2fd9ac335e6f49",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/2026-08-09T21-56-36-signed-in/signed-in-chat.png",
+   "mode": "100644",
+   "blob": "a90c2a6239bc8e3495c128e115af52b38d6c250a",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/2026-08-09T21-58-51-signed-in/signed-in-chat.png",
+   "mode": "100644",
+   "blob": "9c6ab25fc18b79a7ce4a0be980b47270367e31c7",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/2026-08-10T01-32-11-workflows/conversation.png",
+   "mode": "100644",
+   "blob": "d1a31568407fe35102c412d250c51191c4861056",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/2026-08-10T01-32-11-workflows/run-card.png",
+   "mode": "100644",
+   "blob": "b2cdef9e28302caafd7f2aca7ed2e10ff0accde0",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/2026-08-10T01-47-03-workflows/conversation.png",
+   "mode": "100644",
+   "blob": "041aa887f66bb6ee64512decd07fcb84358d4362",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/2026-08-10T01-47-03-workflows/run-card.png",
+   "mode": "100644",
+   "blob": "52eae71b650a0219c44ce1ee18e859cdd3b0ce57",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/2026-08-10T01-51-34-workflows/conversation.png",
+   "mode": "100644",
+   "blob": "e5b77f056fdd96f7c889fc371d6a20f01b710b7d",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/2026-08-10T01-51-34-workflows/run-card.png",
+   "mode": "100644",
+   "blob": "d6d8b876e9ab1df7346f753a0455bebb8f92ae25",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/2026-08-10T01-58-04-workflows/conversation.png",
+   "mode": "100644",
+   "blob": "976d1720e515ec8d96cd9da017e177af05d75b80",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/2026-08-10T01-58-04-workflows/run-card.png",
+   "mode": "100644",
+   "blob": "eb72402413e14509806c82acb30ce0a12a4504eb",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/2026-08-10T02-17-38-workflows/conversation.png",
+   "mode": "100644",
+   "blob": "4983fc18f756cb723947a14ca73a11270fa02e3f",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/2026-08-10T02-17-38-workflows/run-card.png",
+   "mode": "100644",
+   "blob": "4745e58335ab2cb0a946c5b4da6328b96b4270e4",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/2026-08-10T04-50-wave12-workflows/conversation.png",
+   "mode": "100644",
+   "blob": "db1b5a889c49bc88aebaef1f6ed98683c8d06e6e",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/2026-08-10T12-46-40-workflows/conversation.png",
+   "mode": "100644",
+   "blob": "f4200f0f5757d9dbb4ff1c0b1de191ba3b8c15f0",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/2026-08-10T12-46-40-workflows/run-card.png",
+   "mode": "100644",
+   "blob": "98afff1b3416e19550f436158964e315b405f08c",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/live-checks/2026-08-10T12-46-40-workflows/which-repo.png",
+   "mode": "100644",
+   "blob": "d6a8f7784ec2b7f86f2593d2cce228daa94512e3",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,84 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "1ae2f3b78daa4ba33deb87bfe057eee002727dcd",
+ "tree": "8cc5f9055bd12532155936c1960d7d1220932cd6",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 21,
+  "childCount": 43,
+  "head": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9"
+ },
+ "atomic": {
+  "globalIndex": 303,
+  "globalCount": 845,
+  "purpose": "✨ feat(registry): export the public registry surface",
+  "type": "feat",
+  "kind": "index",
+  "scope": "registry",
+  "component": "packages/registry",
+  "unitKey": "~index",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "b31f0bb35e34d8c98f2c5dbbf5f12031e496788b",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [
+   "ead73b561bfa304507844e05868334fcf67082a5",
+   "befa30c0fa098dfb799e49529736dd285712fb98",
+   "aa645dcd0e3c97136961b0daded039fc8be000f2",
+   "537c4daae8df2135857aeea67e9f3d736ede1f57",
+   "b31f0bb35e34d8c98f2c5dbbf5f12031e496788b"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "b31f0bb35e34d8c98f2c5dbbf5f12031e496788b",
+  "next": "1ab8af522880a27e005a55bb4aad0677b1de7d30",
+  "epicFirst": "f7a85bfa43ff3fa63e2ad6200bd2d4d7ec1397a2",
+  "epicLast": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 45,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/registry/src/index.ts",
+   "mode": "100644",
+   "blob": "87042effe2fac38051dc53b689f3338295cb0e19",
+   "previousBlob": null,
+   "added": 45,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

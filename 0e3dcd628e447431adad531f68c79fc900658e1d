@@ -1,0 +1,75 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "0e3dcd628e447431adad531f68c79fc900658e1d",
+ "tree": "3ea34d15b7f2d7dd1ac1347d284af1821c052c6b",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 39,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 551,
+  "globalCount": 845,
+  "purpose": "✨ feat(targets): add SecretProxy",
+  "type": "feat",
+  "kind": "module",
+  "scope": "targets",
+  "component": "packages/targets/src",
+  "unitKey": "SecretProxy",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "437aed96d9c83b342ee0651f9d7443bab83ee713",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [
+   "437aed96d9c83b342ee0651f9d7443bab83ee713"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "437aed96d9c83b342ee0651f9d7443bab83ee713",
+  "next": "cafb6ee211054a8f7bf1229774fbb9e909f9b007",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 313,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/targets/src/SecretProxy.ts",
+   "mode": "100644",
+   "blob": "4ba770e235b90c45eb2028e56dea228b49e99200",
+   "previousBlob": null,
+   "added": 313,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

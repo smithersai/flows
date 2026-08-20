@@ -1,0 +1,96 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "3f3525339467e1d760eee5916a80920d2503e180",
+ "tree": "7f25994d320f1a2cd8b1ea192181b485225b756f",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 54,
+  "childCount": 96,
+  "head": "c93705a8b036d030082a6877bd6668709293285d"
+ },
+ "atomic": {
+  "globalIndex": 240,
+  "globalCount": 845,
+  "purpose": "✨ feat(engine-store): add the EngineStoreMetrics, Inconsistency, RunState modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "engine-store",
+  "component": "packages/engine-store/src",
+  "unitKey": "EngineStoreMetrics",
+  "mergedUnitKeys": [
+   "EngineStoreMetrics",
+   "Inconsistency",
+   "RunState"
+  ]
+ },
+ "dependencies": {
+  "parent": "248e24160124da76ac7fb62b06aafe41a2f72b00",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "455867d72e555abc6350fae874587cf5704d28e7"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "248e24160124da76ac7fb62b06aafe41a2f72b00",
+  "next": "1b2d917f9299e104d701a5e38b74cedd19846579",
+  "epicFirst": "eec277e2e1bfd7b6ae08c5d31c63df081ea52207",
+  "epicLast": "c93705a8b036d030082a6877bd6668709293285d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 664,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/EngineStoreMetrics.ts",
+   "mode": "100644",
+   "blob": "bc26225acaf5d03e1258bb7c5d2f8e6ad2ee6f5f",
+   "previousBlob": null,
+   "added": 353,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/Inconsistency.ts",
+   "mode": "100644",
+   "blob": "7f495e1d8b126e3adbb7af071ec018d77175f51e",
+   "previousBlob": null,
+   "added": 260,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/RunState.ts",
+   "mode": "100644",
+   "blob": "f35801db880242560f89954a7308b98ba88cb312",
+   "previousBlob": null,
+   "added": 51,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

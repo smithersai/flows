@@ -1,0 +1,96 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "b0730cfb8c6d3d2a449dcfc6a984435879f62107",
+ "tree": "fc4379975aaaac7429651f1f3eed2fae60cb2a48",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 55,
+  "childCount": 66,
+  "head": "28962374658aba2757a5405dab6454616510b6b6"
+ },
+ "atomic": {
+  "globalIndex": 380,
+  "globalCount": 845,
+  "purpose": "✨ feat(memory): export the public memory surface",
+  "type": "feat",
+  "kind": "index",
+  "scope": "memory",
+  "component": "packages/memory",
+  "unitKey": "~index",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "a1fdc6b209196b63862082f7d0acd3a7370903a8",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [
+   "644fe5aa922057552f71ca92b209fcdaba71042a",
+   "ab11f83aaa30868e1ec4e9fc7c01fe8777535f09",
+   "e3c99c688a217f9602dcad009a3546f8daa5f662",
+   "4673391e2fc864668661424c1a3d6f3183b83c07",
+   "5c21ab858de83d609a92ccb966d53c6465995f4a",
+   "91e341e3e8d70715dd4cf05d9364e33d0b0d8707",
+   "a2c5ee1b5d5c10cd5c4fe88c931e226a5366aa32",
+   "a1fdc6b209196b63862082f7d0acd3a7370903a8"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   },
+   {
+    "package": "@smthrs/model",
+    "commit": "5d7f346b5c7d5b6d6470e58b2aed91e31cba613a"
+   },
+   {
+    "package": "@smthrs/patterns",
+    "commit": "9e6c7183c2eb1028fd0b3f8e1736586a353cafd0"
+   }
+  ]
+ },
+ "related": {
+  "previous": "a1fdc6b209196b63862082f7d0acd3a7370903a8",
+  "next": "1dd8c0c1f5bef1a5fb8884064e5a7bb46e01c32e",
+  "epicFirst": "65dffaa9668923ae816eeaa5bce0901a958729b0",
+  "epicLast": "28962374658aba2757a5405dab6454616510b6b6",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 71,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/memory/src/index.ts",
+   "mode": "100644",
+   "blob": "f9c75505455b3a936749e64b1160094662cbdd9d",
+   "previousBlob": null,
+   "added": 71,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

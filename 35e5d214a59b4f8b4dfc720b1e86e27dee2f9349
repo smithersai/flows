@@ -1,0 +1,126 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "35e5d214a59b4f8b4dfc720b1e86e27dee2f9349",
+ "tree": "d1f8cc3c95b4ad83b3f3599c17c6ec9c355dcd73",
+ "epic": {
+  "index": 9,
+  "id": "agent",
+  "name": "Harness, chain, tools and CLI",
+  "sourceCommit": "a8caaa3dc45df0c14d6b10d0db9faf8a7ea7e542",
+  "sourceSubject": "✨ feat(agent): compose the harness, chain, tools, and CLI",
+  "childIndex": 26,
+  "childCount": 85,
+  "head": "012fadccb450058987918de5ef55d315135be71d"
+ },
+ "atomic": {
+  "globalIndex": 417,
+  "globalCount": 845,
+  "purpose": "✨ feat(std): add the Search, Glob modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "std",
+  "component": "packages/std",
+  "unitKey": "Search",
+  "mergedUnitKeys": [
+   "Search",
+   "Glob"
+  ]
+ },
+ "dependencies": {
+  "parent": "a6b678804d7b4fd0cff05d4dd88e2de5631bcf8b",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control"
+  ],
+  "sourceImports": [
+   "a6b678804d7b4fd0cff05d4dd88e2de5631bcf8b"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   },
+   {
+    "package": "@smthrs/control",
+    "commit": "40bf3f68fb8b79abcb73506a5980f5eaa9e92e36"
+   },
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "a6b678804d7b4fd0cff05d4dd88e2de5631bcf8b",
+  "next": "f71b9d6d4f3080d6008ab664244356e1e180f922",
+  "epicFirst": "f86ed77ef384765a9a6a60ef7e3b84bfa04b8ac7",
+  "epicLast": "012fadccb450058987918de5ef55d315135be71d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 628,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/std/src/Search.ts",
+   "mode": "100644",
+   "blob": "c204aed5e7d9c52554f9faf0c9084e0bd6ef568b",
+   "previousBlob": null,
+   "added": 139,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/std/test/SearchConformance.test.ts",
+   "mode": "100644",
+   "blob": "f88e5dc15248c8f39f3276b6b791641bf1254f25",
+   "previousBlob": null,
+   "added": 328,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/std/src/Glob.ts",
+   "mode": "100644",
+   "blob": "47e70345856abe84b25dc63fac1d28bd50ec1538",
+   "previousBlob": null,
+   "added": 121,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/std/test/Glob.test.ts",
+   "mode": "100644",
+   "blob": "f907e59fe0c3c2805643cd1e9dc27ca0f6c5e74e",
+   "previousBlob": null,
+   "added": 40,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

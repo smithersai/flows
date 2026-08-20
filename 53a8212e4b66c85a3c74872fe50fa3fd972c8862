@@ -1,0 +1,80 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "53a8212e4b66c85a3c74872fe50fa3fd972c8862",
+ "tree": "93df0857b15929f21b7b2e605d9d160da9a92a74",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 50,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 562,
+  "globalCount": 845,
+  "purpose": "✨ feat(targets): add GithubAutomation",
+  "type": "feat",
+  "kind": "module",
+  "scope": "targets",
+  "component": "packages/targets/src",
+  "unitKey": "GithubAutomation",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "262c55344316cb39ac4b37d9d3b72f7978800439",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [
+   "437aed96d9c83b342ee0651f9d7443bab83ee713",
+   "544e3ac19a0ccd247b216462f851b99292b5cb0e",
+   "262c55344316cb39ac4b37d9d3b72f7978800439",
+   "efd1f69d0dbcd437153aea782a5404079bcb96d8",
+   "61a0cc4fd2023b48395f5c5b9d8d22336a0fdf99",
+   "520e3aecadaae18423e2c74acf6d432db9b5872b"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "262c55344316cb39ac4b37d9d3b72f7978800439",
+  "next": "53a65bd8c3099f4b54edf45273d5306b546d3202",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 1138,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/targets/src/GithubAutomation.ts",
+   "mode": "100644",
+   "blob": "c5ac81e795a7e0fd9c869af6272908f8ef2e693c",
+   "previousBlob": null,
+   "added": 1138,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

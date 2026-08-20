@@ -1,0 +1,140 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "3a524e646c577db63899b2556ecb4e920b269539",
+ "tree": "525dad5408efc9925b035411326617a59ca54857",
+ "epic": {
+  "index": 9,
+  "id": "agent",
+  "name": "Harness, chain, tools and CLI",
+  "sourceCommit": "a8caaa3dc45df0c14d6b10d0db9faf8a7ea7e542",
+  "sourceSubject": "✨ feat(agent): compose the harness, chain, tools, and CLI",
+  "childIndex": 3,
+  "childCount": 85,
+  "head": "012fadccb450058987918de5ef55d315135be71d"
+ },
+ "atomic": {
+  "globalIndex": 394,
+  "globalCount": 845,
+  "purpose": "✨ feat(harness): add the cellPrompt, HarnessError, Plan and 1 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "harness",
+  "component": "packages/harness",
+  "unitKey": "internal/cellPrompt",
+  "mergedUnitKeys": [
+   "internal/cellPrompt",
+   "HarnessError",
+   "Plan",
+   "EngineLike"
+  ]
+ },
+ "dependencies": {
+  "parent": "0357a915e4b367fb773900475496b920823d37ff",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control"
+  ],
+  "sourceImports": [
+   "0357a915e4b367fb773900475496b920823d37ff"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   },
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   },
+   {
+    "package": "@smthrs/model",
+    "commit": "5d7f346b5c7d5b6d6470e58b2aed91e31cba613a"
+   },
+   {
+    "package": "@smthrs/notifications",
+    "commit": "1fb5a051f5ccc772c2e8cce3b8a29472c51afd48"
+   },
+   {
+    "package": "@smthrs/registry",
+    "commit": "1ae2f3b78daa4ba33deb87bfe057eee002727dcd"
+   }
+  ]
+ },
+ "related": {
+  "previous": "0357a915e4b367fb773900475496b920823d37ff",
+  "next": "94eebe78a0bd2467e06c83e17575011abc3ae63d",
+  "epicFirst": "f86ed77ef384765a9a6a60ef7e3b84bfa04b8ac7",
+  "epicLast": "012fadccb450058987918de5ef55d315135be71d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 511,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/harness/src/internal/cellPrompt.ts",
+   "mode": "100644",
+   "blob": "5cca78e84a59ab3d69f35a9fa8d5f40801e468ec",
+   "previousBlob": null,
+   "added": 95,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/harness/src/HarnessError.ts",
+   "mode": "100644",
+   "blob": "c7cfd4990960c5f8f37b9c42a992c7989d650f58",
+   "previousBlob": null,
+   "added": 60,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/harness/src/Plan.ts",
+   "mode": "100644",
+   "blob": "dbbd9038e0247b7dfbd87a36a38303462e7014de",
+   "previousBlob": null,
+   "added": 113,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/harness/src/EngineLike.ts",
+   "mode": "100644",
+   "blob": "c3490c3e43d78df94105f40c3777eb521f2c43b8",
+   "previousBlob": null,
+   "added": 243,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

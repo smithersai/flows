@@ -1,0 +1,120 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "48fb49344294fdf53d93ca7b746e2758fde70e64",
+ "tree": "593ce09c87e1d471653eef77acdfde2b7f598fcb",
+ "epic": {
+  "index": 10,
+  "id": "platform",
+  "name": "Conformance, scoring, evaluation and telemetry",
+  "sourceCommit": "317910c088e178d40f3b1553a182a7ee2be5dd24",
+  "sourceSubject": "✅ test(platform): add conformance, scoring, evaluation, and telemetry",
+  "childIndex": 3,
+  "childCount": 36,
+  "head": "7815804a6f1b8fd9568d8a0031bb0b58ee098100"
+ },
+ "atomic": {
+  "globalIndex": 479,
+  "globalCount": 845,
+  "purpose": "✨ feat(scorers): add the Runner, RunnerLive, SqlScoreStore modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "scorers",
+  "component": "packages/scorers",
+  "unitKey": "Runner",
+  "mergedUnitKeys": [
+   "Runner",
+   "RunnerLive",
+   "SqlScoreStore"
+  ]
+ },
+ "dependencies": {
+  "parent": "0e431b9b788784342d9b35b8081bccdb8560d232",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent"
+  ],
+  "sourceImports": [
+   "0e431b9b788784342d9b35b8081bccdb8560d232"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   }
+  ]
+ },
+ "related": {
+  "previous": "0e431b9b788784342d9b35b8081bccdb8560d232",
+  "next": "711dc85cd90b0b93d62275c9b334812c26bb1db9",
+  "epicFirst": "979f13d307eb3917b8f17afabcbde76137e83652",
+  "epicLast": "7815804a6f1b8fd9568d8a0031bb0b58ee098100",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 468,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/scorers/src/Runner.ts",
+   "mode": "100644",
+   "blob": "0eb71472f0be494320d16635ef5b5cd4e4634ab6",
+   "previousBlob": null,
+   "added": 106,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/scorers/test/Runner.test.ts",
+   "mode": "100644",
+   "blob": "7545b68e01a8e33471e92cdbe79e8c29130d408a",
+   "previousBlob": null,
+   "added": 86,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/scorers/src/RunnerLive.ts",
+   "mode": "100644",
+   "blob": "b2ecbd191eb2d55b93845af46d7f961d22e49062",
+   "previousBlob": null,
+   "added": 93,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/scorers/src/SqlScoreStore.ts",
+   "mode": "100644",
+   "blob": "8134df062a59f6e5d2cae2178ecda5a9c954f7a0",
+   "previousBlob": null,
+   "added": 183,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

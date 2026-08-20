@@ -1,0 +1,131 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "f8ffb52c0dedc7f3d1ef175dad9306f600fc6c52",
+ "tree": "1475c36040e64f62bc55fe2330361c823c4d0643",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 97,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 745,
+  "globalCount": 845,
+  "purpose": "✅ test(ui): cover mainview/state (8/8)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "mainview/state",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "8dddbeee2be426f06fe9888de35a59dd4ad57356",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "8dddbeee2be426f06fe9888de35a59dd4ad57356",
+  "next": "c64d963bd960cdf228e007e0fcfcf6dd6d4a09d6",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 6,
+  "added": 1488,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/Wave13.test.ts",
+   "mode": "100644",
+   "blob": "4f60abfc82e485eaeb4b9be1c65755e1752b3fe5",
+   "previousBlob": null,
+   "added": 420,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/Wave13c.test.ts",
+   "mode": "100644",
+   "blob": "4909364d4c885e7df103adfa4d1d4de8b9c0ce6a",
+   "previousBlob": null,
+   "added": 348,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/Wave13Toasts.test.tsx",
+   "mode": "100644",
+   "blob": "f4e0e91d792e9f526aa55d79c4804dd8f899b370",
+   "previousBlob": null,
+   "added": 147,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/Wave14.test.tsx",
+   "mode": "100644",
+   "blob": "54730011d74b388accce49cc14fb9fc7f46d1aaa",
+   "previousBlob": null,
+   "added": 216,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/WorldContext.test.ts",
+   "mode": "100644",
+   "blob": "ebd6c41a2c3fdff4054ccf539ebdc5083922bf21",
+   "previousBlob": null,
+   "added": 122,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/ZeroBalanceLaunch.test.ts",
+   "mode": "100644",
+   "blob": "6fb817c44b4565356d85068d35463845eda65f3c",
+   "previousBlob": null,
+   "added": 235,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

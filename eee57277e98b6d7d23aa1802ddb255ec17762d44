@@ -1,0 +1,142 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "eee57277e98b6d7d23aa1802ddb255ec17762d44",
+ "tree": "97b71b333cd989410a174e5b9dd614fd85049cfb",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 86,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 734,
+  "globalCount": 845,
+  "purpose": "✅ test(ui): cover mainview/chain (1/2)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "mainview/chain",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "4211d08f0d20ec5e8b9713afe4120b208d64aa0d",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "4211d08f0d20ec5e8b9713afe4120b208d64aa0d",
+  "next": "566e971d96a83e21a86f210d6baf96448c6d6d4f",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 7,
+  "added": 1461,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/chain/AppEngine.test.ts",
+   "mode": "100644",
+   "blob": "79988b553732bae74075c71ad9655639c6bc9e3f",
+   "previousBlob": null,
+   "added": 152,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/chain/ChainRuntime.test.ts",
+   "mode": "100644",
+   "blob": "aa9c343a504a4dadf20a0a8f9b71a7bd838ecb7a",
+   "previousBlob": null,
+   "added": 550,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/chain/CollectionJournal.test.ts",
+   "mode": "100644",
+   "blob": "358cf6d42aa544f6ac51c8325e74fb6149e27ba8",
+   "previousBlob": null,
+   "added": 175,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/chain/DebugFolds.test.ts",
+   "mode": "100644",
+   "blob": "f9fbc093fcfc42590fa37bde64e380e9a885de8b",
+   "previousBlob": null,
+   "added": 102,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/chain/deps.test.ts",
+   "mode": "100644",
+   "blob": "01bb9ee9e577bd29344fc1bd300631f82eab51c4",
+   "previousBlob": null,
+   "added": 156,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/chain/FlowCatalog.test.ts",
+   "mode": "100644",
+   "blob": "50076165260d1970b0fdc99e611c2deb0fdf8b6f",
+   "previousBlob": null,
+   "added": 161,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/chain/RelayProtocol.test.ts",
+   "mode": "100644",
+   "blob": "b5efcd4fd792c9a885512adc92c8877ea4f4b595",
+   "previousBlob": null,
+   "added": 165,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

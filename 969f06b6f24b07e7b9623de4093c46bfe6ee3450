@@ -1,0 +1,85 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "969f06b6f24b07e7b9623de4093c46bfe6ee3450",
+ "tree": "85969c04d8d2d5d4366f108c84e97852bfb0f52a",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 36,
+  "childCount": 43,
+  "head": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9"
+ },
+ "atomic": {
+  "globalIndex": 318,
+  "globalCount": 845,
+  "purpose": "📝 docs(patterns): document patterns",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "patterns",
+  "component": "packages/patterns",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "9e6c7183c2eb1028fd0b3f8e1736586a353cafd0",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   }
+  ]
+ },
+ "related": {
+  "previous": "9e6c7183c2eb1028fd0b3f8e1736586a353cafd0",
+  "next": "db59949ea7d1c1f4cc9e4e056b812e1f21e2260a",
+  "epicFirst": "f7a85bfa43ff3fa63e2ad6200bd2d4d7ec1397a2",
+  "epicLast": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 46,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/patterns/CHANGELOG.md",
+   "mode": "100644",
+   "blob": "eb8ae9793e52542d9eb0be58dcf789091e255d86",
+   "previousBlob": null,
+   "added": 8,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/patterns/README.md",
+   "mode": "100644",
+   "blob": "d663b58ca062dddcf0c91296080f8591f64a350f",
+   "previousBlob": null,
+   "added": 38,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

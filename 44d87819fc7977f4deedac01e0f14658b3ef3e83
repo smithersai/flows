@@ -1,0 +1,70 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "44d87819fc7977f4deedac01e0f14658b3ef3e83",
+ "tree": "c0b06daa28e262d0dbc97a599a6849878b539398",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 7,
+  "childCount": 96,
+  "head": "c93705a8b036d030082a6877bd6668709293285d"
+ },
+ "atomic": {
+  "globalIndex": 193,
+  "globalCount": 845,
+  "purpose": "✨ feat(engine-store): add SelectionStore",
+  "type": "feat",
+  "kind": "module",
+  "scope": "engine-store",
+  "component": "packages/engine-store/src",
+  "unitKey": "SelectionStore",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "e869bb8c4f46995afe93e126841cdc64b966d574",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "e869bb8c4f46995afe93e126841cdc64b966d574"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "e869bb8c4f46995afe93e126841cdc64b966d574",
+  "next": "d2c5a46c78561ccf54c5ba9913a1a2bd331d82f5",
+  "epicFirst": "eec277e2e1bfd7b6ae08c5d31c63df081ea52207",
+  "epicLast": "c93705a8b036d030082a6877bd6668709293285d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 251,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/SelectionStore.ts",
+   "mode": "100644",
+   "blob": "2dbfee4cdf7bcf0066abd5dd6db6743843d1a6fd",
+   "previousBlob": null,
+   "added": 251,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,85 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "b6d1bfac9060f0abfc0986b8b19b10a44fb2bc56",
+ "tree": "ec1472046b00028b043d6ba6d29cfb8ab6b9786e",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 44,
+  "childCount": 55,
+  "head": "9633d567508a5d82ee51d5ed34014e850f417731"
+ },
+ "atomic": {
+  "globalIndex": 60,
+  "globalCount": 845,
+  "purpose": "📝 docs(run-store): document run-store",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "run-store",
+  "component": "packages/run-store",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "104ea80518d893f83abdcc55c6873f6e5413e9a1",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   },
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   }
+  ]
+ },
+ "related": {
+  "previous": "104ea80518d893f83abdcc55c6873f6e5413e9a1",
+  "next": "41cf4e81d6ee5acee200a60da9ef59ab4c4e7124",
+  "epicFirst": "0b1fe1d563a03d93618ff339540cb77a2ed44d4b",
+  "epicLast": "9633d567508a5d82ee51d5ed34014e850f417731",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 124,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/run-store/CHANGELOG.md",
+   "mode": "100644",
+   "blob": "bef08bf62cf1481666d7d0ef818f9a5a5e9b1d82",
+   "previousBlob": null,
+   "added": 12,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/run-store/README.md",
+   "mode": "100644",
+   "blob": "6009564146f720af2bc52ce947e3e6c42ee84e04",
+   "previousBlob": null,
+   "added": 112,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

@@ -1,0 +1,144 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a71bed29530440d675e58d1dd55d8c65de45dbf2",
+ "tree": "3eba87d6900d726c503ac77e759dc9bb93d8e2de",
+ "epic": {
+  "index": 16,
+  "id": "docs-site",
+  "name": "Documentation site",
+  "sourceCommit": "2fd742db8891870cec6454b507fc94b3c65aa275",
+  "sourceSubject": "📚 docs(site): document the complete system",
+  "childIndex": 17,
+  "childCount": 17,
+  "head": "a71bed29530440d675e58d1dd55d8c65de45dbf2"
+ },
+ "atomic": {
+  "globalIndex": 819,
+  "globalCount": 845,
+  "purpose": "📝 docs(repo): document repo for repo",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "repo",
+  "component": "~root",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "156bd556f837baf31c948eaacb34733fef773e87",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "156bd556f837baf31c948eaacb34733fef773e87",
+  "next": "ba7243c4d5d3b90d5f65b965635c307d1d37ac11",
+  "epicFirst": "d92b6bd2642c1332bcd06cb6e7fc430acdf97cda",
+  "epicLast": "a71bed29530440d675e58d1dd55d8c65de45dbf2",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 7,
+  "added": 1001,
+  "deleted": 21
+ },
+ "provenance": {
+  "strategy": "hunk-split or whole-file evolution of a path introduced earlier",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "CONTRIBUTING.md",
+   "mode": "100644",
+   "blob": "7fd44dc348320e554dd03939b1ada8ec3030256e",
+   "previousBlob": null,
+   "added": 161,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "HUMAN-TASKS.md",
+   "mode": "100644",
+   "blob": "f1f6efc59154c8fdcf27d77f23d3b9694f7c365c",
+   "previousBlob": null,
+   "added": 144,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "MIGRATION-NOTES.md",
+   "mode": "100644",
+   "blob": "7cc421bcd03bc09f99de063ad76655540eb3e49d",
+   "previousBlob": null,
+   "added": 62,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "M",
+   "path": "README.md",
+   "mode": "100644",
+   "blob": "16cb8e4dceebcdd346045aad480d9688fc10a71f",
+   "previousBlob": "2ebe4c904bd4931876f80f5a88016df1bce72f57",
+   "added": 110,
+   "deleted": 21,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "REVIEW.md",
+   "mode": "100644",
+   "blob": "f67f1ea6b89e8b0c097d5dfa30303a17950bad4e",
+   "previousBlob": null,
+   "added": 448,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "SECURITY.md",
+   "mode": "100644",
+   "blob": "428deaa0dbf6ae04760d568984d56e46fec94ef1",
+   "previousBlob": null,
+   "added": 3,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "THIRD_PARTY_NOTICES.md",
+   "mode": "100644",
+   "blob": "deb8f1e0b65f3f5078f0aad51b561ec0507a8684",
+   "previousBlob": null,
+   "added": 73,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

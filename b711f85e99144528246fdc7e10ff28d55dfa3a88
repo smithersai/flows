@@ -1,0 +1,108 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "b711f85e99144528246fdc7e10ff28d55dfa3a88",
+ "tree": "87df0fff2e9c7ad1da272a9323021eff9313f5fa",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 63,
+  "childCount": 96,
+  "head": "c93705a8b036d030082a6877bd6668709293285d"
+ },
+ "atomic": {
+  "globalIndex": 249,
+  "globalCount": 845,
+  "purpose": "✨ feat(engine-store): add the migrations, Errors, ArtifactGc modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "engine-store",
+  "component": "packages/engine-store/src",
+  "unitKey": "dir:migrations",
+  "mergedUnitKeys": [
+   "dir:migrations",
+   "Errors",
+   "ArtifactGc"
+  ]
+ },
+ "dependencies": {
+  "parent": "8e23429c594c30bd2f5e4d79a770dbfbd39e7d5e",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "9123f49c124e0267fbe38a2cc90282ad1bccc0c2",
+   "1b2d917f9299e104d701a5e38b74cedd19846579"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "8e23429c594c30bd2f5e4d79a770dbfbd39e7d5e",
+  "next": "e2bb97a542f0941867ce3aa3e674b119e232fa75",
+  "epicFirst": "eec277e2e1bfd7b6ae08c5d31c63df081ea52207",
+  "epicLast": "c93705a8b036d030082a6877bd6668709293285d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 557,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/migrations/0001_initial.ts",
+   "mode": "100644",
+   "blob": "01404e5ce04df06bd98f238265b30d3d0c13c19b",
+   "previousBlob": null,
+   "added": 46,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/migrations/0002_selection_store.ts",
+   "mode": "100644",
+   "blob": "e9e4e2f74cda662802cc692cfe70c3b45ae48f98",
+   "previousBlob": null,
+   "added": 37,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/Errors.ts",
+   "mode": "100644",
+   "blob": "3ba1e4c32d08a92dab1b4daaa65830d02a51d383",
+   "previousBlob": null,
+   "added": 25,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/ArtifactGc.ts",
+   "mode": "100644",
+   "blob": "e3e333e3d60349c535ca4b32d8a2d720e4cb1da7",
+   "previousBlob": null,
+   "added": 449,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

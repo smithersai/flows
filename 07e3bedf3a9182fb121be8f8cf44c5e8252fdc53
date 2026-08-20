@@ -1,0 +1,76 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "07e3bedf3a9182fb121be8f8cf44c5e8252fdc53",
+ "tree": "5092e07b181c52fb53abf27bb776a714007b4b0d",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 2,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 650,
+  "globalCount": 845,
+  "purpose": "🧹 chore(reports): add the 20260808T221650.826Z-first review report",
+  "type": "chore",
+  "kind": "module",
+  "scope": "reports",
+  "component": "apps/reports/launch-checklist",
+  "unitKey": "dir:20260808T221650.826Z-first",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "next": "d8dcce31edee90524a891c0f6b4f04a2a80d5150",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 383,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/reports/launch-checklist/20260808T221650.826Z-first/launch-checklist-report.json",
+   "mode": "100644",
+   "blob": "12c39eb771d46b83db32507160082a3c7c68fcab",
+   "previousBlob": null,
+   "added": 383,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

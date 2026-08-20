@@ -1,0 +1,98 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "566e971d96a83e21a86f210d6baf96448c6d6d4f",
+ "tree": "c1c55f7dcec86ad023fe174946a4472bd90e5a32",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 87,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 735,
+  "globalCount": 845,
+  "purpose": "✅ test(ui): cover mainview/chain (2/2)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "mainview/chain",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "eee57277e98b6d7d23aa1802ddb255ec17762d44",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "eee57277e98b6d7d23aa1802ddb255ec17762d44",
+  "next": "21c44a874d3b9422a295dc866739478b56b47c5b",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 560,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/chain/SchemaVersion.test.ts",
+   "mode": "100644",
+   "blob": "67a98d986ef27f5b37cb2d91c4da1a703ca9393d",
+   "previousBlob": null,
+   "added": 310,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/chain/StreamModel.test.ts",
+   "mode": "100644",
+   "blob": "46dde684edfd2cf6914ee85af0b820097f5c38ce",
+   "previousBlob": null,
+   "added": 132,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/chain/Worldview.test.ts",
+   "mode": "100644",
+   "blob": "359d0ca5b3626e5652442faf483fe455e36967a5",
+   "previousBlob": null,
+   "added": 118,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

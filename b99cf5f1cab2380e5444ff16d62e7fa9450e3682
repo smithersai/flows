@@ -1,0 +1,92 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "b99cf5f1cab2380e5444ff16d62e7fa9450e3682",
+ "tree": "eab4c9b74c7f62a03244021b188323d88da9acdb",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 123,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 771,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the suites modules (11/11)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/e2e",
+  "unitKey": "dir:suites",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "39a84897106d60d390d20febe3e3696054227f1f",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "e53c81244e948d90730907b2bf01aa6062ecf67f",
+   "7982cd350eb2156b8e994448fc24c6ca5ef6706b",
+   "c3d19605a3b40f86461e4e72fe4bcf82fb4c6acd",
+   "53a74dc269f5c72c65e52e9ade4074d5a535a4ee"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "39a84897106d60d390d20febe3e3696054227f1f",
+  "next": "df9bb905e79a3d63ec44f86f44a319433a13efb5",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 1041,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/suites/workflow-stream.e2e.ts",
+   "mode": "100644",
+   "blob": "1926cdab4c48bac56df22bd37d7ef5fd85398235",
+   "previousBlob": null,
+   "added": 654,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/suites/world-surface.e2e.ts",
+   "mode": "100644",
+   "blob": "a8dc583d75e264973b132b9871c0710c1e613737",
+   "previousBlob": null,
+   "added": 387,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

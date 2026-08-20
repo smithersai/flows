@@ -1,0 +1,77 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "bf2d85b5e202b9f23ce0675d93001594e672969b",
+ "tree": "2008300e3d2af726de3453b0da80d7928f1d267e",
+ "epic": {
+  "index": 15,
+  "id": "tui",
+  "name": "Terminal application",
+  "sourceCommit": "ca5777391956c8a52c077feff63d7e5f4c84896a",
+  "sourceSubject": "✨ feat(tui): add the terminal application",
+  "childIndex": 7,
+  "childCount": 7,
+  "head": "bf2d85b5e202b9f23ce0675d93001594e672969b"
+ },
+ "atomic": {
+  "globalIndex": 802,
+  "globalCount": 845,
+  "purpose": "📝 docs(tui): document tui",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "tui",
+  "component": "apps/tui",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "dcbfb5e5c540d546f01f356329bd8ce3513fde5a",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "dcbfb5e5c540d546f01f356329bd8ce3513fde5a",
+  "next": "d92b6bd2642c1332bcd06cb6e7fc430acdf97cda",
+  "epicFirst": "9d82d9a71ebc365ca2fd0f7ee437415b4f872a64",
+  "epicLast": "bf2d85b5e202b9f23ce0675d93001594e672969b",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 60,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/tui/README.md",
+   "mode": "100644",
+   "blob": "7a44da02462061466b26498515f66b1f6372e577",
+   "previousBlob": null,
+   "added": 60,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

@@ -1,0 +1,106 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "3ffcd4a572c400fa84a0be7c3cca7cd71a4cf922",
+ "tree": "b916a7ee03568d61853926b71fe3246ea4f7a14a",
+ "epic": {
+  "index": 17,
+  "id": "factory",
+  "name": "Repository software factory",
+  "sourceCommit": "e1fbeee4b23399542c5105cb6f89733a14cc1892",
+  "sourceSubject": "✨ feat(factory): add the repository software factory",
+  "childIndex": 3,
+  "childCount": 17,
+  "head": "86b4890c93cc6cd89ee302f349552e4c64077e65"
+ },
+ "atomic": {
+  "globalIndex": 822,
+  "globalCount": 845,
+  "purpose": "✨ feat(factory-automation): add the github, labels modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "factory-automation",
+  "component": "factory/automation",
+  "unitKey": "github",
+  "mergedUnitKeys": [
+   "github",
+   "labels"
+  ]
+ },
+ "dependencies": {
+  "parent": "93b464e2c9027d4b9e43681eecf74fc5de8fd1dc",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui",
+   "docs-site"
+  ],
+  "sourceImports": [
+   "93b464e2c9027d4b9e43681eecf74fc5de8fd1dc"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "93b464e2c9027d4b9e43681eecf74fc5de8fd1dc",
+  "next": "1f296ba5f4ecc50de1198dabe2e2bf44d320e338",
+  "epicFirst": "ba7243c4d5d3b90d5f65b965635c307d1d37ac11",
+  "epicLast": "86b4890c93cc6cd89ee302f349552e4c64077e65",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 589,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "factory/automation/github.ts",
+   "mode": "100644",
+   "blob": "3b5469442237cb288e5850657dc7f29cd2df4088",
+   "previousBlob": null,
+   "added": 279,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "factory/automation/labels.ts",
+   "mode": "100644",
+   "blob": "c5db583eeee3cce67f41ed7555c560c27c142613",
+   "previousBlob": null,
+   "added": 203,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "factory/automation/labels.test.ts",
+   "mode": "100644",
+   "blob": "1cf2672ab050fc1199b5a27e8dbd3964cf4d8836",
+   "previousBlob": null,
+   "added": 107,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

@@ -1,0 +1,188 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "43a81c39ce81168f581c6c44cb05a0cbfe296bf0",
+ "tree": "9922e4963e88649831855d68df28fd26f3c8759d",
+ "epic": {
+  "index": 12,
+  "id": "examples",
+  "name": "Executable learning and evaluation suites",
+  "sourceCommit": "1c0d5bce16fdac649b8f108f4e37eaea58f4933c",
+  "sourceSubject": "📚 docs(examples): add executable learning and evaluation suites",
+  "childIndex": 9,
+  "childCount": 18,
+  "head": "ac7419bdf70373fddd3f14e1eaf511aca20aea7d"
+ },
+ "atomic": {
+  "globalIndex": 619,
+  "globalCount": 845,
+  "purpose": "✨ feat(evals-swebench): add the baseline, baseline/patches-codex, fixtures modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "evals-swebench",
+  "component": "evals/swebench",
+  "unitKey": "dir:baseline",
+  "mergedUnitKeys": [
+   "dir:baseline",
+   "dir:baseline/patches-codex",
+   "dir:fixtures"
+  ]
+ },
+ "dependencies": {
+  "parent": "e0c1791874735b628149d7db096f79365c5411e4",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "e0c1791874735b628149d7db096f79365c5411e4",
+  "next": "3bd28d077fb2b8ab03bc5780cfe6da481439cb79",
+  "epicFirst": "f49d638b0d89382d3b7dc40e3aa9372c7294d2d8",
+  "epicLast": "ac7419bdf70373fddd3f14e1eaf511aca20aea7d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 11,
+  "added": 690,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "evals/swebench/baseline/codex-comparison.json",
+   "mode": "100644",
+   "blob": "5f24d44d03af14d85ecd19dc551eb46f0e41361f",
+   "previousBlob": null,
+   "added": 72,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/baseline/patches-codex/astropy__astropy-8707.patch",
+   "mode": "100644",
+   "blob": "df05b967e73d78836a3d64b2dc89c1672793d7c7",
+   "previousBlob": null,
+   "added": 53,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/baseline/patches-codex/django__django-16612.patch",
+   "mode": "100644",
+   "blob": "c5fa5954460d169d1007a557dd6c62c24f2607ec",
+   "previousBlob": null,
+   "added": 15,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/baseline/patches-codex/pydata__xarray-7393.patch",
+   "mode": "100644",
+   "blob": "90a9f1962f0e635c7a8bb1de6d56e1f858ee73ec",
+   "previousBlob": null,
+   "added": 17,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/baseline/patches-codex/pytest-dev__pytest-6197.patch",
+   "mode": "100644",
+   "blob": "817aef7b3272eec1756814061fda88530f83a848",
+   "previousBlob": null,
+   "added": 27,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/baseline/patches-codex/sphinx-doc__sphinx-11445.patch",
+   "mode": "100644",
+   "blob": "5483c26f293dc4b137ce1107394eed0d67e98c71",
+   "previousBlob": null,
+   "added": 30,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/fixtures/check-rig.mjs",
+   "mode": "100644",
+   "blob": "48254a6cff4ac7e6b2e261aa057f43065f697716",
+   "previousBlob": null,
+   "added": 61,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/fixtures/check.mjs",
+   "mode": "100644",
+   "blob": "c802046a4036736b4278f2648fff77946ece29ec",
+   "previousBlob": null,
+   "added": 80,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/fixtures/make-fixture.mjs",
+   "mode": "100644",
+   "blob": "bdf37f6810a478df75e9710035db7bb18341c187",
+   "previousBlob": null,
+   "added": 163,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/fixtures/mirror-results.json",
+   "mode": "100644",
+   "blob": "761d32ecad005f11ec06f74ba143f6a01849f682",
+   "previousBlob": null,
+   "added": 132,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "evals/swebench/fixtures/test-test-command.py",
+   "mode": "100644",
+   "blob": "b76593e94604ed138d58c43a1b3390a9ab5ba161",
+   "previousBlob": null,
+   "added": 40,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

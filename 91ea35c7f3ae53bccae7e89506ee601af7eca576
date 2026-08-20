@@ -1,0 +1,70 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "91ea35c7f3ae53bccae7e89506ee601af7eca576",
+ "tree": "38a7124eb3b6d49c6ebf8f5cce78f1606818fd06",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 43,
+  "childCount": 54,
+  "head": "8f2310ef99183d31a7cb6a91238af374d246498b"
+ },
+ "atomic": {
+  "globalIndex": 114,
+  "globalCount": 845,
+  "purpose": "✨ feat(flow): add DurableDeferred",
+  "type": "feat",
+  "kind": "module",
+  "scope": "flow",
+  "component": "packages/flow/src",
+  "unitKey": "DurableDeferred",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "31056e3882e665e68332a8a41b9e383f7bc735f9",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [
+   "4bbcaaa78afa95e809c1be6a8915034fdde56573",
+   "88b0b8482f723d70b830817bd4f50b82b1b3b764",
+   "7294b5fdabb892d6587b33b903fe5f17378b0e76"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "31056e3882e665e68332a8a41b9e383f7bc735f9",
+  "next": "e4e438fb5d215ff99573959a146b86df7e2b3752",
+  "epicFirst": "8d222879944a121d441c2c37d5ed2b7943a88b54",
+  "epicLast": "8f2310ef99183d31a7cb6a91238af374d246498b",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 704,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/flow/src/DurableDeferred.ts",
+   "mode": "100644",
+   "blob": "7ac6cfb10545ccdbe4c24470523417414814d374",
+   "previousBlob": null,
+   "added": 704,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

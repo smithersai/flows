@@ -1,0 +1,97 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "6e6fdf8f5b5c6691db109891905bfbca635449dd",
+ "tree": "e72d2cf2880e7c3556874485b96a2a0f07c8c678",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 9,
+  "childCount": 54,
+  "head": "8f2310ef99183d31a7cb6a91238af374d246498b"
+ },
+ "atomic": {
+  "globalIndex": 80,
+  "globalCount": 845,
+  "purpose": "✨ feat(plan): add FileSet",
+  "type": "feat",
+  "kind": "module",
+  "scope": "plan",
+  "component": "packages/plan",
+  "unitKey": "FileSet",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "fdc024ede215d0fabdc8b1d551a6f7f43ad84453",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   },
+   {
+    "package": "@smthrs/keys",
+    "commit": "e145b0e5dfced2a00c300f9b139b14f6820bf771"
+   }
+  ]
+ },
+ "related": {
+  "previous": "fdc024ede215d0fabdc8b1d551a6f7f43ad84453",
+  "next": "67bd940da731effa13f25c2453a2b3c3a96b73ba",
+  "epicFirst": "8d222879944a121d441c2c37d5ed2b7943a88b54",
+  "epicLast": "8f2310ef99183d31a7cb6a91238af374d246498b",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 636,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/plan/src/FileSet.ts",
+   "mode": "100644",
+   "blob": "2c40d6acfe0f926dd649a98a897db21a8cbf35b6",
+   "previousBlob": null,
+   "added": 292,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/plan/test/FileSet.property.test.ts",
+   "mode": "100644",
+   "blob": "0826b499fec87195fd5c2cbbceef06e061a64e7c",
+   "previousBlob": null,
+   "added": 245,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/plan/test/FileSet.test.ts",
+   "mode": "100644",
+   "blob": "94ab36dc6e97fea02334d9f4124ed967e5cb65cb",
+   "previousBlob": null,
+   "added": 99,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

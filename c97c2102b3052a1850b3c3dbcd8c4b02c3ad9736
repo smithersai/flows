@@ -1,0 +1,194 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "c97c2102b3052a1850b3c3dbcd8c4b02c3ad9736",
+ "tree": "e67f678900b94a8707c002884edd75921f19e151",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 91,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 603,
+  "globalCount": 845,
+  "purpose": "✅ test(build-cli): cover build-cli (1/2)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "build-cli",
+  "component": "packages/build-cli",
+  "unitKey": "test",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "3e0443020a6cf6b451764129ace5aa4a4f2d27d4",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "commit": "3b57deac5ef23a0e1e2fa660e6bcf9351049a95b"
+   },
+   {
+    "package": "@smthrs/crypto",
+    "commit": "3ac9a18fee84c753c34d31ae7baae150fa503fe6"
+   },
+   {
+    "package": "@smthrs/engine",
+    "commit": "b17af994607bc2ef084b62d75c0b2509f8b56d23"
+   },
+   {
+    "package": "@smthrs/flow",
+    "commit": "8f2310ef99183d31a7cb6a91238af374d246498b"
+   },
+   {
+    "package": "@smthrs/keys",
+    "commit": "e145b0e5dfced2a00c300f9b139b14f6820bf771"
+   },
+   {
+    "package": "@smthrs/plan",
+    "commit": "a6c062c1ea8185f0a2b743039e577306a8ad4a47"
+   },
+   {
+    "package": "@smthrs/build",
+    "commit": "5bf1e298eb942dbd7a992794dad1bb0981ae7613"
+   },
+   {
+    "package": "@smthrs/targets",
+    "commit": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+   }
+  ]
+ },
+ "related": {
+  "previous": "3e0443020a6cf6b451764129ace5aa4a4f2d27d4",
+  "next": "569240a238446a01dfaea65382d7e4366b95253e",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 9,
+  "added": 1249,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build-cli/test/CommittedBuildFiles.test.ts",
+   "mode": "100644",
+   "blob": "37069dc072f3f328fb98a1e2f79a1598c4c8cc37",
+   "previousBlob": null,
+   "added": 54,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/build-cli/test/Credentials.test.ts",
+   "mode": "100644",
+   "blob": "3c370f02649f652a487236afb95ba065d7a35cbb",
+   "previousBlob": null,
+   "added": 124,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/build-cli/test/Engine.test.ts",
+   "mode": "100644",
+   "blob": "10a591980f0d3fc490bc4e6fd220c2b7cec282b6",
+   "previousBlob": null,
+   "added": 88,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/build-cli/test/Execute.test.ts",
+   "mode": "100644",
+   "blob": "b7bd91530e5961a1cf0e5df5fb9c51dc82497560",
+   "previousBlob": null,
+   "added": 436,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/build-cli/test/Filegroup.test.ts",
+   "mode": "100644",
+   "blob": "e8689499b934722c1a531e3c3e16b0d4cf178c1b",
+   "previousBlob": null,
+   "added": 187,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/build-cli/test/FilegroupExecution.test.ts",
+   "mode": "100644",
+   "blob": "aee87aabaef57fcf4da5f530503ea217647772a2",
+   "previousBlob": null,
+   "added": 103,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/build-cli/test/MergePlans.test.ts",
+   "mode": "100644",
+   "blob": "6a8e4fec3022a010490eae63d13a00be9c1158ba",
+   "previousBlob": null,
+   "added": 76,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/build-cli/test/PackageJsonWorkspace.test.ts",
+   "mode": "100644",
+   "blob": "9f8d7cdfef500c8b23a769168d3f63d5d46c55af",
+   "previousBlob": null,
+   "added": 130,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/build-cli/test/ReadOnlyCli.test.ts",
+   "mode": "100644",
+   "blob": "6e9fdfc3cc4520ca558b672cc1c5cb42e8ae5fbb",
+   "previousBlob": null,
+   "added": 51,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

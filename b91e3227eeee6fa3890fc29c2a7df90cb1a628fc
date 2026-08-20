@@ -1,0 +1,285 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "b91e3227eeee6fa3890fc29c2a7df90cb1a628fc",
+ "tree": "a0f067784a582dc62c83ce79b86569433ed68481",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 35,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 683,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the admin modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/canary-repros",
+  "unitKey": "dir:admin",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "a855d5a3ffd9d09bacbe1c9738ef11951ba711dc",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "a855d5a3ffd9d09bacbe1c9738ef11951ba711dc",
+  "next": "3afce751b5ab2c35ea692f6195dbe5ba92ada8c6",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 20,
+  "added": 1229,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/admin/25.7.ts",
+   "mode": "100644",
+   "blob": "e171b3ef7f29101fe7d21b81750bfe4647cf7ab2",
+   "previousBlob": null,
+   "added": 70,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/admin/26.1.ts",
+   "mode": "100644",
+   "blob": "39377861f2a4d79a06cab34e82b33ba5fe5fa34d",
+   "previousBlob": null,
+   "added": 91,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/admin/26.2.ts",
+   "mode": "100644",
+   "blob": "dff934f3d3e179a5aa318dc77499a9d39ccca4b8",
+   "previousBlob": null,
+   "added": 63,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/admin/26.3.ts",
+   "mode": "100644",
+   "blob": "1c7d8adc1f6e35927e71b033cd2ea3282828b47b",
+   "previousBlob": null,
+   "added": 63,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/admin/26.4.ts",
+   "mode": "100644",
+   "blob": "2f0ab31483779a1ea78035bfb877aafbd30e42ce",
+   "previousBlob": null,
+   "added": 63,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/admin/26.5.ts",
+   "mode": "100644",
+   "blob": "a95ba4b7fe5edc817171b19d883dc4807c217909",
+   "previousBlob": null,
+   "added": 63,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/admin/26.6.ts",
+   "mode": "100644",
+   "blob": "576ac7c51b0acbe2575550f592464faa2095acad",
+   "previousBlob": null,
+   "added": 70,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/admin/27.1.ts",
+   "mode": "100644",
+   "blob": "273859705c158636c9cecc424bc59aecacc4a940",
+   "previousBlob": null,
+   "added": 65,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/admin/27.2.ts",
+   "mode": "100644",
+   "blob": "8936dbc0f98c45727f86d4cbd7182b4b1b310485",
+   "previousBlob": null,
+   "added": 47,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/admin/27.7.ts",
+   "mode": "100644",
+   "blob": "5a19064aa78f0ad7c3d81465e925f9f303c0f898",
+   "previousBlob": null,
+   "added": 39,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/admin/28.10.ts",
+   "mode": "100644",
+   "blob": "567ed72807854645430b23d03d31af6530d157a0",
+   "previousBlob": null,
+   "added": 41,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/admin/28.11.ts",
+   "mode": "100644",
+   "blob": "20db2b360e08fc2688471ce4d716a50bbd32ff9e",
+   "previousBlob": null,
+   "added": 62,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/admin/28.12.ts",
+   "mode": "100644",
+   "blob": "20db2b360e08fc2688471ce4d716a50bbd32ff9e",
+   "previousBlob": null,
+   "added": 62,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/admin/28.2.ts",
+   "mode": "100644",
+   "blob": "b2a25aa950116828aeda9b0964dd162bf20a3dff",
+   "previousBlob": null,
+   "added": 63,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/admin/28.3.ts",
+   "mode": "100644",
+   "blob": "cd435e0b6d6209bf801e10dac05bac1152a65ed4",
+   "previousBlob": null,
+   "added": 61,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/admin/28.4.ts",
+   "mode": "100644",
+   "blob": "e6e91d2cc396afca73279ce596a5c80fcbf2e245",
+   "previousBlob": null,
+   "added": 72,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/admin/28.5.ts",
+   "mode": "100644",
+   "blob": "92696052896f7a82fd6a8fd917a4060903b385dd",
+   "previousBlob": null,
+   "added": 49,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/admin/28.6.ts",
+   "mode": "100644",
+   "blob": "cefae48dbe838a197df2a4e72d88d4f1ee787a4f",
+   "previousBlob": null,
+   "added": 54,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/admin/28.9.ts",
+   "mode": "100644",
+   "blob": "cdc3781137718c1c16feded22f613b6ff343be70",
+   "previousBlob": null,
+   "added": 61,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/admin/_lib.ts",
+   "mode": "100644",
+   "blob": "6507e62e4794653f5eba9a05b6f526038ca6d0da",
+   "previousBlob": null,
+   "added": 70,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

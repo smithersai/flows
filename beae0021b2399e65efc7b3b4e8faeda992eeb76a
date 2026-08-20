@@ -1,0 +1,98 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "beae0021b2399e65efc7b3b4e8faeda992eeb76a",
+ "tree": "d74a45351bdbabea7dfd5999b7a091c9b6db7c0a",
+ "epic": {
+  "index": 10,
+  "id": "platform",
+  "name": "Conformance, scoring, evaluation and telemetry",
+  "sourceCommit": "317910c088e178d40f3b1553a182a7ee2be5dd24",
+  "sourceSubject": "✅ test(platform): add conformance, scoring, evaluation, and telemetry",
+  "childIndex": 33,
+  "childCount": 36,
+  "head": "7815804a6f1b8fd9568d8a0031bb0b58ee098100"
+ },
+ "atomic": {
+  "globalIndex": 509,
+  "globalCount": 845,
+  "purpose": "✨ feat(evals): add Report",
+  "type": "feat",
+  "kind": "module",
+  "scope": "evals",
+  "component": "packages/evals",
+  "unitKey": "Report",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "fe946041f4221b0acf023d9a709c8c8121370359",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent"
+  ],
+  "sourceImports": [
+   "fe946041f4221b0acf023d9a709c8c8121370359"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/scorers",
+    "commit": "711dc85cd90b0b93d62275c9b334812c26bb1db9"
+   },
+   {
+    "package": "@smthrs/testing",
+    "commit": "a0e5f174f9c26f37d0db19e8811f39431063418e"
+   }
+  ]
+ },
+ "related": {
+  "previous": "fe946041f4221b0acf023d9a709c8c8121370359",
+  "next": "23b27a12aad42b78bd261a6b947ea8c5dca9396d",
+  "epicFirst": "979f13d307eb3917b8f17afabcbde76137e83652",
+  "epicLast": "7815804a6f1b8fd9568d8a0031bb0b58ee098100",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 119,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/evals/src/Report.ts",
+   "mode": "100644",
+   "blob": "0f62d3012641164bf5d640234d84c289bb07ec14",
+   "previousBlob": null,
+   "added": 102,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/evals/test/Report.test.ts",
+   "mode": "100644",
+   "blob": "a83173110e9655e802dbfff3dd52d0a182efefd2",
+   "previousBlob": null,
+   "added": 17,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

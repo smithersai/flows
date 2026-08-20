@@ -1,0 +1,139 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "4c6fcbb6f6363f7223638bcdfa9d79ddeb5dbd68",
+ "tree": "231d47baa17328eae602d48518ba0df73a366ca0",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 12,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 524,
+  "globalCount": 845,
+  "purpose": "📝 docs(build): document reference/targets (3/3)",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "build",
+  "component": "packages/build/docs",
+  "unitKey": "reference/targets",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "29b39db18a124432e9fe8eb158bdc664ba057751",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "29b39db18a124432e9fe8eb158bdc664ba057751",
+  "next": "008df0d0dec7bd32735d1e14d27f3b645ee76fd0",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 7,
+  "added": 551,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build/docs/reference/targets/ts-build.md",
+   "mode": "100644",
+   "blob": "7c13e38705c4fa9c7e77a84047a520f48cb76c1b",
+   "previousBlob": null,
+   "added": 97,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/reference/targets/tsconfig.md",
+   "mode": "100644",
+   "blob": "0c0053c9a07f33a8e18da498464809142d86979e",
+   "previousBlob": null,
+   "added": 65,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/reference/targets/typecheck.md",
+   "mode": "100644",
+   "blob": "b7b70c1156c1d4fc616505e5aa59ee4e50872b2a",
+   "previousBlob": null,
+   "added": 83,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/reference/targets/typedoc-docs.md",
+   "mode": "100644",
+   "blob": "ecffe7ed024b4ab5cf002dd7c6fa6408767c8273",
+   "previousBlob": null,
+   "added": 80,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/reference/targets/vitest-coverage.md",
+   "mode": "100644",
+   "blob": "85e216ab4dd057e62950a1bc625f7d240ee37ffb",
+   "previousBlob": null,
+   "added": 82,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/reference/targets/vitest-watch.md",
+   "mode": "100644",
+   "blob": "30331c1710b8b3c698c20eb528498be57e4835bf",
+   "previousBlob": null,
+   "added": 73,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/reference/targets/vitest.md",
+   "mode": "100644",
+   "blob": "0fe1108bd32ad67ec37e9a571d5f0df186692da9",
+   "previousBlob": null,
+   "added": 71,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

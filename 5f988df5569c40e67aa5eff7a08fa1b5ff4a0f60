@@ -1,0 +1,84 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "5f988df5569c40e67aa5eff7a08fa1b5ff4a0f60",
+ "tree": "c720749df3abbcbad2f6b39727733c4d38326dd3",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 8,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 520,
+  "globalCount": 845,
+  "purpose": "📝 docs(build): document getting-started",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "build",
+  "component": "packages/build/docs",
+  "unitKey": "getting-started",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "a1619ff354c69c4902439985283064309ac94693",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "a1619ff354c69c4902439985283064309ac94693",
+  "next": "38889521f6d55938c354e734a8400565045f4459",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 289,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build/docs/getting-started/first-build.md",
+   "mode": "100644",
+   "blob": "24826405acb0b1a2a8aac1235910ef9375ad3489",
+   "previousBlob": null,
+   "added": 170,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/getting-started/install.md",
+   "mode": "100644",
+   "blob": "d62dc27dc7343081f4e8baeb02a252313ece65df",
+   "previousBlob": null,
+   "added": 119,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

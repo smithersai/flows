@@ -1,0 +1,119 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "686d1c50f8364e9833262eba0e676184f90044da",
+ "tree": "484d02cc7ee7a0ab211a750b404c87127d7364de",
+ "epic": {
+  "index": 13,
+  "id": "server",
+  "name": "Shared application contracts and worker backend",
+  "sourceCommit": "5e1bcec6b1db3f2e990cb2b79bec0050dfc34ba3",
+  "sourceSubject": "✨ feat(server): add shared application contracts and worker backend",
+  "childIndex": 6,
+  "childCount": 20,
+  "head": "b02e63ed129878a014ee9484e2d27a74aba94be1"
+ },
+ "atomic": {
+  "globalIndex": 634,
+  "globalCount": 845,
+  "purpose": "🧹 chore(server): scaffold the smithers-server package",
+  "type": "chore",
+  "kind": "scaffold",
+  "scope": "server",
+  "component": "apps/server",
+  "unitKey": "~scaffold",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "2ffbf6b335838e32f2db19dabe76b6aedefa11e2",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "2ffbf6b335838e32f2db19dabe76b6aedefa11e2",
+  "next": "96fa5a64bacd65349e5b825a3d410ec3125a1bb1",
+  "epicFirst": "210032b4effd3e4b5015806fab6679f7153e0fef",
+  "epicLast": "b02e63ed129878a014ee9484e2d27a74aba94be1",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 5,
+  "added": 208,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/server/.gitignore",
+   "mode": "100644",
+   "blob": "0d0f7bee19361fe5093318488b051a660de651d9",
+   "previousBlob": null,
+   "added": 2,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "apps/server/BUILD.ts",
+   "mode": "100644",
+   "blob": "95dac6d51225f463d039d583d042db8c31edfc5c",
+   "previousBlob": null,
+   "added": 53,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "apps/server/package.json",
+   "mode": "100644",
+   "blob": "3f498a0bd17109feb79287a7d0fe430d4daa2274",
+   "previousBlob": null,
+   "added": 31,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "apps/server/tsconfig.json",
+   "mode": "100644",
+   "blob": "03bfcc459b002329666d257b1d030ed5e56d5452",
+   "previousBlob": null,
+   "added": 23,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "apps/server/wrangler.jsonc",
+   "mode": "100644",
+   "blob": "e3f92bcb23220d817a69ff382d50e468c286a017",
+   "previousBlob": null,
+   "added": 99,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  }
+ ]
+}

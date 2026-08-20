@@ -1,0 +1,117 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "e0780a78cd2150acaebeeeef617aa682ba801573",
+ "tree": "cd33e26b6f7967768ab3f189c5eca4c0989b1d76",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 3,
+  "childCount": 43,
+  "head": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9"
+ },
+ "atomic": {
+  "globalIndex": 285,
+  "globalCount": 845,
+  "purpose": "✨ feat(core): add the node, skillFrontmatter, Placement modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "core",
+  "component": "packages/core",
+  "unitKey": "internal/node",
+  "mergedUnitKeys": [
+   "internal/node",
+   "internal/skillFrontmatter",
+   "Placement"
+  ]
+ },
+ "dependencies": {
+  "parent": "637e81297bd46a960f5b1dd05495dec90730f908",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [
+   "637e81297bd46a960f5b1dd05495dec90730f908"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "commit": "3b57deac5ef23a0e1e2fa660e6bcf9351049a95b"
+   },
+   {
+    "package": "@smthrs/crypto",
+    "commit": "3ac9a18fee84c753c34d31ae7baae150fa503fe6"
+   }
+  ]
+ },
+ "related": {
+  "previous": "637e81297bd46a960f5b1dd05495dec90730f908",
+  "next": "289d6dd19d000ec4bb098660f031777efb65441c",
+  "epicFirst": "f7a85bfa43ff3fa63e2ad6200bd2d4d7ec1397a2",
+  "epicLast": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 640,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/core/src/internal/node.ts",
+   "mode": "100644",
+   "blob": "05c5998f59d1927346e8b9f22e820800676af961",
+   "previousBlob": null,
+   "added": 470,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/core/src/internal/skillFrontmatter.ts",
+   "mode": "100644",
+   "blob": "f8f8c264bc6a0f60eb04369837c655b8e1f99a58",
+   "previousBlob": null,
+   "added": 69,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/core/src/Placement.ts",
+   "mode": "100644",
+   "blob": "e01ced2e8bd57ff17b1559a8a6f8d9bef480c751",
+   "previousBlob": null,
+   "added": 76,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/core/test/Placement.test.ts",
+   "mode": "100644",
+   "blob": "5f70d2ec056c2d426decd1ceb2cb97ce110158fc",
+   "previousBlob": null,
+   "added": 25,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

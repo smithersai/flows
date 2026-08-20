@@ -1,0 +1,95 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "ec90423e6bcd390cbd2a991e5f5febfcef714900",
+ "tree": "ad2d4d7b3f10d6b2cf15393ed3d2f28cb8f6ce10",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 2,
+  "childCount": 55,
+  "head": "9633d567508a5d82ee51d5ed34014e850f417731"
+ },
+ "atomic": {
+  "globalIndex": 18,
+  "globalCount": 845,
+  "purpose": "✨ feat(artifacts): add the ArtifactLocks, ArtifactStoreMetrics modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "artifacts",
+  "component": "packages/artifacts",
+  "unitKey": "internal/ArtifactLocks",
+  "mergedUnitKeys": [
+   "internal/ArtifactLocks",
+   "ArtifactStoreMetrics"
+  ]
+ },
+ "dependencies": {
+  "parent": "0b1fe1d563a03d93618ff339540cb77a2ed44d4b",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/crypto",
+    "commit": "3ac9a18fee84c753c34d31ae7baae150fa503fe6"
+   }
+  ]
+ },
+ "related": {
+  "previous": "0b1fe1d563a03d93618ff339540cb77a2ed44d4b",
+  "next": "58643d40c83c8e4008cf380a1deee682bf4b8dbb",
+  "epicFirst": "0b1fe1d563a03d93618ff339540cb77a2ed44d4b",
+  "epicLast": "9633d567508a5d82ee51d5ed34014e850f417731",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 117,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/artifacts/src/internal/ArtifactLocks.ts",
+   "mode": "100644",
+   "blob": "eff638a2cfb79b8bed7c9b601f823cf7682d9ad5",
+   "previousBlob": null,
+   "added": 47,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/artifacts/src/ArtifactStoreMetrics.ts",
+   "mode": "100644",
+   "blob": "774e21ba845f09bbaf291d68d83c7b9898b18baf",
+   "previousBlob": null,
+   "added": 38,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/artifacts/test/ArtifactStoreMetrics.test.ts",
+   "mode": "100644",
+   "blob": "32b911960e92c847308048a03bf3541647d53b64",
+   "previousBlob": null,
+   "added": 32,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

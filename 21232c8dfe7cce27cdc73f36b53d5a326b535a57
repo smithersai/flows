@@ -1,0 +1,186 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "21232c8dfe7cce27cdc73f36b53d5a326b535a57",
+ "tree": "55ed9ab4591e798d48a0c2f68a2893151580468d",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 57,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 705,
+  "globalCount": 845,
+  "purpose": "🧹 chore(ui): add icon_128x128, icon_128x128@2x, icon_16x16 and 7 more assets",
+  "type": "chore",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/icon.iconset",
+  "unitKey": "icon_128x128",
+  "mergedUnitKeys": [
+   "icon_128x128",
+   "icon_128x128@2x",
+   "icon_16x16",
+   "icon_16x16@2x",
+   "icon_256x256",
+   "icon_256x256@2x",
+   "icon_32x32",
+   "icon_32x32@2x",
+   "icon_512x512",
+   "icon_512x512@2x"
+  ]
+ },
+ "dependencies": {
+  "parent": "a7a21c672037b59a84227000af85e93ed3d28548",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "a7a21c672037b59a84227000af85e93ed3d28548",
+  "next": "83c6b964611cbe36aec55f356648e04e4df61c10",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 10,
+  "added": 0,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/icon.iconset/icon_128x128.png",
+   "mode": "100644",
+   "blob": "53c8ea70295228ff4ecfc6b94d8e274b9a207a13",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/icon.iconset/icon_128x128@2x.png",
+   "mode": "100644",
+   "blob": "a6b543bbec22a5cc0905d2f3661226b3bc574e52",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/icon.iconset/icon_16x16.png",
+   "mode": "100644",
+   "blob": "7e323dcce3684244920925a0c4cb91bfe5bac994",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/icon.iconset/icon_16x16@2x.png",
+   "mode": "100644",
+   "blob": "d5447545065ae5e8301d6653746c70486bb96f54",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/icon.iconset/icon_256x256.png",
+   "mode": "100644",
+   "blob": "a6b543bbec22a5cc0905d2f3661226b3bc574e52",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/icon.iconset/icon_256x256@2x.png",
+   "mode": "100644",
+   "blob": "d09e41c667e459f98ccbbd46567a7a91e4d70e7c",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/icon.iconset/icon_32x32.png",
+   "mode": "100644",
+   "blob": "d5447545065ae5e8301d6653746c70486bb96f54",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/icon.iconset/icon_32x32@2x.png",
+   "mode": "100644",
+   "blob": "a69920f15aba395f0e4af832d3d527e626ada505",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/icon.iconset/icon_512x512.png",
+   "mode": "100644",
+   "blob": "d09e41c667e459f98ccbbd46567a7a91e4d70e7c",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/icon.iconset/icon_512x512@2x.png",
+   "mode": "100644",
+   "blob": "539bf85596a2058e0a5a325fa853b2f2f7b99ed2",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  }
+ ]
+}

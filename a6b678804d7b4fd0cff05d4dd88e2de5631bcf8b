@@ -1,0 +1,126 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a6b678804d7b4fd0cff05d4dd88e2de5631bcf8b",
+ "tree": "822312ea949b9b9242d9623503f81114869ae96a",
+ "epic": {
+  "index": 9,
+  "id": "agent",
+  "name": "Harness, chain, tools and CLI",
+  "sourceCommit": "a8caaa3dc45df0c14d6b10d0db9faf8a7ea7e542",
+  "sourceSubject": "✨ feat(agent): compose the harness, chain, tools, and CLI",
+  "childIndex": 25,
+  "childCount": 85,
+  "head": "012fadccb450058987918de5ef55d315135be71d"
+ },
+ "atomic": {
+  "globalIndex": 416,
+  "globalCount": 845,
+  "purpose": "✨ feat(std): add the Declaration, StdError, SearchContract and 1 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "std",
+  "component": "packages/std",
+  "unitKey": "internal/Declaration",
+  "mergedUnitKeys": [
+   "internal/Declaration",
+   "StdError",
+   "internal/SearchContract",
+   "internal/Text"
+  ]
+ },
+ "dependencies": {
+  "parent": "632a009fae144d57f3f08776bf73c2e558eb36e3",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   },
+   {
+    "package": "@smthrs/control",
+    "commit": "40bf3f68fb8b79abcb73506a5980f5eaa9e92e36"
+   },
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "632a009fae144d57f3f08776bf73c2e558eb36e3",
+  "next": "35e5d214a59b4f8b4dfc720b1e86e27dee2f9349",
+  "epicFirst": "f86ed77ef384765a9a6a60ef7e3b84bfa04b8ac7",
+  "epicLast": "012fadccb450058987918de5ef55d315135be71d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 507,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/std/src/internal/Declaration.ts",
+   "mode": "100644",
+   "blob": "f0a9281a66a3e17ee00d398fb5d6ddb6179643a6",
+   "previousBlob": null,
+   "added": 47,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/std/src/StdError.ts",
+   "mode": "100644",
+   "blob": "54362116f1b32c20b66e2485188426826cd93d6c",
+   "previousBlob": null,
+   "added": 57,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/std/src/internal/SearchContract.ts",
+   "mode": "100644",
+   "blob": "0b73dc209120aa6bb62d85a3e11a61149048c07f",
+   "previousBlob": null,
+   "added": 245,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/std/src/internal/Text.ts",
+   "mode": "100644",
+   "blob": "deb79e52ac067692e687d1a11065e003f372d087",
+   "previousBlob": null,
+   "added": 158,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

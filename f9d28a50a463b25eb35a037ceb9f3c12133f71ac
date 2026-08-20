@@ -1,0 +1,81 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "f9d28a50a463b25eb35a037ceb9f3c12133f71ac",
+ "tree": "dfc4af0e609888465c7c1cb13c153ffcbd17ab4f",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 7,
+  "childCount": 43,
+  "head": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9"
+ },
+ "atomic": {
+  "globalIndex": 289,
+  "globalCount": 845,
+  "purpose": "✨ feat(core): add KeyMaterial",
+  "type": "feat",
+  "kind": "module",
+  "scope": "core",
+  "component": "packages/core",
+  "unitKey": "KeyMaterial",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "c50399d1bf1dbd2cc08815c9f6cf85f26f0a93ea",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [
+   "637e81297bd46a960f5b1dd05495dec90730f908",
+   "e0780a78cd2150acaebeeeef617aa682ba801573"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "commit": "3b57deac5ef23a0e1e2fa660e6bcf9351049a95b"
+   },
+   {
+    "package": "@smthrs/crypto",
+    "commit": "3ac9a18fee84c753c34d31ae7baae150fa503fe6"
+   }
+  ]
+ },
+ "related": {
+  "previous": "c50399d1bf1dbd2cc08815c9f6cf85f26f0a93ea",
+  "next": "60b318b8b408df3a8986df64a347740a04461bc2",
+  "epicFirst": "f7a85bfa43ff3fa63e2ad6200bd2d4d7ec1397a2",
+  "epicLast": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 64,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/core/src/KeyMaterial.ts",
+   "mode": "100644",
+   "blob": "8e90f4b22cf79932a04b3f8a4f7f88362cb7d97d",
+   "previousBlob": null,
+   "added": 64,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

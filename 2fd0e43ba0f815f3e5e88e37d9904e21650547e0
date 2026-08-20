@@ -1,0 +1,131 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "2fd0e43ba0f815f3e5e88e37d9904e21650547e0",
+ "tree": "64cb310ffcf645f2ba936f9ce1c952951bee79ca",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 94,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 742,
+  "globalCount": 845,
+  "purpose": "✅ test(ui): cover mainview/state (5/8)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "mainview/state",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "d3e8aa24303ee5cf0e88aa2e022dcfd660dafa19",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "d3e8aa24303ee5cf0e88aa2e022dcfd660dafa19",
+  "next": "fc76f7b0b99b9073f8985cf6981f73bcddafe4b8",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 6,
+  "added": 1349,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/Reco.test.ts",
+   "mode": "100644",
+   "blob": "5b56ee6e54c44cfd99adea672659de4f26543aa0",
+   "previousBlob": null,
+   "added": 385,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/RecoEscapeDismiss.test.tsx",
+   "mode": "100644",
+   "blob": "bec9ab02959026e27002d3e8ad948ac1119b51a2",
+   "previousBlob": null,
+   "added": 242,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/RetryTurn.test.ts",
+   "mode": "100644",
+   "blob": "f7b6b25d02382d9caf2d0de7dc55069458302c26",
+   "previousBlob": null,
+   "added": 147,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/SeamTimeout.test.ts",
+   "mode": "100644",
+   "blob": "1279ce97f36a8ebb269a00208345d1799a548b72",
+   "previousBlob": null,
+   "added": 86,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/SignOutScrub.test.ts",
+   "mode": "100644",
+   "blob": "833c09738bcd157fccbd72ef5f83e211f9d80488",
+   "previousBlob": null,
+   "added": 266,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/Toasts.test.ts",
+   "mode": "100644",
+   "blob": "65bc5a952bb327d130cafc23d8a5b8e8d6f7154c",
+   "previousBlob": null,
+   "added": 223,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

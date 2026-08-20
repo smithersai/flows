@@ -1,0 +1,142 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "4ab57e8ebfeb39f9547c31bb7f31b861e8521dd7",
+ "tree": "b252c412d9568c0babb11376629c00bbd86dfb26",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 32,
+  "childCount": 66,
+  "head": "28962374658aba2757a5405dab6454616510b6b6"
+ },
+ "atomic": {
+  "globalIndex": 357,
+  "globalCount": 845,
+  "purpose": "✨ feat(model): add the Model, DeferredTools, Protocol modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "model",
+  "component": "packages/model",
+  "unitKey": "Model",
+  "mergedUnitKeys": [
+   "Model",
+   "DeferredTools",
+   "Protocol"
+  ]
+ },
+ "dependencies": {
+  "parent": "7fb5d5a75cf25b2e32c72cd5d9c2900ad58c40de",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [
+   "3c7d5e2fa7baca72bd497508f2d25d5b36dfc901",
+   "7fb5d5a75cf25b2e32c72cd5d9c2900ad58c40de",
+   "c1089df974a536e0ea97ead5078bac2d5bd7ffe8"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "7fb5d5a75cf25b2e32c72cd5d9c2900ad58c40de",
+  "next": "8e84e4aff3539d1a113aa361e6f157e9fc056f6f",
+  "epicFirst": "65dffaa9668923ae816eeaa5bce0901a958729b0",
+  "epicLast": "28962374658aba2757a5405dab6454616510b6b6",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 6,
+  "added": 700,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/model/src/Model.ts",
+   "mode": "100644",
+   "blob": "11cf33e2a2323c7b3d782d7eafd9ee2c5af00ef1",
+   "previousBlob": null,
+   "added": 88,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/test/Model.test.ts",
+   "mode": "100644",
+   "blob": "d70337d77b95d722c24a3119a962aa6c8d1b713d",
+   "previousBlob": null,
+   "added": 106,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/src/DeferredTools.ts",
+   "mode": "100644",
+   "blob": "7549e1eee04d50fc530d3621d855854ef53c89af",
+   "previousBlob": null,
+   "added": 190,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/test/DeferredTools.test.ts",
+   "mode": "100644",
+   "blob": "7bbfab2e4eb386443c7118d6f4ec76e9496c8824",
+   "previousBlob": null,
+   "added": 192,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/src/Protocol.ts",
+   "mode": "100644",
+   "blob": "4e35d89955691e7e390eb1bd16b157003aa7aa82",
+   "previousBlob": null,
+   "added": 85,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/test/Protocol.test.ts",
+   "mode": "100644",
+   "blob": "c819d48012a627b8440ab50b55e181da6954190f",
+   "previousBlob": null,
+   "added": 39,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

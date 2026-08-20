@@ -1,0 +1,98 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "2e9dcbfeccd4a2e4f32e8915375445095648f9fe",
+ "tree": "09bf6c48dc0cbe4689119e29642bdb4a6093e99e",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 101,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 749,
+  "globalCount": 845,
+  "purpose": "✅ test(ui): cover state/seams (3/3)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "mainview/state/seams",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "ac6e6cdb78834d94658a0d5cdbcd618b50eeaa72",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "ac6e6cdb78834d94658a0d5cdbcd618b50eeaa72",
+  "next": "6f2e02832f458318f698bda747eac712333ba5cd",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 726,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/seams/NotificationsSeam.test.ts",
+   "mode": "100644",
+   "blob": "31488a2e58d33a29870ec36285b82f86671d65cc",
+   "previousBlob": null,
+   "added": 366,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/seams/RepoImportSeam.test.ts",
+   "mode": "100644",
+   "blob": "494c57bb5edf0827f002d03b9dc4842e266d582f",
+   "previousBlob": null,
+   "added": 305,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/seams/SeamContext.test.ts",
+   "mode": "100644",
+   "blob": "8ef2cbac9f65904f7f686c727bbff197b89ea1ab",
+   "previousBlob": null,
+   "added": 55,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

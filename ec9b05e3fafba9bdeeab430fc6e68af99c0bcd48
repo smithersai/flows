@@ -1,0 +1,119 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "ec9b05e3fafba9bdeeab430fc6e68af99c0bcd48",
+ "tree": "a3ece8cfcfaeb901b0075cafb9720c573bdf1d61",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 33,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 545,
+  "globalCount": 845,
+  "purpose": "📝 docs(build): document build for build",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "build",
+  "component": "packages/build",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "cd5f99c69d1c6f0a6e37007cb3f8c81f3ce7e548",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/crypto",
+    "commit": "3ac9a18fee84c753c34d31ae7baae150fa503fe6"
+   },
+   {
+    "package": "@smthrs/flow",
+    "commit": "8f2310ef99183d31a7cb6a91238af374d246498b"
+   },
+   {
+    "package": "@smthrs/plan",
+    "commit": "a6c062c1ea8185f0a2b743039e577306a8ad4a47"
+   }
+  ]
+ },
+ "related": {
+  "previous": "cd5f99c69d1c6f0a6e37007cb3f8c81f3ce7e548",
+  "next": "ae0667b325a2fef83b6cdf0b0cb5cedfb74f208b",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 698,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build/API-REVIEW.md",
+   "mode": "100644",
+   "blob": "fa9a2c45465a747e3db01ffbd41605aed9e8b517",
+   "previousBlob": null,
+   "added": 176,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/DESIGN.md",
+   "mode": "100644",
+   "blob": "de8eaf6c954a71ee1215609db89911f81ecf5366",
+   "previousBlob": null,
+   "added": 261,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/README.md",
+   "mode": "100644",
+   "blob": "51a4f481ca702a20870bfbe7a8f58a51cc8e46cc",
+   "previousBlob": null,
+   "added": 128,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/WIRING.md",
+   "mode": "100644",
+   "blob": "8624155600277f95092326b1f73a240c601e3ef8",
+   "previousBlob": null,
+   "added": 133,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

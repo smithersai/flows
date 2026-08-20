@@ -1,0 +1,108 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "96c7e6973224e8cc0363992c409a14bc493a60b8",
+ "tree": "41a459eed8277bf844a3595cf115c84fefa14e5f",
+ "epic": {
+  "index": 13,
+  "id": "server",
+  "name": "Shared application contracts and worker backend",
+  "sourceCommit": "5e1bcec6b1db3f2e990cb2b79bec0050dfc34ba3",
+  "sourceSubject": "✨ feat(server): add shared application contracts and worker backend",
+  "childIndex": 17,
+  "childCount": 20,
+  "head": "b02e63ed129878a014ee9484e2d27a74aba94be1"
+ },
+ "atomic": {
+  "globalIndex": 645,
+  "globalCount": 845,
+  "purpose": "✅ test(server): cover src (2/2)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "server",
+  "component": "apps/server",
+  "unitKey": "src",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "e395e23184e306dbcb2a4c3c9fe1edfeee95578a",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "e395e23184e306dbcb2a4c3c9fe1edfeee95578a",
+  "next": "bd6d79807e01a7dd7c09b8a1cd62751f1d0f9ceb",
+  "epicFirst": "210032b4effd3e4b5015806fab6679f7153e0fef",
+  "epicLast": "b02e63ed129878a014ee9484e2d27a74aba94be1",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 678,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/server/src/invite-mechanics.test.ts",
+   "mode": "100644",
+   "blob": "06d4e02d60d32e9672d47fd040110915075814ca",
+   "previousBlob": null,
+   "added": 307,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/server/src/ModelStream.test.ts",
+   "mode": "100644",
+   "blob": "22cc258cc10ed38d3af3669db0f29f52d2fb30e8",
+   "previousBlob": null,
+   "added": 165,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/server/src/seed-allowlist.test.ts",
+   "mode": "100644",
+   "blob": "d39cf129a5a93dbc720d0a145223e5969df3b9df",
+   "previousBlob": null,
+   "added": 116,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/server/src/turnContext.test.ts",
+   "mode": "100644",
+   "blob": "18dc7ea9f3f3c1edcffe5f2c5c604251feb3bb41",
+   "previousBlob": null,
+   "added": 90,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

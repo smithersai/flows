@@ -1,0 +1,133 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a6964169981f65f87491dbc7d0e5b18cf55b52f6",
+ "tree": "8f998245c3d213250ce07ded05b08066850f025d",
+ "epic": {
+  "index": 16,
+  "id": "docs-site",
+  "name": "Documentation site",
+  "sourceCommit": "2fd742db8891870cec6454b507fc94b3c65aa275",
+  "sourceSubject": "📚 docs(site): document the complete system",
+  "childIndex": 2,
+  "childCount": 17,
+  "head": "a71bed29530440d675e58d1dd55d8c65de45dbf2"
+ },
+ "atomic": {
+  "globalIndex": 804,
+  "globalCount": 845,
+  "purpose": "📝 docs(apps): document apps (1/3)",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "apps",
+  "component": "apps",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "d92b6bd2642c1332bcd06cb6e7fc430acdf97cda",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "d92b6bd2642c1332bcd06cb6e7fc430acdf97cda",
+  "next": "f06ce8f64a151476fcb9da1f16244662e0fd118a",
+  "epicFirst": "d92b6bd2642c1332bcd06cb6e7fc430acdf97cda",
+  "epicLast": "a71bed29530440d675e58d1dd55d8c65de45dbf2",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 6,
+  "added": 1317,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/DESIGN.md",
+   "mode": "100644",
+   "blob": "2b919299c0a2584406560ee73388e50f020d47b4",
+   "previousBlob": null,
+   "added": 306,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/E2E-CANARY-CHECKLIST.md",
+   "mode": "100644",
+   "blob": "d0ca60581daf4cdf91a0b7b8d7073f81e63c6115",
+   "previousBlob": null,
+   "added": 358,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/HUMAN-TASKS.md",
+   "mode": "100644",
+   "blob": "9a41d226499bbcb5569bb2faae372a31101bb03d",
+   "previousBlob": null,
+   "added": 304,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/MIGRATION.md",
+   "mode": "100644",
+   "blob": "f54fabb8be562b10178f5ef8e2fbf5aa96f76f3c",
+   "previousBlob": null,
+   "added": 147,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/MULTI-ACTIONS-GAP.md",
+   "mode": "100644",
+   "blob": "786c85adfd5cbca607b8ad353bcc6d016249ccfe",
+   "previousBlob": null,
+   "added": 150,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/README.md",
+   "mode": "100644",
+   "blob": "296739f083736f8d56882c552d4362060978b8e1",
+   "previousBlob": null,
+   "added": 52,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

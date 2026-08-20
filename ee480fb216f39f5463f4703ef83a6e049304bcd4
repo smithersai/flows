@@ -1,0 +1,164 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "ee480fb216f39f5463f4703ef83a6e049304bcd4",
+ "tree": "22520c0b0ef30bf7a8840ff75c91862e4d3858ec",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 40,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 688,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the money modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/canary-repros",
+  "unitKey": "dir:money",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "9bd5c633fff19eb222f314cf82318f2930847c18",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "9bd5c633fff19eb222f314cf82318f2930847c18",
+  "next": "9f97788095b48de0fe3260c04216f322aa777933",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 9,
+  "added": 650,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/money/17.4.ts",
+   "mode": "100644",
+   "blob": "5518206951244fda8c4bd4357f64176ae0176d0d",
+   "previousBlob": null,
+   "added": 53,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/money/17.7.ts",
+   "mode": "100644",
+   "blob": "f1fefc73b663dfc8d323caefe90757c6b1fa1930",
+   "previousBlob": null,
+   "added": 117,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/money/18.1.ts",
+   "mode": "100644",
+   "blob": "4d14bac19cd41f7ca005a67a919e0b1e48294cee",
+   "previousBlob": null,
+   "added": 55,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/money/18.3.ts",
+   "mode": "100644",
+   "blob": "496f1d9385b37d3d407dd645ef334d6cf3c34bd5",
+   "previousBlob": null,
+   "added": 57,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/money/18.5.ts",
+   "mode": "100644",
+   "blob": "9cbcf9b84658fbb5a4c30f8c6064378cf01b7441",
+   "previousBlob": null,
+   "added": 47,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/money/19.1.ts",
+   "mode": "100644",
+   "blob": "6efe4057435d9bfee043dd647d2ef258033e8570",
+   "previousBlob": null,
+   "added": 55,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/money/19.2.ts",
+   "mode": "100644",
+   "blob": "57ec1ccb8a78a8b687fb8208291e3739f258b29a",
+   "previousBlob": null,
+   "added": 56,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/money/19.3.ts",
+   "mode": "100644",
+   "blob": "d6f45738e66fd42da7cb3e1bd77de256c2fc7bf4",
+   "previousBlob": null,
+   "added": 60,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/canary-repros/money/_lib.ts",
+   "mode": "100644",
+   "blob": "e585541a87d95aff2b1de176789eb7f391166cfe",
+   "previousBlob": null,
+   "added": 150,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

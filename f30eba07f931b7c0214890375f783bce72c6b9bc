@@ -1,0 +1,116 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "f30eba07f931b7c0214890375f783bce72c6b9bc",
+ "tree": "b2f8ba3f6e25901478b5a46830526326312f9797",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 41,
+  "childCount": 54,
+  "head": "8f2310ef99183d31a7cb6a91238af374d246498b"
+ },
+ "atomic": {
+  "globalIndex": 112,
+  "globalCount": 845,
+  "purpose": "✅ test(engine): cover engine (5/5)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "engine",
+  "component": "packages/engine",
+  "unitKey": "test",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "409e4b2547a304befd05882695529067626b189c",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/crypto",
+    "commit": "3ac9a18fee84c753c34d31ae7baae150fa503fe6"
+   },
+   {
+    "package": "@smthrs/flow",
+    "commit": "8f2310ef99183d31a7cb6a91238af374d246498b"
+   },
+   {
+    "package": "@smthrs/keys",
+    "commit": "e145b0e5dfced2a00c300f9b139b14f6820bf771"
+   },
+   {
+    "package": "@smthrs/plan",
+    "commit": "a6c062c1ea8185f0a2b743039e577306a8ad4a47"
+   }
+  ]
+ },
+ "related": {
+  "previous": "409e4b2547a304befd05882695529067626b189c",
+  "next": "31056e3882e665e68332a8a41b9e383f7bc735f9",
+  "epicFirst": "8d222879944a121d441c2c37d5ed2b7943a88b54",
+  "epicLast": "8f2310ef99183d31a7cb6a91238af374d246498b",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 1032,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine/test/RetryPolicy.test.ts",
+   "mode": "100644",
+   "blob": "04b0fa6f54c240fde7ff17366936a7ad051293e2",
+   "previousBlob": null,
+   "added": 376,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine/test/Tiers.test.ts",
+   "mode": "100644",
+   "blob": "1c6e0ae676e621c7138ec48221e6d0477aca0792",
+   "previousBlob": null,
+   "added": 114,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine/test/Trampoline.test.ts",
+   "mode": "100644",
+   "blob": "f83908be9c7d3a0f30550838e72ea02d3ce844c1",
+   "previousBlob": null,
+   "added": 434,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine/test/UncanonicalIdempotencyKey.test.ts",
+   "mode": "100644",
+   "blob": "e9479aee0f67f2d33deac7ec8a2f3a7242daf9ca",
+   "previousBlob": null,
+   "added": 108,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

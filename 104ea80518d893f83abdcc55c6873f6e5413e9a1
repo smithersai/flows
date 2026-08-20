@@ -1,0 +1,96 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "104ea80518d893f83abdcc55c6873f6e5413e9a1",
+ "tree": "d481445b639cd2a11eb527032d59aa0703d24630",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 43,
+  "childCount": 55,
+  "head": "9633d567508a5d82ee51d5ed34014e850f417731"
+ },
+ "atomic": {
+  "globalIndex": 59,
+  "globalCount": 845,
+  "purpose": "✅ test(run-store): cover run-store for fixtures",
+  "type": "test",
+  "kind": "tests",
+  "scope": "run-store",
+  "component": "packages/run-store",
+  "unitKey": "test/fixtures",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "3eb88aa2f9d95d807824f20b889db3da3f325cbc",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   },
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   }
+  ]
+ },
+ "related": {
+  "previous": "3eb88aa2f9d95d807824f20b889db3da3f325cbc",
+  "next": "b6d1bfac9060f0abfc0986b8b19b10a44fb2bc56",
+  "epicFirst": "0b1fe1d563a03d93618ff339540cb77a2ed44d4b",
+  "epicLast": "9633d567508a5d82ee51d5ed34014e850f417731",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 156,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/run-store/test/fixtures/artifact-cjs.cjs",
+   "mode": "100644",
+   "blob": "e651d2e20ec4ed87398ff402dd85b6208142c4a1",
+   "previousBlob": null,
+   "added": 6,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/run-store/test/fixtures/artifact-esm.mjs",
+   "mode": "100644",
+   "blob": "89bdcef5d5477f8496bcc6a9a0f2015c0ef982cd",
+   "previousBlob": null,
+   "added": 6,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/run-store/test/fixtures/run-store-file-fence-child.ts",
+   "mode": "100644",
+   "blob": "825cd7ca755f800ca4981b0ed0318c4bff65b402",
+   "previousBlob": null,
+   "added": 144,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

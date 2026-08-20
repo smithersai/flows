@@ -1,0 +1,101 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a1fdc6b209196b63862082f7d0acd3a7370903a8",
+ "tree": "bfc937c48a1d0a2703cae4648dc375f18195dff8",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 54,
+  "childCount": 66,
+  "head": "28962374658aba2757a5405dab6454616510b6b6"
+ },
+ "atomic": {
+  "globalIndex": 379,
+  "globalCount": 845,
+  "purpose": "✨ feat(memory): add Source",
+  "type": "feat",
+  "kind": "module",
+  "scope": "memory",
+  "component": "packages/memory",
+  "unitKey": "Source",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "a2c5ee1b5d5c10cd5c4fe88c931e226a5366aa32",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [
+   "4673391e2fc864668661424c1a3d6f3183b83c07",
+   "ab11f83aaa30868e1ec4e9fc7c01fe8777535f09"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   },
+   {
+    "package": "@smthrs/model",
+    "commit": "5d7f346b5c7d5b6d6470e58b2aed91e31cba613a"
+   },
+   {
+    "package": "@smthrs/patterns",
+    "commit": "9e6c7183c2eb1028fd0b3f8e1736586a353cafd0"
+   }
+  ]
+ },
+ "related": {
+  "previous": "a2c5ee1b5d5c10cd5c4fe88c931e226a5366aa32",
+  "next": "b0730cfb8c6d3d2a449dcfc6a984435879f62107",
+  "epicFirst": "65dffaa9668923ae816eeaa5bce0901a958729b0",
+  "epicLast": "28962374658aba2757a5405dab6454616510b6b6",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 447,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/memory/src/Source.ts",
+   "mode": "100644",
+   "blob": "12646dae481154477d68abcd6ada1c67ab07d7ca",
+   "previousBlob": null,
+   "added": 198,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/memory/test/Source.test.ts",
+   "mode": "100644",
+   "blob": "afeaf899bf88894115e4fb48cf879bd7589b828e",
+   "previousBlob": null,
+   "added": 249,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

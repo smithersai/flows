@@ -1,0 +1,127 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "ab11f83aaa30868e1ec4e9fc7c01fe8777535f09",
+ "tree": "7ba018355f33624adb8ce8d9e24b0cb0694b28e3",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 50,
+  "childCount": 66,
+  "head": "28962374658aba2757a5405dab6454616510b6b6"
+ },
+ "atomic": {
+  "globalIndex": 375,
+  "globalCount": 845,
+  "purpose": "✨ feat(memory): add the Recall, Flows modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "memory",
+  "component": "packages/memory",
+  "unitKey": "Recall",
+  "mergedUnitKeys": [
+   "Recall",
+   "Flows"
+  ]
+ },
+ "dependencies": {
+  "parent": "2856c7eddbbbb6210c94d3bba48504996d633757",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [
+   "644fe5aa922057552f71ca92b209fcdaba71042a",
+   "5c21ab858de83d609a92ccb966d53c6465995f4a",
+   "4673391e2fc864668661424c1a3d6f3183b83c07"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   },
+   {
+    "package": "@smthrs/model",
+    "commit": "5d7f346b5c7d5b6d6470e58b2aed91e31cba613a"
+   },
+   {
+    "package": "@smthrs/patterns",
+    "commit": "9e6c7183c2eb1028fd0b3f8e1736586a353cafd0"
+   }
+  ]
+ },
+ "related": {
+  "previous": "2856c7eddbbbb6210c94d3bba48504996d633757",
+  "next": "e3c99c688a217f9602dcad009a3546f8daa5f662",
+  "epicFirst": "65dffaa9668923ae816eeaa5bce0901a958729b0",
+  "epicLast": "28962374658aba2757a5405dab6454616510b6b6",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 615,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/memory/src/Recall.ts",
+   "mode": "100644",
+   "blob": "c8607be6d5d347be51212763176a78260f01677a",
+   "previousBlob": null,
+   "added": 229,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/memory/test/Recall.test.ts",
+   "mode": "100644",
+   "blob": "e82071e1fe30416e90fd850ff4db9a7504b23cf6",
+   "previousBlob": null,
+   "added": 72,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/memory/src/Flows.ts",
+   "mode": "100644",
+   "blob": "af9f6d518662fd0041ada9ddb3c330937c134763",
+   "previousBlob": null,
+   "added": 245,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/memory/test/Flows.test.ts",
+   "mode": "100644",
+   "blob": "8ebf2ccc8297b84d57692397918e98f0bc072e19",
+   "previousBlob": null,
+   "added": 69,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

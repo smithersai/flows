@@ -1,0 +1,76 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "b76fdcf3401d813235df40673fe2571b515d0908",
+ "tree": "e0f7890bdf6dca142638a2d47e53da7161376f2e",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 29,
+  "childCount": 55,
+  "head": "9633d567508a5d82ee51d5ed34014e850f417731"
+ },
+ "atomic": {
+  "globalIndex": 45,
+  "globalCount": 845,
+  "purpose": "✨ feat(journal): add SqlJournal",
+  "type": "feat",
+  "kind": "module",
+  "scope": "journal",
+  "component": "packages/journal",
+  "unitKey": "SqlJournal",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "455683f254fe47edbefe967367032d33cf17af2b",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [
+   "3766c3a8c1f23813bc27d1cd18c8163afa59b7e2",
+   "b6d56ab89992dca688a29a4f6745173e02707fd3",
+   "13f4baa4437a7ec17517081fc08fe92169746a76",
+   "a0cfaf2c4979213d9909cab96af4d1ad55f2ca53",
+   "e940c479920dead6aa6a309be15a3965a3d83bcc"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   }
+  ]
+ },
+ "related": {
+  "previous": "455683f254fe47edbefe967367032d33cf17af2b",
+  "next": "a3844b60b67125675ffc44a9a6bf27f1bf0b330e",
+  "epicFirst": "0b1fe1d563a03d93618ff339540cb77a2ed44d4b",
+  "epicLast": "9633d567508a5d82ee51d5ed34014e850f417731",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 1740,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/journal/src/SqlJournal.ts",
+   "mode": "100644",
+   "blob": "b2c3e75d9063074c8fa8ecb81c803ac92e90f2d9",
+   "previousBlob": null,
+   "added": 1740,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

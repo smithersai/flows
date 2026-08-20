@@ -1,0 +1,199 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "6fb98df84356c38de523af0b2f8e67efcc6447f5",
+ "tree": "6608c132c01027808b8a00bda9b578ee7c8f8edd",
+ "epic": {
+  "index": 16,
+  "id": "docs-site",
+  "name": "Documentation site",
+  "sourceCommit": "2fd742db8891870cec6454b507fc94b3c65aa275",
+  "sourceSubject": "📚 docs(site): document the complete system",
+  "childIndex": 8,
+  "childCount": 17,
+  "head": "a71bed29530440d675e58d1dd55d8c65de45dbf2"
+ },
+ "atomic": {
+  "globalIndex": 810,
+  "globalCount": 845,
+  "purpose": "📝 docs(concepts): document concepts",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "concepts",
+  "component": "docs/concepts",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "29a814191644924dbe0f4484305d72b74b7b9cb5",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "29a814191644924dbe0f4484305d72b74b7b9cb5",
+  "next": "3758aaa49b4f9d2c49658dbcc51a2ed6eb915551",
+  "epicFirst": "d92b6bd2642c1332bcd06cb6e7fc430acdf97cda",
+  "epicLast": "a71bed29530440d675e58d1dd55d8c65de45dbf2",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 12,
+  "added": 929,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "docs/concepts/action-graph.md",
+   "mode": "100644",
+   "blob": "70c4857c4c240cb5a02184dce34d9c4754bc0c53",
+   "previousBlob": null,
+   "added": 94,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/concepts/concurrency.md",
+   "mode": "100644",
+   "blob": "3f9c99c116e43cf6a16f284e3d11b8d1c513c325",
+   "previousBlob": null,
+   "added": 57,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/concepts/determinism-and-replay.md",
+   "mode": "100644",
+   "blob": "93a8b476f7c3b320673137ba626ad911a57b5b76",
+   "previousBlob": null,
+   "added": 94,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/concepts/durable-execution-model.md",
+   "mode": "100644",
+   "blob": "eaa7eed179b74ef348c3870c33ef6c2f45b5acda",
+   "previousBlob": null,
+   "added": 112,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/concepts/effect-integration.md",
+   "mode": "100644",
+   "blob": "991c95109a35381b70a2f24a2b8d230e20c5450a",
+   "previousBlob": null,
+   "added": 72,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/concepts/failure-and-retry.md",
+   "mode": "100644",
+   "blob": "e5f4e20e3008e3b39687fdb871b84fc95e4bdd08",
+   "previousBlob": null,
+   "added": 61,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/concepts/hosts-and-capabilities.md",
+   "mode": "100644",
+   "blob": "b84b62e36516c58852a970014317ac3395388545",
+   "previousBlob": null,
+   "added": 106,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/concepts/journal.md",
+   "mode": "100644",
+   "blob": "b2830b27d16bccf6c8b57697e433395bbdbeef2c",
+   "previousBlob": null,
+   "added": 120,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/concepts/step-keys.md",
+   "mode": "100644",
+   "blob": "ae486f0b82506be4d6c82fce4ceea28118b6c7f1",
+   "previousBlob": null,
+   "added": 22,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/concepts/subflows.md",
+   "mode": "100644",
+   "blob": "3387744a6801026947d04a6fbff6be4f45f67971",
+   "previousBlob": null,
+   "added": 44,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/concepts/sync.md",
+   "mode": "100644",
+   "blob": "44adf0961469abefa194f1d2aa0c460cbf3ca101",
+   "previousBlob": null,
+   "added": 51,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/concepts/time-travel.md",
+   "mode": "100644",
+   "blob": "295e79cf3f3c251478429938c3eca0c67834e818",
+   "previousBlob": null,
+   "added": 96,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

@@ -1,0 +1,135 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "f115a629978e1cfe8355effff2c7b1ec536ef4b4",
+ "tree": "b2e06995d6068fb2c499a8069fc82904e8d2d4ed",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 38,
+  "childCount": 55,
+  "head": "9633d567508a5d82ee51d5ed34014e850f417731"
+ },
+ "atomic": {
+  "globalIndex": 54,
+  "globalCount": 845,
+  "purpose": "✨ feat(run-store): add the Heartbeat, Migrations, RunStoreMetrics modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "run-store",
+  "component": "packages/run-store",
+  "unitKey": "Heartbeat",
+  "mergedUnitKeys": [
+   "Heartbeat",
+   "Migrations",
+   "RunStoreMetrics"
+  ]
+ },
+ "dependencies": {
+  "parent": "c1554e4e46551687558a2729b035e4b813ea7ae9",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [
+   "c450d42643088ef249103a473f4f4fb138ff8d0a"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   },
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   }
+  ]
+ },
+ "related": {
+  "previous": "c1554e4e46551687558a2729b035e4b813ea7ae9",
+  "next": "cc38807598b0a78ebf42d596f9eae6539e565dec",
+  "epicFirst": "0b1fe1d563a03d93618ff339540cb77a2ed44d4b",
+  "epicLast": "9633d567508a5d82ee51d5ed34014e850f417731",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 6,
+  "added": 681,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/run-store/src/Heartbeat.ts",
+   "mode": "100644",
+   "blob": "e0260462289c1e4fe0e937b54c6affb14a5d827b",
+   "previousBlob": null,
+   "added": 51,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/run-store/src/Migrations.ts",
+   "mode": "100644",
+   "blob": "887b6b1adc37da4f5e2faef3b11098da5a0afabc",
+   "previousBlob": null,
+   "added": 55,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/run-store/test/Migrations.test.ts",
+   "mode": "100644",
+   "blob": "1c610543433c308623af02f4ac7b104b8f77a283",
+   "previousBlob": null,
+   "added": 70,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/run-store/test/MigrationsDurableUpgrade.test.ts",
+   "mode": "100644",
+   "blob": "58f0ebe3f2244dd3cc86f36ba8ccb6d6cb8f5376",
+   "previousBlob": null,
+   "added": 180,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/run-store/src/RunStoreMetrics.ts",
+   "mode": "100644",
+   "blob": "e5fa9fb03201099d6e55532b740d67737d7156c4",
+   "previousBlob": null,
+   "added": 133,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/run-store/test/RunStoreMetrics.test.ts",
+   "mode": "100644",
+   "blob": "9bb1f3634fdf0a8fc787c1b5a4d93d3c35eabdf3",
+   "previousBlob": null,
+   "added": 192,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

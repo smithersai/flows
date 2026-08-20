@@ -1,0 +1,75 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "896d32e4f22d7630ed60aba294d9bc01b3032d31",
+ "tree": "222a0e7b9f28ebf71c0e6a9787d6f3d33e9204bf",
+ "epic": {
+  "index": 2,
+  "id": "core",
+  "name": "Canonical leaf contracts",
+  "sourceCommit": "9cd3ac554b7b6acecfceddce69f6a6b6afa257b6",
+  "sourceSubject": "✨ feat(core): add canonical leaf contracts",
+  "childIndex": 10,
+  "childCount": 14,
+  "head": "661ab4abf442fdbc7f5039a9846f9822f28b505a"
+ },
+ "atomic": {
+  "globalIndex": 12,
+  "globalCount": 845,
+  "purpose": "📝 docs(capability): document capability",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "capability",
+  "component": "packages/capability",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "0939949b073e11e8e6015e4bed6d5c9910aeafb1",
+  "epicPredecessors": [
+   "repo"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "0939949b073e11e8e6015e4bed6d5c9910aeafb1",
+  "next": "430e81622ac1154752d27ff02ccc11c95a28a6f4",
+  "epicFirst": "c0c561bff5109eb97831d6eda26e84d1d4aa5583",
+  "epicLast": "661ab4abf442fdbc7f5039a9846f9822f28b505a",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 38,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/capability/CHANGELOG.md",
+   "mode": "100644",
+   "blob": "b6f62cb8b89c7320290edc1bb95cb2e1fcf7a482",
+   "previousBlob": null,
+   "added": 11,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/capability/README.md",
+   "mode": "100644",
+   "blob": "23a57c2e867edf0b35d16df6e75a693e532f9ff9",
+   "previousBlob": null,
+   "added": 27,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

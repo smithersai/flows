@@ -1,0 +1,85 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "f06aaf60478140cf15bcb2a0a695b6726362da5a",
+ "tree": "80a50496036672b551df0d97c241fc246f0e3004",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 34,
+  "childCount": 66,
+  "head": "28962374658aba2757a5405dab6454616510b6b6"
+ },
+ "atomic": {
+  "globalIndex": 359,
+  "globalCount": 845,
+  "purpose": "✨ feat(model): add AnthropicMessages",
+  "type": "feat",
+  "kind": "module",
+  "scope": "model",
+  "component": "packages/model",
+  "unitKey": "AnthropicMessages",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "8e84e4aff3539d1a113aa361e6f157e9fc056f6f",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [
+   "4ab57e8ebfeb39f9547c31bb7f31b861e8521dd7",
+   "3c7d5e2fa7baca72bd497508f2d25d5b36dfc901",
+   "7fb5d5a75cf25b2e32c72cd5d9c2900ad58c40de",
+   "c1089df974a536e0ea97ead5078bac2d5bd7ffe8",
+   "8e84e4aff3539d1a113aa361e6f157e9fc056f6f"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "8e84e4aff3539d1a113aa361e6f157e9fc056f6f",
+  "next": "ca64d244877b29343abe543c1860eefe641dcd48",
+  "epicFirst": "65dffaa9668923ae816eeaa5bce0901a958729b0",
+  "epicLast": "28962374658aba2757a5405dab6454616510b6b6",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 813,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/model/src/AnthropicMessages.ts",
+   "mode": "100644",
+   "blob": "1e3341b80cfdc07f26fea20c33dd65aa2dd9d268",
+   "previousBlob": null,
+   "added": 813,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

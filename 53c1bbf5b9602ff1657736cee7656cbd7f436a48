@@ -1,0 +1,84 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "53c1bbf5b9602ff1657736cee7656cbd7f436a48",
+ "tree": "1fc7a7c5c65ffb4f71963b3d5e24ff8c9c1038db",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 27,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 675,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the workflows module (8/8)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/.smithers",
+  "unitKey": "dir:workflows",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "72b12fb47562000e3489230b70aef3192713b0d3",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "160cb184fe3705cdb674df2b90f24876465ab37d",
+   "a2493f854e188738e36451261e0ba22e0fbd002f"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "commit": "fec516964e3e6a618aace55755a6d0befd72daa8"
+   }
+  ]
+ },
+ "related": {
+  "previous": "72b12fb47562000e3489230b70aef3192713b0d3",
+  "next": "e34d06537c11c364d2bf435fab5614b22f6e5dd1",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 916,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/workflows/whole-foods-meal-planner.tsx",
+   "mode": "100644",
+   "blob": "4165240b51ef6bbc141ec6b4d68a9c3f0f117a7d",
+   "previousBlob": null,
+   "added": 916,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

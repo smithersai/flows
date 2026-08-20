@@ -1,0 +1,84 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "3d5839b5f65713a3fa923aa36b19ca760296abc5",
+ "tree": "f465cfc44fc303aed7b44498c7c2bb2e5e8f25e4",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 16,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 528,
+  "globalCount": 845,
+  "purpose": "✨ feat(build): add the scripts modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "build",
+  "component": "packages/build/infra",
+  "unitKey": "dir:scripts",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "d2ae9e8eefa73491ed7da3797ffdee2df0494a72",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "d2ae9e8eefa73491ed7da3797ffdee2df0494a72",
+  "next": "2c580e2a24bb2ccd914c277d00f56c00a755fcb9",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 624,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build/infra/scripts/deploy.ts",
+   "mode": "100644",
+   "blob": "82a4f5d1a4b702640c3b24e4cc00c4164dcca941",
+   "previousBlob": null,
+   "added": 179,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/infra/scripts/redact-state.ts",
+   "mode": "100644",
+   "blob": "a2816120ead96b850f2f9ede10ce52ea972d0739",
+   "previousBlob": null,
+   "added": 445,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

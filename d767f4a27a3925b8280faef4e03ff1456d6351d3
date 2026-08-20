@@ -1,0 +1,127 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "d767f4a27a3925b8280faef4e03ff1456d6351d3",
+ "tree": "79a99b7906431b12f58bc7945d07f18dc1377bfb",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 39,
+  "childCount": 54,
+  "head": "8f2310ef99183d31a7cb6a91238af374d246498b"
+ },
+ "atomic": {
+  "globalIndex": 110,
+  "globalCount": 845,
+  "purpose": "✅ test(engine): cover engine (3/5)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "engine",
+  "component": "packages/engine",
+  "unitKey": "test",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "e2257a272eef76e9222f29a8312c1ec466ed9d71",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/crypto",
+    "commit": "3ac9a18fee84c753c34d31ae7baae150fa503fe6"
+   },
+   {
+    "package": "@smthrs/flow",
+    "commit": "8f2310ef99183d31a7cb6a91238af374d246498b"
+   },
+   {
+    "package": "@smthrs/keys",
+    "commit": "e145b0e5dfced2a00c300f9b139b14f6820bf771"
+   },
+   {
+    "package": "@smthrs/plan",
+    "commit": "a6c062c1ea8185f0a2b743039e577306a8ad4a47"
+   }
+  ]
+ },
+ "related": {
+  "previous": "e2257a272eef76e9222f29a8312c1ec466ed9d71",
+  "next": "409e4b2547a304befd05882695529067626b189c",
+  "epicFirst": "8d222879944a121d441c2c37d5ed2b7943a88b54",
+  "epicLast": "8f2310ef99183d31a7cb6a91238af374d246498b",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 5,
+  "added": 1377,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine/test/DurableLogEngine.ts",
+   "mode": "100644",
+   "blob": "59a95884aa27e0490702faf07c13cb7e0c4f78d5",
+   "previousBlob": null,
+   "added": 296,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine/test/EngineEdgeGaps.test.ts",
+   "mode": "100644",
+   "blob": "ac4bfcf762ace03719470a86208bcb2ffb637287",
+   "previousBlob": null,
+   "added": 368,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine/test/FlowChildBoundary.test.ts",
+   "mode": "100644",
+   "blob": "83608e6f3befa9ac3519302ea8c140fe0982065b",
+   "previousBlob": null,
+   "added": 240,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine/test/FlowChildSuspension.test.ts",
+   "mode": "100644",
+   "blob": "283359bcd2a30e44389ba09b872c1a52e51e546e",
+   "previousBlob": null,
+   "added": 347,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine/test/FlowSchemaBoundary.test.ts",
+   "mode": "100644",
+   "blob": "55b593db5a5e7ecc6076bb57709e509eeccc266b",
+   "previousBlob": null,
+   "added": 126,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

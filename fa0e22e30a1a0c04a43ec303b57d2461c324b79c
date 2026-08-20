@@ -1,0 +1,140 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "fa0e22e30a1a0c04a43ec303b57d2461c324b79c",
+ "tree": "7da446a2011f07e91b8c4b21fbd6ad38e44a0da9",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 26,
+  "childCount": 43,
+  "head": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9"
+ },
+ "atomic": {
+  "globalIndex": 308,
+  "globalCount": 845,
+  "purpose": "✨ feat(fs): add the FsError, CommandLine, SchemaBridge and 3 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "fs",
+  "component": "packages/fs",
+  "unitKey": "FsError",
+  "mergedUnitKeys": [
+   "FsError",
+   "internal/CommandLine",
+   "internal/SchemaBridge",
+   "Route",
+   "CommandTree",
+   "FlowInvoker"
+  ]
+ },
+ "dependencies": {
+  "parent": "de32f3951f9e8d6471dafc2b14183ec1335a0e6e",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/registry",
+    "commit": "1ae2f3b78daa4ba33deb87bfe057eee002727dcd"
+   }
+  ]
+ },
+ "related": {
+  "previous": "de32f3951f9e8d6471dafc2b14183ec1335a0e6e",
+  "next": "ce556dd6dc71c8a71e149a18632c360f710cf53f",
+  "epicFirst": "f7a85bfa43ff3fa63e2ad6200bd2d4d7ec1397a2",
+  "epicLast": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 6,
+  "added": 688,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/fs/src/FsError.ts",
+   "mode": "100644",
+   "blob": "8fae5b3b4dc72bc58bf8e9cd25e08e2f28dc51a4",
+   "previousBlob": null,
+   "added": 52,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/fs/src/internal/CommandLine.ts",
+   "mode": "100644",
+   "blob": "9c10bc76b4e94a6ce8f27ff5aeea304f52198891",
+   "previousBlob": null,
+   "added": 157,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/fs/src/internal/SchemaBridge.ts",
+   "mode": "100644",
+   "blob": "856b305c90aa15d218f0b0e3808c130d6843431e",
+   "previousBlob": null,
+   "added": 138,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/fs/src/Route.ts",
+   "mode": "100644",
+   "blob": "a1e0cdb351071f1c4f89d4f4fa61caf523563ab2",
+   "previousBlob": null,
+   "added": 122,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/fs/src/CommandTree.ts",
+   "mode": "100644",
+   "blob": "909f3d7b3d847e5a9c6b8214fa8517269b5022e8",
+   "previousBlob": null,
+   "added": 133,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/fs/src/FlowInvoker.ts",
+   "mode": "100644",
+   "blob": "365d4fefc2885f1a49795edeb23006dee33c7f29",
+   "previousBlob": null,
+   "added": 86,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

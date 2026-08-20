@@ -1,0 +1,126 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "6325d6d79c4027f596a36ad5536229f8d7fefa70",
+ "tree": "3488b7cb2102bcd5635834c3a2ab851c19ae6612",
+ "epic": {
+  "index": 10,
+  "id": "platform",
+  "name": "Conformance, scoring, evaluation and telemetry",
+  "sourceCommit": "317910c088e178d40f3b1553a182a7ee2be5dd24",
+  "sourceSubject": "✅ test(platform): add conformance, scoring, evaluation, and telemetry",
+  "childIndex": 22,
+  "childCount": 36,
+  "head": "7815804a6f1b8fd9568d8a0031bb0b58ee098100"
+ },
+ "atomic": {
+  "globalIndex": 498,
+  "globalCount": 845,
+  "purpose": "✨ feat(observability): add the Otel, Otlp modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "observability",
+  "component": "packages/observability",
+  "unitKey": "Otel",
+  "mergedUnitKeys": [
+   "Otel",
+   "Otlp"
+  ]
+ },
+ "dependencies": {
+  "parent": "c6f8971b2bfba4f7334294d570fb61ed66cc5c68",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent"
+  ],
+  "sourceImports": [
+   "c6f8971b2bfba4f7334294d570fb61ed66cc5c68"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   }
+  ]
+ },
+ "related": {
+  "previous": "c6f8971b2bfba4f7334294d570fb61ed66cc5c68",
+  "next": "fbdbe67c65198be6195138f47d55bb84d1f9be86",
+  "epicFirst": "979f13d307eb3917b8f17afabcbde76137e83652",
+  "epicLast": "7815804a6f1b8fd9568d8a0031bb0b58ee098100",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 5,
+  "added": 513,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/observability/src/Otel.ts",
+   "mode": "100644",
+   "blob": "799667ed1b79d304823d6fe8146eb31725d54d7e",
+   "previousBlob": null,
+   "added": 73,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/observability/test/Otel.test.ts",
+   "mode": "100644",
+   "blob": "be2a394dd2425aaea43d9dce9747f41541cc1def",
+   "previousBlob": null,
+   "added": 18,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/observability/test/OtelInjected.test.ts",
+   "mode": "100644",
+   "blob": "4bbde0a6494ef5acd79bf2f7aaff65a59938789d",
+   "previousBlob": null,
+   "added": 68,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/observability/src/Otlp.ts",
+   "mode": "100644",
+   "blob": "7292d1b4ab01e886e4cd11711cee88a6da08bb4e",
+   "previousBlob": null,
+   "added": 135,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/observability/test/Otlp.test.ts",
+   "mode": "100644",
+   "blob": "aa6cb95b6ece8684649f35ace0ff1f79590c3eb5",
+   "previousBlob": null,
+   "added": 219,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

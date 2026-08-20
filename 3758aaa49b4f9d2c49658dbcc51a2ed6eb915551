@@ -1,0 +1,122 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "3758aaa49b4f9d2c49658dbcc51a2ed6eb915551",
+ "tree": "43ffd00ebea5f63ba12d83a66ec25df818f1fee7",
+ "epic": {
+  "index": 16,
+  "id": "docs-site",
+  "name": "Documentation site",
+  "sourceCommit": "2fd742db8891870cec6454b507fc94b3c65aa275",
+  "sourceSubject": "📚 docs(site): document the complete system",
+  "childIndex": 9,
+  "childCount": 17,
+  "head": "a71bed29530440d675e58d1dd55d8c65de45dbf2"
+ },
+ "atomic": {
+  "globalIndex": 811,
+  "globalCount": 845,
+  "purpose": "📝 docs(guides): document guides",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "guides",
+  "component": "docs/guides",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "6fb98df84356c38de523af0b2f8e67efcc6447f5",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "6fb98df84356c38de523af0b2f8e67efcc6447f5",
+  "next": "01729a3d9d0c21b4b6fe5961f7867f143a59abf5",
+  "epicFirst": "d92b6bd2642c1332bcd06cb6e7fc430acdf97cda",
+  "epicLast": "a71bed29530440d675e58d1dd55d8c65de45dbf2",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 5,
+  "added": 469,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "docs/guides/control-plane-trust.md",
+   "mode": "100644",
+   "blob": "a0fb587fcdfdd269f7d1d4358585dbda5a0bff24",
+   "previousBlob": null,
+   "added": 61,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/guides/durable-engine.md",
+   "mode": "100644",
+   "blob": "9252402a4a6dd05c9d3b382ed4abdd11be9076cc",
+   "previousBlob": null,
+   "added": 102,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/guides/getting-started.md",
+   "mode": "100644",
+   "blob": "b9018d874a372b5034508a19206cda9e3be2a398",
+   "previousBlob": null,
+   "added": 68,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/guides/testing.md",
+   "mode": "100644",
+   "blob": "bfc66a5dcbdd432d15e9b4934e8a1418f993609a",
+   "previousBlob": null,
+   "added": 91,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/guides/writing-a-flow.md",
+   "mode": "100644",
+   "blob": "9e9d992e966a68ad0db3d4023db7af215b5a70c7",
+   "previousBlob": null,
+   "added": 147,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

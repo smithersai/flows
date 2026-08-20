@@ -1,0 +1,79 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "1fb5a051f5ccc772c2e8cce3b8a29472c51afd48",
+ "tree": "15d8694e7fa8846018593f9b7c2f1923886fa54b",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 5,
+  "childCount": 66,
+  "head": "28962374658aba2757a5405dab6454616510b6b6"
+ },
+ "atomic": {
+  "globalIndex": 330,
+  "globalCount": 845,
+  "purpose": "✨ feat(notifications): export the public notifications surface",
+  "type": "feat",
+  "kind": "index",
+  "scope": "notifications",
+  "component": "packages/notifications",
+  "unitKey": "~index",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "3e244f1d887f7e7ca7ce84926a8c1c2113eaf457",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [
+   "9fb9d7f6cdedd7a9d542e04d3180229b7b2f8dfd",
+   "3e244f1d887f7e7ca7ce84926a8c1c2113eaf457",
+   "eb5c9a92d35faad97aea2382296de32a336c7656"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   }
+  ]
+ },
+ "related": {
+  "previous": "3e244f1d887f7e7ca7ce84926a8c1c2113eaf457",
+  "next": "3a0c9904c3ddcff28fbe9a594385e63fabf17368",
+  "epicFirst": "65dffaa9668923ae816eeaa5bce0901a958729b0",
+  "epicLast": "28962374658aba2757a5405dab6454616510b6b6",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 40,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/notifications/src/index.ts",
+   "mode": "100644",
+   "blob": "b3102fb3ba3a8d8654da04646a264547165fc328",
+   "previousBlob": null,
+   "added": 40,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

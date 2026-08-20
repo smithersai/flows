@@ -1,0 +1,73 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "ea7bfc99043a43ffe241b27b8f56c563a8fdeda4",
+ "tree": "ab471e42e3ec508857ec41236c5b9eca458b47ce",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 76,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 588,
+  "globalCount": 845,
+  "purpose": "📦 build(repo): add the root toolchain dependencies",
+  "type": "build",
+  "kind": "scaffold",
+  "scope": "repo",
+  "component": "~root",
+  "unitKey": "~scaffold",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "d08f9e91c44f5563965b8f38d05134c4fc7f080e",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "d08f9e91c44f5563965b8f38d05134c4fc7f080e",
+  "next": "2cf5a136878b77530e14c3b743f3ee065ab8bd6f",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 16,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "hunk-split or whole-file evolution of a path introduced earlier",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "package.json",
+   "mode": "100644",
+   "blob": "1c3e1467e83dfbb5cbe14311c8666e1f6061f927",
+   "previousBlob": "0cd69f39df473649111b0f4a9e11477e78ab4904",
+   "added": 16,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  }
+ ]
+}

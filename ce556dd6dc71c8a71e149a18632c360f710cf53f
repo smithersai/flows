@@ -1,0 +1,151 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "ce556dd6dc71c8a71e149a18632c360f710cf53f",
+ "tree": "46726c4e9af5ae302bf0954eacff20bceadc7861",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 27,
+  "childCount": 43,
+  "head": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9"
+ },
+ "atomic": {
+  "globalIndex": 309,
+  "globalCount": 845,
+  "purpose": "✨ feat(fs): add the Command, Directive, FileRouter and 1 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "fs",
+  "component": "packages/fs",
+  "unitKey": "Command",
+  "mergedUnitKeys": [
+   "Command",
+   "Directive",
+   "FileRouter",
+   "Incur"
+  ]
+ },
+ "dependencies": {
+  "parent": "fa0e22e30a1a0c04a43ec303b57d2461c324b79c",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [
+   "fa0e22e30a1a0c04a43ec303b57d2461c324b79c"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/registry",
+    "commit": "1ae2f3b78daa4ba33deb87bfe057eee002727dcd"
+   }
+  ]
+ },
+ "related": {
+  "previous": "fa0e22e30a1a0c04a43ec303b57d2461c324b79c",
+  "next": "76c7092fe026eff3c097ee90c0d3f041249604eb",
+  "epicFirst": "f7a85bfa43ff3fa63e2ad6200bd2d4d7ec1397a2",
+  "epicLast": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 7,
+  "added": 684,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/fs/src/Command.ts",
+   "mode": "100644",
+   "blob": "8c2352eba405e901193d64a90963c9e4c2f68839",
+   "previousBlob": null,
+   "added": 110,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/fs/test/Command.test.ts",
+   "mode": "100644",
+   "blob": "a3c160f61ec7f8d5f46d39514879ef3c1c659bd3",
+   "previousBlob": null,
+   "added": 61,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/fs/src/Directive.ts",
+   "mode": "100644",
+   "blob": "d3839521bab28047277ebd5e610129301ccbc398",
+   "previousBlob": null,
+   "added": 38,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/fs/test/Directive.test.ts",
+   "mode": "100644",
+   "blob": "bf24b99d74bf40f87a165658e0a40659f58774de",
+   "previousBlob": null,
+   "added": 23,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/fs/src/FileRouter.ts",
+   "mode": "100644",
+   "blob": "8a87d66c3939c91b68e13dbdbf01d338d486762a",
+   "previousBlob": null,
+   "added": 138,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/fs/test/FileRouter.test.ts",
+   "mode": "100644",
+   "blob": "62873c1233914b148c9c6357f70db8bb621dc3cf",
+   "previousBlob": null,
+   "added": 66,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/fs/src/Incur.ts",
+   "mode": "100644",
+   "blob": "a9548d79cc66f4c358e47897f35eff80d0a749b4",
+   "previousBlob": null,
+   "added": 248,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

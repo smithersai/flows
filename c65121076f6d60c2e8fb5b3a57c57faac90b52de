@@ -1,0 +1,124 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "c65121076f6d60c2e8fb5b3a57c57faac90b52de",
+ "tree": "4c0e0d680b44f8f9d7a4cdfe413c36c087c178ed",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 13,
+  "childCount": 66,
+  "head": "28962374658aba2757a5405dab6454616510b6b6"
+ },
+ "atomic": {
+  "globalIndex": 338,
+  "globalCount": 845,
+  "purpose": "✨ feat(control): add ControlRuntime",
+  "type": "feat",
+  "kind": "module",
+  "scope": "control",
+  "component": "packages/control",
+  "unitKey": "ControlRuntime",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "c8e86667bc23dbc69ef466cb271f6784e03c4970",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [
+   "80769b32358234a6e89f36cc61de71938fb52306",
+   "9b61b80b9d24e09be1fc787797b8ad99eff9cdc8",
+   "f11dab667f07a7791fd8830aef67c4a46d85329f",
+   "7945f3a4fbe76f4ba3aa7e9c147b045832fe4c4e",
+   "c8e86667bc23dbc69ef466cb271f6784e03c4970"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "commit": "3b57deac5ef23a0e1e2fa660e6bcf9351049a95b"
+   },
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/crypto",
+    "commit": "3ac9a18fee84c753c34d31ae7baae150fa503fe6"
+   },
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   },
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   },
+   {
+    "package": "@smthrs/notifications",
+    "commit": "1fb5a051f5ccc772c2e8cce3b8a29472c51afd48"
+   },
+   {
+    "package": "@smthrs/plan",
+    "commit": "a6c062c1ea8185f0a2b743039e577306a8ad4a47"
+   },
+   {
+    "package": "@smthrs/registry",
+    "commit": "1ae2f3b78daa4ba33deb87bfe057eee002727dcd"
+   },
+   {
+    "package": "@smthrs/run-store",
+    "commit": "9633d567508a5d82ee51d5ed34014e850f417731"
+   }
+  ]
+ },
+ "related": {
+  "previous": "c8e86667bc23dbc69ef466cb271f6784e03c4970",
+  "next": "24a3147f7b45eca81c16d0c0250629831bf190ee",
+  "epicFirst": "65dffaa9668923ae816eeaa5bce0901a958729b0",
+  "epicLast": "28962374658aba2757a5405dab6454616510b6b6",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 939,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/control/src/ControlRuntime.ts",
+   "mode": "100644",
+   "blob": "1fd1b493ea053a09373879c3ed0ca5ad6320551c",
+   "previousBlob": null,
+   "added": 662,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/control/test/ControlRuntimeMemory.test.ts",
+   "mode": "100644",
+   "blob": "a82a02252f7e88c91b14dde6872ca29292767ef1",
+   "previousBlob": null,
+   "added": 277,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

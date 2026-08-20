@@ -1,0 +1,111 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "cf1fa13bd10a48aa99bd68d3fe1487cb4bafafb3",
+ "tree": "6a8f31c389a1fdcec69627d2f41741f916e3dc9a",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 47,
+  "childCount": 61,
+  "head": "a5193915fd7f1bc7634e32c28838552e883641db"
+ },
+ "atomic": {
+  "globalIndex": 172,
+  "globalCount": 845,
+  "purpose": "✨ feat(platform-node): add NodeHost",
+  "type": "feat",
+  "kind": "module",
+  "scope": "platform-node",
+  "component": "packages/platform-node",
+  "unitKey": "NodeHost",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "933e41e913d42c4f59ec8446ef165d877ea8cb5f",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [
+   "029d90ede147ecbf12de823b8ff58c3dd1ee37c7"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/jj",
+    "commit": "a67499b875ddce7aa9fe4a7cc5414fc0ab9eb398"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "933e41e913d42c4f59ec8446ef165d877ea8cb5f",
+  "next": "ee046808e1233898d8f029a65b2f8f9eeb83caeb",
+  "epicFirst": "5037300288116821b95e1046a67ca324243eeeeb",
+  "epicLast": "a5193915fd7f1bc7634e32c28838552e883641db",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 267,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/platform-node/src/NodeHost.ts",
+   "mode": "100644",
+   "blob": "deeaec1c0cb32cc5c885d1528b65b5db1b9e333f",
+   "previousBlob": null,
+   "added": 66,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/platform-node/test/contract/NodeHost.contract.test.ts",
+   "mode": "100644",
+   "blob": "5b2b36d4c3e3c4dc41a8883958437a20b92169d4",
+   "previousBlob": null,
+   "added": 71,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/platform-node/test/contract/NodeHostDefaults.contract.test.ts",
+   "mode": "100644",
+   "blob": "452c2efe860942774fdaffc6536ad7c7bbdd5d45",
+   "previousBlob": null,
+   "added": 56,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/platform-node/test/contract/NodeHostRedirect.contract.test.ts",
+   "mode": "100644",
+   "blob": "95b22876469d9ba968fa3a7eae0eec5f80de6ab3",
+   "previousBlob": null,
+   "added": 74,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

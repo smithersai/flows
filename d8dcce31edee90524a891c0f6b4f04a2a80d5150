@@ -1,0 +1,87 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "d8dcce31edee90524a891c0f6b4f04a2a80d5150",
+ "tree": "8b064fcc598308a125edca029bf5c03e90af297f",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 3,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 651,
+  "globalCount": 845,
+  "purpose": "🧹 chore(reports): add the 20260809-024836-canary-live review report",
+  "type": "chore",
+  "kind": "module",
+  "scope": "reports",
+  "component": "apps/reports/launch-checklist",
+  "unitKey": "dir:20260809-024836-canary-live",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "07e3bedf3a9182fb121be8f8cf44c5e8252fdc53",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "07e3bedf3a9182fb121be8f8cf44c5e8252fdc53",
+  "next": "0815711e5ceace8ac3abbe282f4fd005e432493f",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 510,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/reports/launch-checklist/20260809-024836-canary-live/launch-checklist-report.json",
+   "mode": "100644",
+   "blob": "be94769f6ef6340c8685c41dac2f241089e16e4f",
+   "previousBlob": null,
+   "added": 510,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/reports/launch-checklist/20260809-024836-canary-live/wave7-canary-landing.png",
+   "mode": "100644",
+   "blob": "77006d9bbf53abd7678a4f95d0ed6823b13e4244",
+   "previousBlob": null,
+   "added": 0,
+   "deleted": 0,
+   "binary": true,
+   "role": "src"
+  }
+ ]
+}

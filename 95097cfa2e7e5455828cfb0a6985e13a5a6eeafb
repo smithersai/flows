@@ -1,0 +1,103 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "95097cfa2e7e5455828cfb0a6985e13a5a6eeafb",
+ "tree": "a9be8bc5c00735e48903679a62f8b16da7e8b24a",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 32,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 680,
+  "globalCount": 845,
+  "purpose": "📝 docs(ui): document prompts (2/2)",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "ui",
+  "component": "apps/ui/.smithers",
+  "unitKey": "prompts",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "4cbc521627590fcd1da5b3c7f5889b29218c314b",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "commit": "fec516964e3e6a618aace55755a6d0befd72daa8"
+   }
+  ]
+ },
+ "related": {
+  "previous": "4cbc521627590fcd1da5b3c7f5889b29218c314b",
+  "next": "8b27869c404b7081dfb587c3d4b5dc4cd0137d84",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 232,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/federation-release-dry-run.mdx",
+   "mode": "100644",
+   "blob": "9f05aac57c9b444ac65f62298f0aa923ae38f34b",
+   "previousBlob": null,
+   "added": 56,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/federation-update-smithers.mdx",
+   "mode": "100644",
+   "blob": "0c52d2679cf1a774ab345cd8546663de733db69f",
+   "previousBlob": null,
+   "added": 95,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/prompts/plan-meals.mdx",
+   "mode": "100644",
+   "blob": "debab38116703540adb2bc9134cd063ae5b216ad",
+   "previousBlob": null,
+   "added": 81,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

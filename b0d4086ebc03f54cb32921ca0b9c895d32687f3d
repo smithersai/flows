@@ -1,0 +1,111 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "b0d4086ebc03f54cb32921ca0b9c895d32687f3d",
+ "tree": "34f11935eb32ed62b45c0e62bad0c88e0093fdd1",
+ "epic": {
+  "index": 16,
+  "id": "docs-site",
+  "name": "Documentation site",
+  "sourceCommit": "2fd742db8891870cec6454b507fc94b3c65aa275",
+  "sourceSubject": "📚 docs(site): document the complete system",
+  "childIndex": 15,
+  "childCount": 17,
+  "head": "a71bed29530440d675e58d1dd55d8c65de45dbf2"
+ },
+ "atomic": {
+  "globalIndex": 817,
+  "globalCount": 845,
+  "purpose": "📝 docs(docs): document docs",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "docs",
+  "component": "docs",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "cc6eb97d718340a50a7d368e8550fdca337f6ca1",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "cc6eb97d718340a50a7d368e8550fdca337f6ca1",
+  "next": "156bd556f837baf31c948eaacb34733fef773e87",
+  "epicFirst": "d92b6bd2642c1332bcd06cb6e7fc430acdf97cda",
+  "epicLast": "a71bed29530440d675e58d1dd55d8c65de45dbf2",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 749,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "docs/README.md",
+   "mode": "100644",
+   "blob": "09662a0875eef333cc76416f9dd89d4ea0839e03",
+   "previousBlob": null,
+   "added": 91,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/alpha-notes.md",
+   "mode": "100644",
+   "blob": "9d6ae804447d31edf74ebb07b2aecd7320da92e0",
+   "previousBlob": null,
+   "added": 214,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/release-rehearsal.md",
+   "mode": "100644",
+   "blob": "5e5d3731f5e99fb901799d71c22bf5563aeca12c",
+   "previousBlob": null,
+   "added": 314,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/release-runbook.md",
+   "mode": "100644",
+   "blob": "be921ba295ffbad158cd962dd7900f973ac9d6b6",
+   "previousBlob": null,
+   "added": 130,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

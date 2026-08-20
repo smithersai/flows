@@ -1,0 +1,78 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "17f70993343c366b87395a6670441e2dd55a4162",
+ "tree": "8a716198b439e2833da196ed37cb7aa6e7641957",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 12,
+  "childCount": 55,
+  "head": "9633d567508a5d82ee51d5ed34014e850f417731"
+ },
+ "atomic": {
+  "globalIndex": 28,
+  "globalCount": 845,
+  "purpose": "✨ feat(database): add DurableWriter",
+  "type": "feat",
+  "kind": "module",
+  "scope": "database",
+  "component": "packages/database",
+  "unitKey": "DurableWriter",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "43e3cae3b6ddc34bb556040c0b78e1bb6985c147",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [
+   "43e3cae3b6ddc34bb556040c0b78e1bb6985c147"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "43e3cae3b6ddc34bb556040c0b78e1bb6985c147",
+  "next": "e060ac2f0a1205a38c8d77c5300e2ca63245d9f4",
+  "epicFirst": "0b1fe1d563a03d93618ff339540cb77a2ed44d4b",
+  "epicLast": "9633d567508a5d82ee51d5ed34014e850f417731",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 717,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/database/src/DurableWriter.ts",
+   "mode": "100644",
+   "blob": "0b6e9c4b032c9e66f7d4db3a5d9ec4bf06226572",
+   "previousBlob": null,
+   "added": 255,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/database/test/DurableWriter.test.ts",
+   "mode": "100644",
+   "blob": "cfd0fd34dbe32c77387b420c891352ef59a24a4b",
+   "previousBlob": null,
+   "added": 462,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

@@ -1,0 +1,135 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "d45579d5a4e33de395175a8e046ad1ab385e159f",
+ "tree": "4e4307deba6237e4cc1c59d164a16af5ad5012cb",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 77,
+  "childCount": 96,
+  "head": "c93705a8b036d030082a6877bd6668709293285d"
+ },
+ "atomic": {
+  "globalIndex": 263,
+  "globalCount": 845,
+  "purpose": "✅ test(time-travel): cover Rewind (2/2)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "time-travel",
+  "component": "packages/time-travel",
+  "unitKey": "internal/Rewind",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "c4df6c1af4f9ba496cd268380b778508162ee1b1",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   },
+   {
+    "package": "@smthrs/engine-store",
+    "commit": "c6b3697b9aadd84d656b5f1179422382009e6892"
+   },
+   {
+    "package": "@smthrs/jj",
+    "commit": "a67499b875ddce7aa9fe4a7cc5414fc0ab9eb398"
+   },
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   },
+   {
+    "package": "@smthrs/run-store",
+    "commit": "9633d567508a5d82ee51d5ed34014e850f417731"
+   },
+   {
+    "package": "@smthrs/step-cache",
+    "commit": "a907f76614a1aed065dcbdc5b44cc4f4d0e970a0"
+   },
+   {
+    "package": "@smthrs/artifacts",
+    "commit": "0ee5dee9b13e29707b4089b10c6214d1987c34b4"
+   },
+   {
+    "package": "@smthrs/engine",
+    "commit": "b17af994607bc2ef084b62d75c0b2509f8b56d23"
+   },
+   {
+    "package": "@smthrs/flow",
+    "commit": "8f2310ef99183d31a7cb6a91238af374d246498b"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   },
+   {
+    "package": "@smthrs/plan",
+    "commit": "a6c062c1ea8185f0a2b743039e577306a8ad4a47"
+   }
+  ]
+ },
+ "related": {
+  "previous": "c4df6c1af4f9ba496cd268380b778508162ee1b1",
+  "next": "1a7703427f2121fe46a1fa8cfa100745fa4c2dad",
+  "epicFirst": "eec277e2e1bfd7b6ae08c5d31c63df081ea52207",
+  "epicLast": "c93705a8b036d030082a6877bd6668709293285d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 1200,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/time-travel/test/RewindCrashRecovery.e2e.test.ts",
+   "mode": "100644",
+   "blob": "eee4e0e7126ae126bc187b4ee82ea9d9f1ec1500",
+   "previousBlob": null,
+   "added": 248,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/time-travel/test/RewindInFlight.e2e.test.ts",
+   "mode": "100644",
+   "blob": "fe49a1af3489242cc845b732464d2c078be272f7",
+   "previousBlob": null,
+   "added": 248,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/time-travel/test/RewindRollback.test.ts",
+   "mode": "100644",
+   "blob": "af605e095cf431a215ee871fb57377770e8866be",
+   "previousBlob": null,
+   "added": 704,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

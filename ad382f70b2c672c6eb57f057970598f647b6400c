@@ -1,0 +1,113 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "ad382f70b2c672c6eb57f057970598f647b6400c",
+ "tree": "7ba72d15fec420ea35ac4fd584e4f5d38e037add",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 48,
+  "childCount": 55,
+  "head": "9633d567508a5d82ee51d5ed34014e850f417731"
+ },
+ "atomic": {
+  "globalIndex": 64,
+  "globalCount": 845,
+  "purpose": "✨ feat(step-cache): add the CombinedCacheStore, Migrations modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "step-cache",
+  "component": "packages/step-cache",
+  "unitKey": "CombinedCacheStore",
+  "mergedUnitKeys": [
+   "CombinedCacheStore",
+   "Migrations"
+  ]
+ },
+ "dependencies": {
+  "parent": "0b9820c557b0ad82704571cd392d4446b125c16e",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [
+   "0b9820c557b0ad82704571cd392d4446b125c16e",
+   "93c6ab9119f1c0ed263d34ecc05e81fe19a42a8d"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "commit": "3b57deac5ef23a0e1e2fa660e6bcf9351049a95b"
+   },
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   }
+  ]
+ },
+ "related": {
+  "previous": "0b9820c557b0ad82704571cd392d4446b125c16e",
+  "next": "710b02636cb7f180bf259676d932f886b2bff26d",
+  "epicFirst": "0b1fe1d563a03d93618ff339540cb77a2ed44d4b",
+  "epicLast": "9633d567508a5d82ee51d5ed34014e850f417731",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 582,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/step-cache/src/CombinedCacheStore.ts",
+   "mode": "100644",
+   "blob": "e5eccd9bd0104067fda45aabb84b104c2638d2b5",
+   "previousBlob": null,
+   "added": 145,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/step-cache/test/CombinedCacheStore.test.ts",
+   "mode": "100644",
+   "blob": "0ce89e767d34b9ec6e041c0bc36cd92891961c58",
+   "previousBlob": null,
+   "added": 303,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/step-cache/src/Migrations.ts",
+   "mode": "100644",
+   "blob": "c7cb4ccd899fab21194c75c5fd3e449234924ccd",
+   "previousBlob": null,
+   "added": 47,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/step-cache/test/Migrations.test.ts",
+   "mode": "100644",
+   "blob": "cde9ba53b8f2f36f9adef1221e9452aec3a60735",
+   "previousBlob": null,
+   "added": 87,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

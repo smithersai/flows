@@ -1,0 +1,88 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "91929fc7b5f5c40f7e10163450c1626300f5d89b",
+ "tree": "45d2ce5a5c3a38393f7b46f0390b284fe3e68bd3",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 49,
+  "childCount": 54,
+  "head": "8f2310ef99183d31a7cb6a91238af374d246498b"
+ },
+ "atomic": {
+  "globalIndex": 120,
+  "globalCount": 845,
+  "purpose": "✨ feat(flow): add the Action modules (2/2)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "flow",
+  "component": "packages/flow/src",
+  "unitKey": "dir:Action",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "4bbcaaa78afa95e809c1be6a8915034fdde56573",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "4bbcaaa78afa95e809c1be6a8915034fdde56573",
+  "next": "11c0c150af9f502d3c7a041f6afd5b219e3ac30f",
+  "epicFirst": "8d222879944a121d441c2c37d5ed2b7943a88b54",
+  "epicLast": "8f2310ef99183d31a7cb6a91238af374d246498b",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 182,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/StepIdentity.ts",
+   "mode": "100644",
+   "blob": "bf69d1404f050f17b80a3c06a745e2a766bcaa5b",
+   "previousBlob": null,
+   "added": 165,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/TreeArtifact.ts",
+   "mode": "100644",
+   "blob": "d98fbff04e8bd976bac5a10783f116ee90d131a9",
+   "previousBlob": null,
+   "added": 7,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/src/Action/TypeId.ts",
+   "mode": "100644",
+   "blob": "8604d975dceeb29c7b50d03bc06115e3025914f5",
+   "previousBlob": null,
+   "added": 10,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

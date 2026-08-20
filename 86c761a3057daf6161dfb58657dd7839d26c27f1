@@ -1,0 +1,109 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "86c761a3057daf6161dfb58657dd7839d26c27f1",
+ "tree": "3defc8aa80d1e93cd578c277a910dd00cdf6f711",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 71,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 583,
+  "globalCount": 845,
+  "purpose": "✨ feat(scripts): add the flows-backup, pack-release modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "scripts",
+  "component": "scripts",
+  "unitKey": "flows-backup",
+  "mergedUnitKeys": [
+   "flows-backup",
+   "pack-release"
+  ]
+ },
+ "dependencies": {
+  "parent": "73a1fa78addfa0c3d47fd6c653a25dfb948c8a39",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "73a1fa78addfa0c3d47fd6c653a25dfb948c8a39",
+  "next": "4ae501cd275bcac260d38c3df0e89792eb2eb8c7",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 673,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "scripts/flows-backup.mjs",
+   "mode": "100644",
+   "blob": "d828842c64ccc15e011eb7f75d2b7ef1d0e7fb30",
+   "previousBlob": null,
+   "added": 85,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "scripts/flows-backup.test.mjs",
+   "mode": "100644",
+   "blob": "be76be2a3cf2aa746d7f966789d1458d881611e6",
+   "previousBlob": null,
+   "added": 121,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "scripts/pack-release.mjs",
+   "mode": "100644",
+   "blob": "779a5bdb6ff706599ad9027f5edf1c0770b7937a",
+   "previousBlob": null,
+   "added": 291,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "scripts/pack-release.test.mjs",
+   "mode": "100644",
+   "blob": "9485a213e304f270247f56a52ac526da73b9b117",
+   "previousBlob": null,
+   "added": 176,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

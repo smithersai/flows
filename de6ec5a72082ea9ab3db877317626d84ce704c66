@@ -1,0 +1,80 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "de6ec5a72082ea9ab3db877317626d84ce704c66",
+ "tree": "8c91698e721b977522e00237efdff89538001251",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 21,
+  "childCount": 54,
+  "head": "8f2310ef99183d31a7cb6a91238af374d246498b"
+ },
+ "atomic": {
+  "globalIndex": 92,
+  "globalCount": 845,
+  "purpose": "✨ feat(flow): add the Crypto, MemoryFlowRuntime modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "flow",
+  "component": "packages/flow/test",
+  "unitKey": "Crypto",
+  "mergedUnitKeys": [
+   "Crypto",
+   "MemoryFlowRuntime"
+  ]
+ },
+ "dependencies": {
+  "parent": "a2b55d0babce7459d7a1c3441bdfc0a66746fb96",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "a2b55d0babce7459d7a1c3441bdfc0a66746fb96",
+  "next": "5ad90f48b9c0303d027e1a5f1a43b38a9e3af2f7",
+  "epicFirst": "8d222879944a121d441c2c37d5ed2b7943a88b54",
+  "epicLast": "8f2310ef99183d31a7cb6a91238af374d246498b",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 365,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/flow/test/Crypto.ts",
+   "mode": "100644",
+   "blob": "4ba447e36b89ae2ab0fa87a086f08eef2a985eae",
+   "previousBlob": null,
+   "added": 19,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/test/MemoryFlowRuntime.ts",
+   "mode": "100644",
+   "blob": "8a9ccf15ba4659f2b807b35ed70cb529e3e36891",
+   "previousBlob": null,
+   "added": 346,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

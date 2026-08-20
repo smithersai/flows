@@ -1,0 +1,99 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "066d62f5e12cebf10fe3e4e85256f060a37f17b5",
+ "tree": "2dc3c4a3cb65e8bfaf880279fec87c275b478a37",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 40,
+  "childCount": 66,
+  "head": "28962374658aba2757a5405dab6454616510b6b6"
+ },
+ "atomic": {
+  "globalIndex": 365,
+  "globalCount": 845,
+  "purpose": "✨ feat(model): add Route",
+  "type": "feat",
+  "kind": "module",
+  "scope": "model",
+  "component": "packages/model",
+  "unitKey": "Route",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "1e40546f6559a58c46e29cffef56b9f219091bfe",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [
+   "f06aaf60478140cf15bcb2a0a695b6726362da5a",
+   "f67be10ea2523bf2206e212ea3ce742b9d76f8eb",
+   "4ab57e8ebfeb39f9547c31bb7f31b861e8521dd7",
+   "3c7d5e2fa7baca72bd497508f2d25d5b36dfc901",
+   "7fb5d5a75cf25b2e32c72cd5d9c2900ad58c40de",
+   "c1089df974a536e0ea97ead5078bac2d5bd7ffe8",
+   "d7d2db275b3ee72ee4be9674c4a46dd91a7a1ebc",
+   "0deffd5347a30c03247ae0f9922b294e6f7b4fec"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "1e40546f6559a58c46e29cffef56b9f219091bfe",
+  "next": "9b8364228ee4fcb7eeaa08d793c39c1769e16243",
+  "epicFirst": "65dffaa9668923ae816eeaa5bce0901a958729b0",
+  "epicLast": "28962374658aba2757a5405dab6454616510b6b6",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 820,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/model/src/Route.ts",
+   "mode": "100644",
+   "blob": "6e3ce8d1c92331694e7470d4ec5c97dc79a83dc7",
+   "previousBlob": null,
+   "added": 291,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/test/Route.test.ts",
+   "mode": "100644",
+   "blob": "da78611f8d374c93d3ba989996d85b88eba1674b",
+   "previousBlob": null,
+   "added": 529,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

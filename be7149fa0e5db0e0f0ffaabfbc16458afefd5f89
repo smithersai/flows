@@ -1,0 +1,132 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "be7149fa0e5db0e0f0ffaabfbc16458afefd5f89",
+ "tree": "5b22c584ff589868f0e55e1241cdc703e2368514",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 24,
+  "childCount": 54,
+  "head": "8f2310ef99183d31a7cb6a91238af374d246498b"
+ },
+ "atomic": {
+  "globalIndex": 95,
+  "globalCount": 845,
+  "purpose": "✅ test(flow): cover flow (3/6)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "flow",
+  "component": "packages/flow/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "b7e9bb81d4b86b18fd4b520ba7fd643d2db2d3d7",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "b7e9bb81d4b86b18fd4b520ba7fd643d2db2d3d7",
+  "next": "a8d4aec45c9574e877a7c673a68b2a08cc19e448",
+  "epicFirst": "8d222879944a121d441c2c37d5ed2b7943a88b54",
+  "epicLast": "8f2310ef99183d31a7cb6a91238af374d246498b",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 7,
+  "added": 1496,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/flow/test/FileBoundary.test.ts",
+   "mode": "100644",
+   "blob": "78e18dce78b58bee329892bd1e7fd9a3293e9ff8",
+   "previousBlob": null,
+   "added": 149,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/test/FlowAuthoring.test.ts",
+   "mode": "100644",
+   "blob": "896b36178d731689129a0d3f9aaef7d86667bc0f",
+   "previousBlob": null,
+   "added": 143,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/test/FlowCancellation.test.ts",
+   "mode": "100644",
+   "blob": "f905d36c4412ba0854f0dc2749cc3ebdcb62adab",
+   "previousBlob": null,
+   "added": 62,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/test/FlowChild.test.ts",
+   "mode": "100644",
+   "blob": "23336472ed0f8bb408f024e3d749d46dfc22f8ae",
+   "previousBlob": null,
+   "added": 363,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/test/FlowDefinitionGaps.test.ts",
+   "mode": "100644",
+   "blob": "9052afc4730a6fa746e1317201d9f7f3c79d4d46",
+   "previousBlob": null,
+   "added": 431,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/test/FlowResultSchema.test.ts",
+   "mode": "100644",
+   "blob": "1f98e0fc7180bf01f0c273e4a1664129e0efb756",
+   "previousBlob": null,
+   "added": 93,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/test/FlowSuspension.test.ts",
+   "mode": "100644",
+   "blob": "96e27feb69667aae3bc5952844d7083c0dee7138",
+   "previousBlob": null,
+   "added": 255,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

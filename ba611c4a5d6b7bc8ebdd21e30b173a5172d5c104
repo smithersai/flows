@@ -1,0 +1,232 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "ba611c4a5d6b7bc8ebdd21e30b173a5172d5c104",
+ "tree": "d24006f5f5314a96486ad220e7d585f38680538d",
+ "epic": {
+  "index": 16,
+  "id": "docs-site",
+  "name": "Documentation site",
+  "sourceCommit": "2fd742db8891870cec6454b507fc94b3c65aa275",
+  "sourceSubject": "📚 docs(site): document the complete system",
+  "childIndex": 12,
+  "childCount": 17,
+  "head": "a71bed29530440d675e58d1dd55d8c65de45dbf2"
+ },
+ "atomic": {
+  "globalIndex": 814,
+  "globalCount": 845,
+  "purpose": "📝 docs(pages): document api (1/2)",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "pages",
+  "component": "docs/pages",
+  "unitKey": "api",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "7bd592c439286cef195c04b278151cb0f8ed3f35",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "7bd592c439286cef195c04b278151cb0f8ed3f35",
+  "next": "3872cce4f24d4df6c9b2ad3a094d921e46f59644",
+  "epicFirst": "d92b6bd2642c1332bcd06cb6e7fc430acdf97cda",
+  "epicLast": "a71bed29530440d675e58d1dd55d8c65de45dbf2",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 15,
+  "added": 1428,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "docs/pages/api/artifacts.md",
+   "mode": "100644",
+   "blob": "6d6b16a4fda1a4d67542e27437490685d6f8261a",
+   "previousBlob": null,
+   "added": 92,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/api/canonical.md",
+   "mode": "100644",
+   "blob": "f186b4ff80ee073b42ff4e3ac667ba1abb821cae",
+   "previousBlob": null,
+   "added": 29,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/api/capability.md",
+   "mode": "100644",
+   "blob": "001ccff56ff43d8da118ff61d52abc614dd7f50b",
+   "previousBlob": null,
+   "added": 69,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/api/crypto.md",
+   "mode": "100644",
+   "blob": "e7d2f7502a7f289d3e647e9eb74bddabb9cbd307",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/api/database.md",
+   "mode": "100644",
+   "blob": "9c8bb93ace5bb150140e6f13402619cff1fc4abe",
+   "previousBlob": null,
+   "added": 98,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/api/engine-store.md",
+   "mode": "100644",
+   "blob": "30ba140e533f6ee47f382a47dc4ccdedf277a11a",
+   "previousBlob": null,
+   "added": 230,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/api/engine.md",
+   "mode": "100644",
+   "blob": "4f1e2ec39e82cca309994b525c8859bda6ce9f01",
+   "previousBlob": null,
+   "added": 60,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/api/flow.md",
+   "mode": "100644",
+   "blob": "4d1637d8fd9ec6d8f7a31eacb1c4e19d43cf9b0b",
+   "previousBlob": null,
+   "added": 134,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/api/flows.md",
+   "mode": "100644",
+   "blob": "69940cca48fe30f8f4b500dc0dc2417c93b4cfb5",
+   "previousBlob": null,
+   "added": 74,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/api/jj.mdx",
+   "mode": "100644",
+   "blob": "9b3745121f9429ab5030816096ac4fe9df140e86",
+   "previousBlob": null,
+   "added": 87,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/api/journal.md",
+   "mode": "100644",
+   "blob": "cb02b20209efa311eadf13e3a22485788ef6724c",
+   "previousBlob": null,
+   "added": 125,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/api/kernel.md",
+   "mode": "100644",
+   "blob": "db8cd031f0b7f1155144040783a621d848adb4ec",
+   "previousBlob": null,
+   "added": 113,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/api/keys.md",
+   "mode": "100644",
+   "blob": "7216210eec5dbbd32168cb17dfedea54865d9499",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/api/observability.md",
+   "mode": "100644",
+   "blob": "681eacf8fdd3342a084ea2baa118de4799193a41",
+   "previousBlob": null,
+   "added": 34,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/api/plan.md",
+   "mode": "100644",
+   "blob": "8d7a568fdc29c5a85000a7937c6a74b6c3ee0836",
+   "previousBlob": null,
+   "added": 241,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

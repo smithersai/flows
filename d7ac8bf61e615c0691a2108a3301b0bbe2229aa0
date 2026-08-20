@@ -1,0 +1,94 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "d7ac8bf61e615c0691a2108a3301b0bbe2229aa0",
+ "tree": "651d956fcfc632811338b43624cb524cb3021f4e",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 115,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 763,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the suites modules (3/11)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/e2e",
+  "unitKey": "dir:suites",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "ec06df40994462cf385f28d3d057f5d87994cbd7",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "514d89cd44090b5737976110fd9e7c7242a619f9",
+   "7bb169599c6fa8e1c6d918ca7b73f966a7afc1a6",
+   "09e4193e0599df92adaf75dcf8c2fd1d33128a2d",
+   "c3d19605a3b40f86461e4e72fe4bcf82fb4c6acd",
+   "53a74dc269f5c72c65e52e9ade4074d5a535a4ee",
+   "7982cd350eb2156b8e994448fc24c6ca5ef6706b"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "ec06df40994462cf385f28d3d057f5d87994cbd7",
+  "next": "256a064528c7e1ff5c359687d585587192b7b9f4",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 1252,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/suites/billing-grants.e2e.ts",
+   "mode": "100644",
+   "blob": "674da7fb789cacf0367abaebe0d2dca5e2af45d0",
+   "previousBlob": null,
+   "added": 692,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/suites/cards-approvals.e2e.ts",
+   "mode": "100644",
+   "blob": "a69059004722521eb5b019cbe3fe4e1767be3bf7",
+   "previousBlob": null,
+   "added": 560,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

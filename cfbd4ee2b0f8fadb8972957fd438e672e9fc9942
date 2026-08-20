@@ -1,0 +1,133 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "cfbd4ee2b0f8fadb8972957fd438e672e9fc9942",
+ "tree": "b2ea3b98de8c46880ede50a2e0b15e1008a1eccf",
+ "epic": {
+  "index": 16,
+  "id": "docs-site",
+  "name": "Documentation site",
+  "sourceCommit": "2fd742db8891870cec6454b507fc94b3c65aa275",
+  "sourceSubject": "📚 docs(site): document the complete system",
+  "childIndex": 4,
+  "childCount": 17,
+  "head": "a71bed29530440d675e58d1dd55d8c65de45dbf2"
+ },
+ "atomic": {
+  "globalIndex": 806,
+  "globalCount": 845,
+  "purpose": "📝 docs(apps): document apps (3/3)",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "apps",
+  "component": "apps",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "f06ce8f64a151476fcb9da1f16244662e0fd118a",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "f06ce8f64a151476fcb9da1f16244662e0fd118a",
+  "next": "0f595863c09eb67a8e0d9a07fb50fcdea7ffc860",
+  "epicFirst": "d92b6bd2642c1332bcd06cb6e7fc430acdf97cda",
+  "epicLast": "a71bed29530440d675e58d1dd55d8c65de45dbf2",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 6,
+  "added": 654,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/WAVE2A-RECEIPT.md",
+   "mode": "100644",
+   "blob": "96f721be4899979bab93a28eb070d36fed7c4025",
+   "previousBlob": null,
+   "added": 88,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/WAVE3B-RECEIPT.md",
+   "mode": "100644",
+   "blob": "c11d4b5b079500e351d616cd6aca18ebf79ec28c",
+   "previousBlob": null,
+   "added": 240,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/WAVE6C-RECEIPT.md",
+   "mode": "100644",
+   "blob": "2aa40024780554d90f87172d013c86608c928721",
+   "previousBlob": null,
+   "added": 120,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/WAVE7-DEPLOY-RECEIPT.md",
+   "mode": "100644",
+   "blob": "c99bb5e09419630991316674e8874fe3cf154609",
+   "previousBlob": null,
+   "added": 103,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/WAVE8-RECEIPT.md",
+   "mode": "100644",
+   "blob": "9711a28dddae3c830ade2381dd144f34e03e0b1d",
+   "previousBlob": null,
+   "added": 45,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "apps/WAVE9-RECEIPT.md",
+   "mode": "100644",
+   "blob": "3f4160c444bd012112e513a0c14011bed18c1fd1",
+   "previousBlob": null,
+   "added": 58,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

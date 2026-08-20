@@ -1,0 +1,102 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "e4843c0e698beb636862813b95bb84a44d4bacc2",
+ "tree": "d52b99ee0f82113c3670bc0165bb5256dc8551a0",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 15,
+  "childCount": 54,
+  "head": "8f2310ef99183d31a7cb6a91238af374d246498b"
+ },
+ "atomic": {
+  "globalIndex": 86,
+  "globalCount": 845,
+  "purpose": "✨ feat(plan): add the PlanDiff, PlanStore modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "plan",
+  "component": "packages/plan",
+  "unitKey": "PlanDiff",
+  "mergedUnitKeys": [
+   "PlanDiff",
+   "PlanStore"
+  ]
+ },
+ "dependencies": {
+  "parent": "9a1d38bd37de6bdeb1692dc584a60cd59a87e278",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [
+   "9a1d38bd37de6bdeb1692dc584a60cd59a87e278"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   },
+   {
+    "package": "@smthrs/keys",
+    "commit": "e145b0e5dfced2a00c300f9b139b14f6820bf771"
+   }
+  ]
+ },
+ "related": {
+  "previous": "9a1d38bd37de6bdeb1692dc584a60cd59a87e278",
+  "next": "a6c062c1ea8185f0a2b743039e577306a8ad4a47",
+  "epicFirst": "8d222879944a121d441c2c37d5ed2b7943a88b54",
+  "epicLast": "8f2310ef99183d31a7cb6a91238af374d246498b",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 589,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/plan/src/PlanDiff.ts",
+   "mode": "100644",
+   "blob": "7e4dc94dc1cb44f52a5a6a6ce339750a99dbd10f",
+   "previousBlob": null,
+   "added": 133,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/plan/src/PlanStore.ts",
+   "mode": "100644",
+   "blob": "8a2ec8f810f6faa06dcc1aec313c353816c18556",
+   "previousBlob": null,
+   "added": 265,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/plan/test/PlanStore.test.ts",
+   "mode": "100644",
+   "blob": "04dad32d74adceaf0a529651193aeaddfae95038",
+   "previousBlob": null,
+   "added": 191,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

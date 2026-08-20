@@ -1,0 +1,99 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "eb6cdb96755f9890b488f1be2bfda3c8a6448a52",
+ "tree": "b332dfb61b9fe090061bfb25d63055557faa0ca3",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 27,
+  "childCount": 54,
+  "head": "8f2310ef99183d31a7cb6a91238af374d246498b"
+ },
+ "atomic": {
+  "globalIndex": 98,
+  "globalCount": 845,
+  "purpose": "✅ test(flow): cover flow (6/6)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "flow",
+  "component": "packages/flow/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "ce03df99f9e4b2b7542c03ef2789cc7f7b778393",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "ce03df99f9e4b2b7542c03ef2789cc7f7b778393",
+  "next": "9c6b4d1437fe53170dfcbfe8e89d306c2973479f",
+  "epicFirst": "8d222879944a121d441c2c37d5ed2b7943a88b54",
+  "epicLast": "8f2310ef99183d31a7cb6a91238af374d246498b",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 1095,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/flow/test/Sleep.test.ts",
+   "mode": "100644",
+   "blob": "fb142de885b82e72a3985012c5e9d3b835d0e796",
+   "previousBlob": null,
+   "added": 368,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/test/StepIdentity.test.ts",
+   "mode": "100644",
+   "blob": "7d99c579bac33aab837f87875c841f19d09645d0",
+   "previousBlob": null,
+   "added": 170,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/test/Trampoline.test.ts",
+   "mode": "100644",
+   "blob": "0101165ed17a0b483cd79053772ca477ec0e666f",
+   "previousBlob": null,
+   "added": 258,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/flow/test/WaitFor.test.ts",
+   "mode": "100644",
+   "blob": "04a53350a63e37e9258669b0f486fa1ccc6afddd",
+   "previousBlob": null,
+   "added": 299,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

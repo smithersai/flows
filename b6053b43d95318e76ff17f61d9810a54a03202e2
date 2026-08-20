@@ -1,0 +1,139 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "b6053b43d95318e76ff17f61d9810a54a03202e2",
+ "tree": "17b7be16beb1df08847943b78140678bb6147b61",
+ "epic": {
+  "index": 9,
+  "id": "agent",
+  "name": "Harness, chain, tools and CLI",
+  "sourceCommit": "a8caaa3dc45df0c14d6b10d0db9faf8a7ea7e542",
+  "sourceSubject": "✨ feat(agent): compose the harness, chain, tools, and CLI",
+  "childIndex": 33,
+  "childCount": 85,
+  "head": "012fadccb450058987918de5ef55d315135be71d"
+ },
+ "atomic": {
+  "globalIndex": 424,
+  "globalCount": 845,
+  "purpose": "✨ feat(std): add the Edit, WebSearch, ExaWebSearch modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "std",
+  "component": "packages/std",
+  "unitKey": "Edit",
+  "mergedUnitKeys": [
+   "Edit",
+   "WebSearch",
+   "ExaWebSearch"
+  ]
+ },
+ "dependencies": {
+  "parent": "a4b3d7624daf8704ed0ea970d076d0c4fcd9eae3",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control"
+  ],
+  "sourceImports": [
+   "a6b678804d7b4fd0cff05d4dd88e2de5631bcf8b",
+   "5e4f9b28cc9b3bf4a6b8bcc11d219c89dd2e1323"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   },
+   {
+    "package": "@smthrs/control",
+    "commit": "40bf3f68fb8b79abcb73506a5980f5eaa9e92e36"
+   },
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "a4b3d7624daf8704ed0ea970d076d0c4fcd9eae3",
+  "next": "858790b2830a6118f24ca4c991af44c5e822ae14",
+  "epicFirst": "f86ed77ef384765a9a6a60ef7e3b84bfa04b8ac7",
+  "epicLast": "012fadccb450058987918de5ef55d315135be71d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 5,
+  "added": 552,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/std/src/Edit.ts",
+   "mode": "100644",
+   "blob": "b8a94951cf83e6e9f97ed7f3b2a93fc5b4d70e6b",
+   "previousBlob": null,
+   "added": 159,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/std/test/Edit.test.ts",
+   "mode": "100644",
+   "blob": "b3e83a7cf8b8cc1334462736e8c6bd0e8b70bd49",
+   "previousBlob": null,
+   "added": 82,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/std/src/WebSearch.ts",
+   "mode": "100644",
+   "blob": "813b593273e99e6fc4cddb4fec13faf688cbd119",
+   "previousBlob": null,
+   "added": 137,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/std/test/WebSearch.test.ts",
+   "mode": "100644",
+   "blob": "4263c2fba787a3c31ae41dd3d759f53b86098c13",
+   "previousBlob": null,
+   "added": 72,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/std/src/ExaWebSearch.ts",
+   "mode": "100644",
+   "blob": "b880ac972b377e6a758a2a88d425fcf196ed0a7d",
+   "previousBlob": null,
+   "added": 102,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

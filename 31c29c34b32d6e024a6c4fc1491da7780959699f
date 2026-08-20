@@ -1,0 +1,123 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "31c29c34b32d6e024a6c4fc1491da7780959699f",
+ "tree": "6442e68d0c58cbd99fab515e99ee46157f3a299b",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 19,
+  "childCount": 96,
+  "head": "c93705a8b036d030082a6877bd6668709293285d"
+ },
+ "atomic": {
+  "globalIndex": 205,
+  "globalCount": 845,
+  "purpose": "✅ test(engine-store): cover engine-store (11/23)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "engine-store",
+  "component": "packages/engine-store/test",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "7da7106ec2af6238e4c3194ba2cd4d9ec748e2f3",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "7da7106ec2af6238e4c3194ba2cd4d9ec748e2f3",
+  "next": "1ca0d2014c4f25aed47bc56b2a0f2fe55358d6f3",
+  "epicFirst": "eec277e2e1bfd7b6ae08c5d31c63df081ea52207",
+  "epicLast": "c93705a8b036d030082a6877bd6668709293285d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 6,
+  "added": 1215,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/NondeterministicConflict.test.ts",
+   "mode": "100644",
+   "blob": "378a44b94aa4b525dd7d1aeb59e960b5fd52503d",
+   "previousBlob": null,
+   "added": 263,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/NonRetryableReplay.test.ts",
+   "mode": "100644",
+   "blob": "329d703db7222782f2227bc6aff6f0614723b157",
+   "previousBlob": null,
+   "added": 367,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/OutOfLadderSchema.test.ts",
+   "mode": "100644",
+   "blob": "64141f786b66cc04ddd702cdb577ac048cb5d667",
+   "previousBlob": null,
+   "added": 78,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/OwnerIdentity.test.ts",
+   "mode": "100644",
+   "blob": "d65f276ee2fea79700df44e64428a3fccb4014e2",
+   "previousBlob": null,
+   "added": 72,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/Ownership.test.ts",
+   "mode": "100644",
+   "blob": "580571f8586c8d02c7dfda7733e1e8a489ddb58a",
+   "previousBlob": null,
+   "added": 285,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine-store/test/PersistedEvidenceBounds.test.ts",
+   "mode": "100644",
+   "blob": "e0418e9724e2684ab37cb9ecd0f5ad0d2190804b",
+   "previousBlob": null,
+   "added": 150,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

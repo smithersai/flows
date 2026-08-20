@@ -1,0 +1,138 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "228c0a91baf6608eed8d8c2a3ff6ac2f8ffafdeb",
+ "tree": "8972f5be1bd6ce53b6e5fdcfeff433c41026aaef",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 79,
+  "childCount": 96,
+  "head": "c93705a8b036d030082a6877bd6668709293285d"
+ },
+ "atomic": {
+  "globalIndex": 265,
+  "globalCount": 845,
+  "purpose": "✨ feat(time-travel): add the Replay internals",
+  "type": "feat",
+  "kind": "module",
+  "scope": "time-travel",
+  "component": "packages/time-travel",
+  "unitKey": "internal/Replay",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "1a7703427f2121fe46a1fa8cfa100745fa4c2dad",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "5988164467eaa4351a264d684ac237ce1a690aff",
+   "46ef6bce15aee613b71a0d80ead7e00d6821ebd1"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   },
+   {
+    "package": "@smthrs/engine-store",
+    "commit": "c6b3697b9aadd84d656b5f1179422382009e6892"
+   },
+   {
+    "package": "@smthrs/jj",
+    "commit": "a67499b875ddce7aa9fe4a7cc5414fc0ab9eb398"
+   },
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   },
+   {
+    "package": "@smthrs/run-store",
+    "commit": "9633d567508a5d82ee51d5ed34014e850f417731"
+   },
+   {
+    "package": "@smthrs/step-cache",
+    "commit": "a907f76614a1aed065dcbdc5b44cc4f4d0e970a0"
+   },
+   {
+    "package": "@smthrs/artifacts",
+    "commit": "0ee5dee9b13e29707b4089b10c6214d1987c34b4"
+   },
+   {
+    "package": "@smthrs/engine",
+    "commit": "b17af994607bc2ef084b62d75c0b2509f8b56d23"
+   },
+   {
+    "package": "@smthrs/flow",
+    "commit": "8f2310ef99183d31a7cb6a91238af374d246498b"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   },
+   {
+    "package": "@smthrs/plan",
+    "commit": "a6c062c1ea8185f0a2b743039e577306a8ad4a47"
+   }
+  ]
+ },
+ "related": {
+  "previous": "1a7703427f2121fe46a1fa8cfa100745fa4c2dad",
+  "next": "9fafe482c159fcea81591c7e3e6668429e193d30",
+  "epicFirst": "eec277e2e1bfd7b6ae08c5d31c63df081ea52207",
+  "epicLast": "c93705a8b036d030082a6877bd6668709293285d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 696,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/time-travel/src/internal/Replay.ts",
+   "mode": "100644",
+   "blob": "bcc127f41b5bc821cbcf5756b75851df1ccbe7d3",
+   "previousBlob": null,
+   "added": 127,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/time-travel/test/Replay.test.ts",
+   "mode": "100644",
+   "blob": "a81460513cdee02a465c06c766b1f6ebfae7a4a9",
+   "previousBlob": null,
+   "added": 344,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/time-travel/test/ReplayDurability.test.ts",
+   "mode": "100644",
+   "blob": "d0af0bb5b65abf97ce3122fb8915bb7a4f1f32f8",
+   "previousBlob": null,
+   "added": 225,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

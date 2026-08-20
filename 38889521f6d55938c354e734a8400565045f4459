@@ -1,0 +1,84 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "38889521f6d55938c354e734a8400565045f4459",
+ "tree": "4b03e63917eee0dd7a3d1a5c6d24ad61c788f613",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 9,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 521,
+  "globalCount": 845,
+  "purpose": "📝 docs(build): document reference",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "build",
+  "component": "packages/build/docs",
+  "unitKey": "reference",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "5f988df5569c40e67aa5eff7a08fa1b5ff4a0f60",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "5f988df5569c40e67aa5eff7a08fa1b5ff4a0f60",
+  "next": "02bc8bae72abe889bf7997f1594445b662f64ac3",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 593,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build/docs/reference/cli.md",
+   "mode": "100644",
+   "blob": "9ee8ef44d7ea5d920a0ce6bf4c8f85084a35aa3c",
+   "previousBlob": null,
+   "added": 434,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/docs/reference/config.md",
+   "mode": "100644",
+   "blob": "92f79d31db1a4e2e2b74b452c4d11a08404d241b",
+   "previousBlob": null,
+   "added": 159,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

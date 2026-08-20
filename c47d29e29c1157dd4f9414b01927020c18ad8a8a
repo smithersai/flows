@@ -1,0 +1,94 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "c47d29e29c1157dd4f9414b01927020c18ad8a8a",
+ "tree": "3f4a9e11d5932abcc1ada1244884444ec83407cd",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 118,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 766,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the suites modules (6/11)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/e2e",
+  "unitKey": "dir:suites",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "dffd087311a0d6085f987750c58debff62e10a50",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "7982cd350eb2156b8e994448fc24c6ca5ef6706b",
+   "c3d19605a3b40f86461e4e72fe4bcf82fb4c6acd",
+   "53a74dc269f5c72c65e52e9ade4074d5a535a4ee",
+   "514d89cd44090b5737976110fd9e7c7242a619f9",
+   "073fd2736d249f37dedb31cd104b2e69ba331df0",
+   "7bb169599c6fa8e1c6d918ca7b73f966a7afc1a6"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "dffd087311a0d6085f987750c58debff62e10a50",
+  "next": "595424fd9a2135d1a511b6aad01599f4232dbc00",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 1322,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/suites/connectors.e2e.ts",
+   "mode": "100644",
+   "blob": "5aaba346821037f3d678cceed53d0dd9bfd1f159",
+   "previousBlob": null,
+   "added": 1119,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/suites/first-run.e2e.ts",
+   "mode": "100644",
+   "blob": "b8c0e84f1536ffe9f2bd3a9c8c8810a2f22d2d99",
+   "previousBlob": null,
+   "added": 203,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

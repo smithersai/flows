@@ -1,0 +1,146 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "7319e58ac755531bd2abd93925a8469827616655",
+ "tree": "4dc6b71bc1fbbea2abd46123283d05a1cd2f0684",
+ "epic": {
+  "index": 9,
+  "id": "agent",
+  "name": "Harness, chain, tools and CLI",
+  "sourceCommit": "a8caaa3dc45df0c14d6b10d0db9faf8a7ea7e542",
+  "sourceSubject": "✨ feat(agent): compose the harness, chain, tools, and CLI",
+  "childIndex": 37,
+  "childCount": 85,
+  "head": "012fadccb450058987918de5ef55d315135be71d"
+ },
+ "atomic": {
+  "globalIndex": 428,
+  "globalCount": 845,
+  "purpose": "✨ feat(std): add the Write, Manifest, NodeLanguageServer modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "std",
+  "component": "packages/std",
+  "unitKey": "Write",
+  "mergedUnitKeys": [
+   "Write",
+   "Manifest",
+   "NodeLanguageServer"
+  ]
+ },
+ "dependencies": {
+  "parent": "c0ce5b863b8e51e8e2e9ca297b357a492e4aa037",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control"
+  ],
+  "sourceImports": [
+   "a6b678804d7b4fd0cff05d4dd88e2de5631bcf8b",
+   "c557903af7c5760b1f5b87900675fe51ffd62ea2",
+   "a4b3d7624daf8704ed0ea970d076d0c4fcd9eae3",
+   "b6053b43d95318e76ff17f61d9810a54a03202e2",
+   "858790b2830a6118f24ca4c991af44c5e822ae14",
+   "b31859bbed77b4412bcdac13ccb11a2aa82f682e",
+   "35e5d214a59b4f8b4dfc720b1e86e27dee2f9349",
+   "f71b9d6d4f3080d6008ab664244356e1e180f922",
+   "c0ce5b863b8e51e8e2e9ca297b357a492e4aa037"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   },
+   {
+    "package": "@smthrs/control",
+    "commit": "40bf3f68fb8b79abcb73506a5980f5eaa9e92e36"
+   },
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "c0ce5b863b8e51e8e2e9ca297b357a492e4aa037",
+  "next": "62ce9eeebf23fff526debdb0dc8160d71960b2f4",
+  "epicFirst": "f86ed77ef384765a9a6a60ef7e3b84bfa04b8ac7",
+  "epicLast": "012fadccb450058987918de5ef55d315135be71d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 5,
+  "added": 657,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/std/src/Write.ts",
+   "mode": "100644",
+   "blob": "405bf50d719b3e0450daec11752a5c86af583c8f",
+   "previousBlob": null,
+   "added": 113,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/std/src/Manifest.ts",
+   "mode": "100644",
+   "blob": "6ee8ff7f1d0b713679fb84534caf4732bf45a04e",
+   "previousBlob": null,
+   "added": 124,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/std/test/Manifest.test.ts",
+   "mode": "100644",
+   "blob": "05b2b8b84e29371ba1279725939f9e5027fba236",
+   "previousBlob": null,
+   "added": 69,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/std/src/NodeLanguageServer.ts",
+   "mode": "100644",
+   "blob": "aac67042fc21cdb807e6e6f116a2153c980945a4",
+   "previousBlob": null,
+   "added": 258,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/std/test/NodeLanguageServer.test.ts",
+   "mode": "100644",
+   "blob": "dec745a0eaf66e62571aedd4e7c2301e14f29392",
+   "previousBlob": null,
+   "added": 93,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

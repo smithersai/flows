@@ -1,0 +1,83 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "4e981b86b6e4ea0f4167510722737f527fb69eee",
+ "tree": "8de08643ee845084bbbffad6fc06345657d28bf2",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 60,
+  "childCount": 61,
+  "head": "a5193915fd7f1bc7634e32c28838552e883641db"
+ },
+ "atomic": {
+  "globalIndex": 185,
+  "globalCount": 845,
+  "purpose": "✅ test(sandbox): cover sandbox",
+  "type": "test",
+  "kind": "tests",
+  "scope": "sandbox",
+  "component": "packages/sandbox",
+  "unitKey": "test",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "f4da8f08286f7e1c9d317c2817161403e7ad9253",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "f4da8f08286f7e1c9d317c2817161403e7ad9253",
+  "next": "a5193915fd7f1bc7634e32c28838552e883641db",
+  "epicFirst": "5037300288116821b95e1046a67ca324243eeeeb",
+  "epicLast": "a5193915fd7f1bc7634e32c28838552e883641db",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 432,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/sandbox/test/RealProcessProvider.integration.test.ts",
+   "mode": "100644",
+   "blob": "90d1d43428fefd8687a4a88a0e2bfaf296b39e3c",
+   "previousBlob": null,
+   "added": 406,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/sandbox/test/index.test.ts",
+   "mode": "100644",
+   "blob": "5a7305694f2ca9e66c00af32835a3cf41e6bee60",
+   "previousBlob": null,
+   "added": 26,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

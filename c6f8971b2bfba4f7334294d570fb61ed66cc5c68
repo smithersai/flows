@@ -1,0 +1,172 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "c6f8971b2bfba4f7334294d570fb61ed66cc5c68",
+ "tree": "b0cde59a8dae46045d73055346f92e7b61ad4900",
+ "epic": {
+  "index": 10,
+  "id": "platform",
+  "name": "Conformance, scoring, evaluation and telemetry",
+  "sourceCommit": "317910c088e178d40f3b1553a182a7ee2be5dd24",
+  "sourceSubject": "✅ test(platform): add conformance, scoring, evaluation, and telemetry",
+  "childIndex": 21,
+  "childCount": 36,
+  "head": "7815804a6f1b8fd9568d8a0031bb0b58ee098100"
+ },
+ "atomic": {
+  "globalIndex": 497,
+  "globalCount": 845,
+  "purpose": "✨ feat(observability): add the Resource, BrowserOtel, JournalLogger and 3 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "observability",
+  "component": "packages/observability",
+  "unitKey": "Resource",
+  "mergedUnitKeys": [
+   "Resource",
+   "BrowserOtel",
+   "JournalLogger",
+   "Logger",
+   "Metric",
+   "NodeOtel"
+  ]
+ },
+ "dependencies": {
+  "parent": "5fc347bf104f4bb2830a6a249465f2859425b239",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   }
+  ]
+ },
+ "related": {
+  "previous": "5fc347bf104f4bb2830a6a249465f2859425b239",
+  "next": "6325d6d79c4027f596a36ad5536229f8d7fefa70",
+  "epicFirst": "979f13d307eb3917b8f17afabcbde76137e83652",
+  "epicLast": "7815804a6f1b8fd9568d8a0031bb0b58ee098100",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 9,
+  "added": 611,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/observability/src/Resource.ts",
+   "mode": "100644",
+   "blob": "27b72f7697371a297b4d2061161181be3cc9b7c5",
+   "previousBlob": null,
+   "added": 61,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/observability/src/BrowserOtel.ts",
+   "mode": "100644",
+   "blob": "08381cecc7e2689ca2534be03b730b97828d7e5c",
+   "previousBlob": null,
+   "added": 43,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/observability/src/JournalLogger.ts",
+   "mode": "100644",
+   "blob": "4a55e65f93d02ec5aa649464893c3c46dd79de6f",
+   "previousBlob": null,
+   "added": 109,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/observability/test/JournalLogger.test.ts",
+   "mode": "100644",
+   "blob": "88be1dac3ac6a362ceb3f542286655b6f01bc266",
+   "previousBlob": null,
+   "added": 71,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/observability/src/Logger.ts",
+   "mode": "100644",
+   "blob": "216994da499aedcd1693c4927c18d4b82322d0d9",
+   "previousBlob": null,
+   "added": 89,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/observability/test/Logger.test.ts",
+   "mode": "100644",
+   "blob": "ab8cb0701059cf291457220d5b43433d07f93bdb",
+   "previousBlob": null,
+   "added": 50,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/observability/src/Metric.ts",
+   "mode": "100644",
+   "blob": "c1260f6d43b28ea0560e8a53e9b8ebd982d4b298",
+   "previousBlob": null,
+   "added": 90,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/observability/test/Metric.test.ts",
+   "mode": "100644",
+   "blob": "c6fb4844ee27a6ab06310821fd9a377b86cf160e",
+   "previousBlob": null,
+   "added": 33,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/observability/src/NodeOtel.ts",
+   "mode": "100644",
+   "blob": "8975a11152142027b3484d85688a40d0cf385f27",
+   "previousBlob": null,
+   "added": 65,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

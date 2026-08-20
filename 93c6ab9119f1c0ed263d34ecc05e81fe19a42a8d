@@ -1,0 +1,99 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "93c6ab9119f1c0ed263d34ecc05e81fe19a42a8d",
+ "tree": "098672cae83e2241e6fc361ff9d83780fcd5fe67",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 46,
+  "childCount": 55,
+  "head": "9633d567508a5d82ee51d5ed34014e850f417731"
+ },
+ "atomic": {
+  "globalIndex": 62,
+  "globalCount": 845,
+  "purpose": "✨ feat(step-cache): add the migrations, CacheStoreMetrics modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "step-cache",
+  "component": "packages/step-cache",
+  "unitKey": "dir:migrations",
+  "mergedUnitKeys": [
+   "dir:migrations",
+   "CacheStoreMetrics"
+  ]
+ },
+ "dependencies": {
+  "parent": "41cf4e81d6ee5acee200a60da9ef59ab4c4e7124",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "commit": "3b57deac5ef23a0e1e2fa660e6bcf9351049a95b"
+   },
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   }
+  ]
+ },
+ "related": {
+  "previous": "41cf4e81d6ee5acee200a60da9ef59ab4c4e7124",
+  "next": "0b9820c557b0ad82704571cd392d4446b125c16e",
+  "epicFirst": "0b1fe1d563a03d93618ff339540cb77a2ed44d4b",
+  "epicLast": "9633d567508a5d82ee51d5ed34014e850f417731",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 192,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/step-cache/src/migrations/0001_initial.ts",
+   "mode": "100644",
+   "blob": "7bd18464c7142b9aab9f278d604507d4b9303681",
+   "previousBlob": null,
+   "added": 63,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/step-cache/src/CacheStoreMetrics.ts",
+   "mode": "100644",
+   "blob": "f08f7bf9a0946c2ef7a81e43c9dcae268b155862",
+   "previousBlob": null,
+   "added": 68,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/step-cache/test/CacheStoreMetrics.test.ts",
+   "mode": "100644",
+   "blob": "ceb1e448f4897f057117c173f9fd9ba38b4563bc",
+   "previousBlob": null,
+   "added": 61,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

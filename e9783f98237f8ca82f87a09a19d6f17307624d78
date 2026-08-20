@@ -1,0 +1,93 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "e9783f98237f8ca82f87a09a19d6f17307624d78",
+ "tree": "813d4a43dae737acccaf4d650091b7243696333a",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 3,
+  "childCount": 61,
+  "head": "a5193915fd7f1bc7634e32c28838552e883641db"
+ },
+ "atomic": {
+  "globalIndex": 128,
+  "globalCount": 845,
+  "purpose": "✨ feat(flows-jj): add the diff_render, error, lib modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "flows-jj",
+  "component": "crates/flows-jj",
+  "unitKey": "diff_render",
+  "mergedUnitKeys": [
+   "diff_render",
+   "error",
+   "lib"
+  ]
+ },
+ "dependencies": {
+  "parent": "755f463b6f6e4ffaa8b9ae10b5091523333d7331",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "755f463b6f6e4ffaa8b9ae10b5091523333d7331",
+  "next": "2d80f1941b16a33f5a22bad4a1cb160350cfcbee",
+  "epicFirst": "5037300288116821b95e1046a67ca324243eeeeb",
+  "epicLast": "a5193915fd7f1bc7634e32c28838552e883641db",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 326,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "crates/flows-jj/src/diff_render.rs",
+   "mode": "100644",
+   "blob": "c6a75a3fe0aae1bd44edb0824cfada449ebb38ed",
+   "previousBlob": null,
+   "added": 180,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "crates/flows-jj/src/error.rs",
+   "mode": "100644",
+   "blob": "33145083ec5acd1c1015626376311c1e0ab2c68f",
+   "previousBlob": null,
+   "added": 119,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "crates/flows-jj/src/lib.rs",
+   "mode": "100644",
+   "blob": "9da61eb917fd1ce230d87e67b7b1758be716a83c",
+   "previousBlob": null,
+   "added": 27,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

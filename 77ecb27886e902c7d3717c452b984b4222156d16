@@ -1,0 +1,117 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "77ecb27886e902c7d3717c452b984b4222156d16",
+ "tree": "0cb4902bc13661e45589b895e264718ef42cac2e",
+ "epic": {
+  "index": 1,
+  "id": "repo",
+  "name": "Workspace foundation",
+  "sourceCommit": "1d2d737dde97656fff8e9c1f31704f62e76a54c9",
+  "sourceSubject": "🧹 chore(repo): establish the workspace foundation",
+  "childIndex": 1,
+  "childCount": 2,
+  "head": "9d35fbff4d59850f13c9350d30adedbce0e17c68"
+ },
+ "atomic": {
+  "globalIndex": 1,
+  "globalCount": 845,
+  "purpose": "📦 build(repo): add repo workspace configuration",
+  "type": "build",
+  "kind": "scaffold",
+  "scope": "repo",
+  "component": "~root",
+  "unitKey": "~scaffold",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": null,
+  "epicPredecessors": [],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": null,
+  "next": "9d35fbff4d59850f13c9350d30adedbce0e17c68",
+  "epicFirst": "77ecb27886e902c7d3717c452b984b4222156d16",
+  "epicLast": "9d35fbff4d59850f13c9350d30adedbce0e17c68",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 6,
+  "added": 188,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": ".gitignore",
+   "mode": "100644",
+   "blob": "e5c9a1ab7683a60c0ba25cf695acf4d28a9784af",
+   "previousBlob": null,
+   "added": 85,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": ".npmrc",
+   "mode": "100644",
+   "blob": "23bcb8cbc14f572f0983ebebaea379952ebf5ba8",
+   "previousBlob": null,
+   "added": 6,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "LICENSE",
+   "mode": "100644",
+   "blob": "422a888fe58a4f77514fe407f175499d57fa27be",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "package.json",
+   "mode": "100644",
+   "blob": "7dd3342bbdeccd35503d5fa5414de47df6a71fc1",
+   "previousBlob": null,
+   "added": 15,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "tsconfig.base.json",
+   "mode": "100644",
+   "blob": "ee9065539932fe4f7763d017d4b3a30a8e74628f",
+   "previousBlob": null,
+   "added": 25,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  },
+  {
+   "change": "A",
+   "path": "tsconfig.json",
+   "mode": "100644",
+   "blob": "d26226128303af4ff1f6bc32acfc0c3a20d74e04",
+   "previousBlob": null,
+   "added": 36,
+   "deleted": 0,
+   "binary": false,
+   "role": "scaffold"
+  }
+ ]
+}

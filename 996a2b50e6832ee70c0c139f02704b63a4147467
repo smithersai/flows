@@ -1,0 +1,94 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "996a2b50e6832ee70c0c139f02704b63a4147467",
+ "tree": "6621e5a60658cd2fb58a294adc4e0db88d5a3888",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 13,
+  "childCount": 61,
+  "head": "a5193915fd7f1bc7634e32c28838552e883641db"
+ },
+ "atomic": {
+  "globalIndex": 138,
+  "globalCount": 845,
+  "purpose": "📝 docs(jj): document jj",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "jj",
+  "component": "packages/jj",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "c30e71c40a6b58a81d597469d227fc1a2e5baff9",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   }
+  ]
+ },
+ "related": {
+  "previous": "c30e71c40a6b58a81d597469d227fc1a2e5baff9",
+  "next": "f8a4072223d98daf80125e3238235769e56a67bf",
+  "epicFirst": "5037300288116821b95e1046a67ca324243eeeeb",
+  "epicLast": "a5193915fd7f1bc7634e32c28838552e883641db",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 589,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/jj/CHANGELOG.md",
+   "mode": "100644",
+   "blob": "6810f06c7c02dd1450b0c45a4fd5e59383e37ab4",
+   "previousBlob": null,
+   "added": 35,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/jj/README.md",
+   "mode": "100644",
+   "blob": "9adf43e7a5b7df682f924319558cd21a3d044fae",
+   "previousBlob": null,
+   "added": 133,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/jj/THIRD_PARTY_NOTICES.md",
+   "mode": "100644",
+   "blob": "3000b2d086c2d7feb73f1e66b16ef406b6595328",
+   "previousBlob": null,
+   "added": 421,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

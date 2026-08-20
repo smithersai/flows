@@ -1,0 +1,81 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "df8777b0c0a925f935c876db6bf98dc9fcf66fc7",
+ "tree": "da5306ab4b9def39f8745a7317512c8962b66ac2",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 52,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 564,
+  "globalCount": 845,
+  "purpose": "✨ feat(targets): add GithubCiGen",
+  "type": "feat",
+  "kind": "module",
+  "scope": "targets",
+  "component": "packages/targets/src",
+  "unitKey": "GithubCiGen",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "53a65bd8c3099f4b54edf45273d5306b546d3202",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [
+   "6752d6ceee921a01244d90d269a612ef1b74fd14",
+   "437aed96d9c83b342ee0651f9d7443bab83ee713",
+   "efd1f69d0dbcd437153aea782a5404079bcb96d8",
+   "61a0cc4fd2023b48395f5c5b9d8d22336a0fdf99",
+   "53a65bd8c3099f4b54edf45273d5306b546d3202",
+   "937653afd9cf6dddce61a00e735e4fafb37b0f9c",
+   "520e3aecadaae18423e2c74acf6d432db9b5872b"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "53a65bd8c3099f4b54edf45273d5306b546d3202",
+  "next": "c2849d8a0f96b6bdbaae68a5e1590f05274b2688",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 918,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/targets/src/GithubCiGen.ts",
+   "mode": "100644",
+   "blob": "16c971e08ca0c6ba56163a3e5ca1b3c12606ab73",
+   "previousBlob": null,
+   "added": 918,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

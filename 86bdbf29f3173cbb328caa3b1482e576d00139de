@@ -1,0 +1,121 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "86bdbf29f3173cbb328caa3b1482e576d00139de",
+ "tree": "d30a1689ff4e7e705d4ed976b900352a2e3df5f0",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 60,
+  "childCount": 66,
+  "head": "28962374658aba2757a5405dab6454616510b6b6"
+ },
+ "atomic": {
+  "globalIndex": 385,
+  "globalCount": 845,
+  "purpose": "✨ feat(triggers): add the Overlap, TriggerStore modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "triggers",
+  "component": "packages/triggers",
+  "unitKey": "Overlap",
+  "mergedUnitKeys": [
+   "Overlap",
+   "TriggerStore"
+  ]
+ },
+ "dependencies": {
+  "parent": "1b4d3a88a5ae2d5209d557764fc8a2d5ca74c350",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [
+   "1b4d3a88a5ae2d5209d557764fc8a2d5ca74c350"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/control",
+    "commit": "40bf3f68fb8b79abcb73506a5980f5eaa9e92e36"
+   },
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   }
+  ]
+ },
+ "related": {
+  "previous": "1b4d3a88a5ae2d5209d557764fc8a2d5ca74c350",
+  "next": "58106a9bedbb363859ab1bd2eb0df16c80f0dc73",
+  "epicFirst": "65dffaa9668923ae816eeaa5bce0901a958729b0",
+  "epicLast": "28962374658aba2757a5405dab6454616510b6b6",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 311,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/triggers/src/Overlap.ts",
+   "mode": "100644",
+   "blob": "131de0e202d7cb2dd5db9423dbfcd8ef580dcada",
+   "previousBlob": null,
+   "added": 52,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/triggers/test/Overlap.test.ts",
+   "mode": "100644",
+   "blob": "b87629ecf8b6cdab8b343d200323af702f118154",
+   "previousBlob": null,
+   "added": 16,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/triggers/src/TriggerStore.ts",
+   "mode": "100644",
+   "blob": "fa76a425526d5d2c76422ba22de14f8ffb9c81c9",
+   "previousBlob": null,
+   "added": 143,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/triggers/test/TriggerStore.test.ts",
+   "mode": "100644",
+   "blob": "3cf5953603152788727e4bebbb3225b17ec24617",
+   "previousBlob": null,
+   "added": 100,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

@@ -1,0 +1,209 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "0e431b9b788784342d9b35b8081bccdb8560d232",
+ "tree": "739a38ae73b403e37678a16c84745280526f2065",
+ "epic": {
+  "index": 10,
+  "id": "platform",
+  "name": "Conformance, scoring, evaluation and telemetry",
+  "sourceCommit": "317910c088e178d40f3b1553a182a7ee2be5dd24",
+  "sourceSubject": "✅ test(platform): add conformance, scoring, evaluation, and telemetry",
+  "childIndex": 2,
+  "childCount": 36,
+  "head": "7815804a6f1b8fd9568d8a0031bb0b58ee098100"
+ },
+ "atomic": {
+  "globalIndex": 478,
+  "globalCount": 845,
+  "purpose": "✨ feat(scorers): add the migrations, ScorerError, Sampling and 3 more modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "scorers",
+  "component": "packages/scorers",
+  "unitKey": "dir:migrations",
+  "mergedUnitKeys": [
+   "dir:migrations",
+   "ScorerError",
+   "Sampling",
+   "Scorer",
+   "Binding",
+   "ScoreStore"
+  ]
+ },
+ "dependencies": {
+  "parent": "979f13d307eb3917b8f17afabcbde76137e83652",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/database",
+    "commit": "aaada721155c7846ad10d0678269d8e291dab0a9"
+   }
+  ]
+ },
+ "related": {
+  "previous": "979f13d307eb3917b8f17afabcbde76137e83652",
+  "next": "48fb49344294fdf53d93ca7b746e2758fde70e64",
+  "epicFirst": "979f13d307eb3917b8f17afabcbde76137e83652",
+  "epicLast": "7815804a6f1b8fd9568d8a0031bb0b58ee098100",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 12,
+  "added": 644,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/scorers/src/migrations/0001_scores.ts",
+   "mode": "100644",
+   "blob": "a523f4ca6579432e2f5cd262f4e8c3806d0a9d2f",
+   "previousBlob": null,
+   "added": 35,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/scorers/src/migrations/0002_score_jobs.ts",
+   "mode": "100644",
+   "blob": "be1d4dbef2495be47efbb0d8ec13e2cfe043068f",
+   "previousBlob": null,
+   "added": 23,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/scorers/src/migrations/index.ts",
+   "mode": "100644",
+   "blob": "9f96ad898f9b65c5c562f27ec8c2a9968ca3b13b",
+   "previousBlob": null,
+   "added": 33,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/scorers/src/ScorerError.ts",
+   "mode": "100644",
+   "blob": "dfd6afd654105d7311a7a3c3c954b56c561ab6ee",
+   "previousBlob": null,
+   "added": 34,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/scorers/src/Sampling.ts",
+   "mode": "100644",
+   "blob": "725f4b26f7b07cafb00952eea62e9185d7007232",
+   "previousBlob": null,
+   "added": 65,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/scorers/test/Sampling.test.ts",
+   "mode": "100644",
+   "blob": "a1d6fcb521e0a31c3bda73965b6b48a9ef12baa0",
+   "previousBlob": null,
+   "added": 17,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/scorers/src/Scorer.ts",
+   "mode": "100644",
+   "blob": "b6f6606a612730956c993e7facea15e043f00cdf",
+   "previousBlob": null,
+   "added": 131,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/scorers/test/Scorer.test.ts",
+   "mode": "100644",
+   "blob": "857c7728ca8ca3446623a1f3f6ff153b46e0b4fe",
+   "previousBlob": null,
+   "added": 30,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/scorers/src/Binding.ts",
+   "mode": "100644",
+   "blob": "76bfe9326fcdfe1b49b34e172ea421b99c2cfb7b",
+   "previousBlob": null,
+   "added": 36,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/scorers/test/Binding.test.ts",
+   "mode": "100644",
+   "blob": "5bdcaeded9001d4787617695c56c0eddf31c1b9e",
+   "previousBlob": null,
+   "added": 27,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/scorers/src/ScoreStore.ts",
+   "mode": "100644",
+   "blob": "f9f6b22fddbae8a7232698182b55f0e5b611ee61",
+   "previousBlob": null,
+   "added": 127,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/scorers/test/ScoreStore.test.ts",
+   "mode": "100644",
+   "blob": "ff5b78ed30e718cd55b8072e136baf02a717c7ef",
+   "previousBlob": null,
+   "added": 86,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

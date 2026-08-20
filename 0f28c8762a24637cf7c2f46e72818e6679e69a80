@@ -1,0 +1,100 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "0f28c8762a24637cf7c2f46e72818e6679e69a80",
+ "tree": "e64cdcfe4c61bfb6beee6e849032e8df8b809156",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 5,
+  "childCount": 54,
+  "head": "8f2310ef99183d31a7cb6a91238af374d246498b"
+ },
+ "atomic": {
+  "globalIndex": 76,
+  "globalCount": 845,
+  "purpose": "📝 docs(keys): document ., src",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "keys",
+  "component": "packages/keys",
+  "unitKey": ".",
+  "mergedUnitKeys": [
+   ".",
+   "src"
+  ]
+ },
+ "dependencies": {
+  "parent": "b12a49d1c0517cd9ebfda21d126041c2bfdec95f",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/canonical",
+    "commit": "3b57deac5ef23a0e1e2fa660e6bcf9351049a95b"
+   },
+   {
+    "package": "@smthrs/crypto",
+    "commit": "3ac9a18fee84c753c34d31ae7baae150fa503fe6"
+   }
+  ]
+ },
+ "related": {
+  "previous": "b12a49d1c0517cd9ebfda21d126041c2bfdec95f",
+  "next": "4d2fd40ebc30dfac5ea514238e148765a471578e",
+  "epicFirst": "8d222879944a121d441c2c37d5ed2b7943a88b54",
+  "epicLast": "8f2310ef99183d31a7cb6a91238af374d246498b",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 53,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/keys/CHANGELOG.md",
+   "mode": "100644",
+   "blob": "864f5d3492f78b2eeba30157dbcc032a2a853aaa",
+   "previousBlob": null,
+   "added": 15,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/keys/README.md",
+   "mode": "100644",
+   "blob": "6dfceedc88b087ec272d53b2ac27fd6e69cd9d43",
+   "previousBlob": null,
+   "added": 33,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "packages/keys/src/README.md",
+   "mode": "100644",
+   "blob": "538a4c8135ce393fb0cbde1c49aa7f0b3a0ee60f",
+   "previousBlob": null,
+   "added": 5,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

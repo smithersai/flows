@@ -1,0 +1,112 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "9fb9d7f6cdedd7a9d542e04d3180229b7b2f8dfd",
+ "tree": "f27a8b8cf422c366d6fee04f8c3b171c06aa809f",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 2,
+  "childCount": 66,
+  "head": "28962374658aba2757a5405dab6454616510b6b6"
+ },
+ "atomic": {
+  "globalIndex": 327,
+  "globalCount": 845,
+  "purpose": "✨ feat(notifications): add the Notification, NotificationEvent, NotificationState modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "notifications",
+  "component": "packages/notifications",
+  "unitKey": "Notification",
+  "mergedUnitKeys": [
+   "Notification",
+   "NotificationEvent",
+   "NotificationState"
+  ]
+ },
+ "dependencies": {
+  "parent": "65dffaa9668923ae816eeaa5bce0901a958729b0",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   }
+  ]
+ },
+ "related": {
+  "previous": "65dffaa9668923ae816eeaa5bce0901a958729b0",
+  "next": "eb5c9a92d35faad97aea2382296de32a336c7656",
+  "epicFirst": "65dffaa9668923ae816eeaa5bce0901a958729b0",
+  "epicLast": "28962374658aba2757a5405dab6454616510b6b6",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 611,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/notifications/src/Notification.ts",
+   "mode": "100644",
+   "blob": "f95b7321e3075d3d665c1e6c4ceca6346712a518",
+   "previousBlob": null,
+   "added": 115,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/notifications/src/NotificationEvent.ts",
+   "mode": "100644",
+   "blob": "e3626b051564811d387527157212dc68ee9e0ab7",
+   "previousBlob": null,
+   "added": 104,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/notifications/src/NotificationState.ts",
+   "mode": "100644",
+   "blob": "5dcfb683fd02a248b391e39c6e1cdaf5b71f1a7a",
+   "previousBlob": null,
+   "added": 223,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/notifications/test/NotificationState.test.ts",
+   "mode": "100644",
+   "blob": "0c03454cefc15f4bfa3bda2ca44b41a4fbfdf60a",
+   "previousBlob": null,
+   "added": 169,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

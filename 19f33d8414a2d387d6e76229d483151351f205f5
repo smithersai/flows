@@ -1,0 +1,83 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "19f33d8414a2d387d6e76229d483151351f205f5",
+ "tree": "57fffc9963017c60004130ac31d20b23256b09a6",
+ "epic": {
+  "index": 3,
+  "id": "storage",
+  "name": "Durable data services",
+  "sourceCommit": "1027131c20e02abee3ad2e21ca8604bf652982ae",
+  "sourceSubject": "✨ feat(storage): add durable data services",
+  "childIndex": 6,
+  "childCount": 55,
+  "head": "9633d567508a5d82ee51d5ed34014e850f417731"
+ },
+ "atomic": {
+  "globalIndex": 22,
+  "globalCount": 845,
+  "purpose": "✨ feat(artifacts): add RemoteArtifacts",
+  "type": "feat",
+  "kind": "module",
+  "scope": "artifacts",
+  "component": "packages/artifacts",
+  "unitKey": "RemoteArtifacts",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "8e2414253c83f8cbd1bbf2dfb521732b04bbbaf2",
+  "epicPredecessors": [
+   "repo",
+   "core"
+  ],
+  "sourceImports": [
+   "58643d40c83c8e4008cf380a1deee682bf4b8dbb"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/crypto",
+    "commit": "3ac9a18fee84c753c34d31ae7baae150fa503fe6"
+   }
+  ]
+ },
+ "related": {
+  "previous": "8e2414253c83f8cbd1bbf2dfb521732b04bbbaf2",
+  "next": "0ee5dee9b13e29707b4089b10c6214d1987c34b4",
+  "epicFirst": "0b1fe1d563a03d93618ff339540cb77a2ed44d4b",
+  "epicLast": "9633d567508a5d82ee51d5ed34014e850f417731",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 709,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/artifacts/src/RemoteArtifacts.ts",
+   "mode": "100644",
+   "blob": "0784f9ac99f01251bb088e2f069c92cacc79bab6",
+   "previousBlob": null,
+   "added": 331,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/artifacts/test/RemoteArtifacts.test.ts",
+   "mode": "100644",
+   "blob": "b723e4483648dd2364f01480d814ba8d403d95d1",
+   "previousBlob": null,
+   "added": 378,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

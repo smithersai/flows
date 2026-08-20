@@ -1,0 +1,80 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "57f8fa9bc49561163161c4f22d67802182d183fa",
+ "tree": "dbdccdf9f96cc0c39ec3649840c0dd75a18fb1b5",
+ "epic": {
+  "index": 15,
+  "id": "tui",
+  "name": "Terminal application",
+  "sourceCommit": "ca5777391956c8a52c077feff63d7e5f4c84896a",
+  "sourceSubject": "✨ feat(tui): add the terminal application",
+  "childIndex": 4,
+  "childCount": 7,
+  "head": "bf2d85b5e202b9f23ce0675d93001594e672969b"
+ },
+ "atomic": {
+  "globalIndex": 799,
+  "globalCount": 845,
+  "purpose": "✨ feat(tui): export the public tui surface",
+  "type": "feat",
+  "kind": "index",
+  "scope": "tui",
+  "component": "apps/tui",
+  "unitKey": "~index",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "93705e6e04418eeaac20ecf5c998480c5701b021",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui"
+  ],
+  "sourceImports": [
+   "1eb3c5a127a9ec2fd158f9ae067aba629d5f7397",
+   "93705e6e04418eeaac20ecf5c998480c5701b021"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "93705e6e04418eeaac20ecf5c998480c5701b021",
+  "next": "10bdb99dbcc8bca2be71372f55cbb5bbfb9255aa",
+  "epicFirst": "9d82d9a71ebc365ca2fd0f7ee437415b4f872a64",
+  "epicLast": "bf2d85b5e202b9f23ce0675d93001594e672969b",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 29,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/tui/src/index.tsx",
+   "mode": "100644",
+   "blob": "3b07cc54bf86eb6f9fa80854e3b714caf155de5f",
+   "previousBlob": null,
+   "added": 29,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

@@ -1,0 +1,131 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "1fa03fb08e2b42bc69613964e869c067c07d72f6",
+ "tree": "5c6c2701a1ae266e1303bb38ab15ecae57722ec4",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 90,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 738,
+  "globalCount": 845,
+  "purpose": "✅ test(ui): cover mainview/state (1/8)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "ui",
+  "component": "apps/ui/src",
+  "unitKey": "mainview/state",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "85a39445b2288731ba889a88c5d4c792f454a4dd",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "85a39445b2288731ba889a88c5d4c792f454a4dd",
+  "next": "44b3ea84030d52bdd058bbf4c18bcaac9a1ddcc4",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 6,
+  "added": 1383,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/ActDetail.test.tsx",
+   "mode": "100644",
+   "blob": "b6f0a7ab31a2bdd6aba355b45bcae26cecf4e222",
+   "previousBlob": null,
+   "added": 268,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/Admin.test.ts",
+   "mode": "100644",
+   "blob": "47ebdb095adf321ed8b6db0fa870159b716895e0",
+   "previousBlob": null,
+   "added": 287,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/AgentRuntimeContext.test.ts",
+   "mode": "100644",
+   "blob": "c76605ad8ec4b16861ee05d86e9c66d54a41ce2d",
+   "previousBlob": null,
+   "added": 158,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/AgentSuggestions.test.tsx",
+   "mode": "100644",
+   "blob": "3d249803238d4764e0ae60ee70b46f43f2c30630",
+   "previousBlob": null,
+   "added": 359,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/AgentTurnPolicy.test.ts",
+   "mode": "100644",
+   "blob": "599e9f8cc8959711a35cdec7b3b6b6c8305c13d1",
+   "previousBlob": null,
+   "added": 187,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/src/mainview/state/AppController.test.ts",
+   "mode": "100644",
+   "blob": "bae08a2a508271302131374477d9ebe6a891d9a7",
+   "previousBlob": null,
+   "added": 124,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

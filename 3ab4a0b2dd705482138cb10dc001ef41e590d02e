@@ -1,0 +1,88 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "3ab4a0b2dd705482138cb10dc001ef41e590d02e",
+ "tree": "089227101136fb3fc244e3b1d6da06e3df475780",
+ "epic": {
+  "index": 2,
+  "id": "core",
+  "name": "Canonical leaf contracts",
+  "sourceCommit": "9cd3ac554b7b6acecfceddce69f6a6b6afa257b6",
+  "sourceSubject": "✨ feat(core): add canonical leaf contracts",
+  "childIndex": 3,
+  "childCount": 14,
+  "head": "661ab4abf442fdbc7f5039a9846f9822f28b505a"
+ },
+ "atomic": {
+  "globalIndex": 5,
+  "globalCount": 845,
+  "purpose": "✨ feat(canonical): add Canonical",
+  "type": "feat",
+  "kind": "module",
+  "scope": "canonical",
+  "component": "packages/canonical",
+  "unitKey": "Canonical",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "e239e36dcdf8ec0888c7ae454d55ebda89dfad5f",
+  "epicPredecessors": [
+   "repo"
+  ],
+  "sourceImports": [
+   "e239e36dcdf8ec0888c7ae454d55ebda89dfad5f"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "e239e36dcdf8ec0888c7ae454d55ebda89dfad5f",
+  "next": "3b57deac5ef23a0e1e2fa660e6bcf9351049a95b",
+  "epicFirst": "c0c561bff5109eb97831d6eda26e84d1d4aa5583",
+  "epicLast": "661ab4abf442fdbc7f5039a9846f9822f28b505a",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 744,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/canonical/src/Canonical.ts",
+   "mode": "100644",
+   "blob": "e8a2a1f780fa6f11e4c7693ed47069f552549414",
+   "previousBlob": null,
+   "added": 82,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/canonical/test/Canonical.property.test.ts",
+   "mode": "100644",
+   "blob": "95e695a9c169d6f4016f9b5359ac0e77fe3328cf",
+   "previousBlob": null,
+   "added": 182,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/canonical/test/Canonical.test.ts",
+   "mode": "100644",
+   "blob": "15f25a07e4faaae61869b3db78d4f4ae7d270d94",
+   "previousBlob": null,
+   "added": 480,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

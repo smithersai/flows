@@ -1,0 +1,116 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "5fd40c1ddfb55cc9ce8e68764446c30f9346c641",
+ "tree": "7bbb621a49494364b7ac3a758ed31ada3443494b",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 52,
+  "childCount": 61,
+  "head": "a5193915fd7f1bc7634e32c28838552e883641db"
+ },
+ "atomic": {
+  "globalIndex": 177,
+  "globalCount": 845,
+  "purpose": "✨ feat(platform-bun): add the BunFileSystem, BunHost modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "platform-bun",
+  "component": "packages/platform-bun",
+  "unitKey": "BunFileSystem",
+  "mergedUnitKeys": [
+   "BunFileSystem",
+   "BunHost"
+  ]
+ },
+ "dependencies": {
+  "parent": "d57714112436ef05a7586decba9d0ff072a2cb9e",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/jj",
+    "commit": "a67499b875ddce7aa9fe4a7cc5414fc0ab9eb398"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   },
+   {
+    "package": "@smthrs/platform-node",
+    "commit": "ee046808e1233898d8f029a65b2f8f9eeb83caeb"
+   }
+  ]
+ },
+ "related": {
+  "previous": "d57714112436ef05a7586decba9d0ff072a2cb9e",
+  "next": "748eaf35822c3356526bd670586efe7695ede7a1",
+  "epicFirst": "5037300288116821b95e1046a67ca324243eeeeb",
+  "epicLast": "a5193915fd7f1bc7634e32c28838552e883641db",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 280,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/platform-bun/src/BunFileSystem.ts",
+   "mode": "100644",
+   "blob": "8bb755acd24386b87e131a8eda9b4f99d42b0daa",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/platform-bun/src/BunHost.ts",
+   "mode": "100644",
+   "blob": "d7e9530e81beb0c0e083634887880ea4670e0d94",
+   "previousBlob": null,
+   "added": 99,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/platform-bun/test/contract/BunHost.contract.test.ts",
+   "mode": "100644",
+   "blob": "de37c3b2919a86b028f4cf789d382b384968b8bb",
+   "previousBlob": null,
+   "added": 81,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/platform-bun/test/contract/BunHostRedirect.contract.test.ts",
+   "mode": "100644",
+   "blob": "9127a0cdb974831b4c6a84bf37a677c815cf15ff",
+   "previousBlob": null,
+   "added": 79,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

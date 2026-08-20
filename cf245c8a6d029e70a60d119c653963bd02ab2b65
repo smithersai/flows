@@ -1,0 +1,91 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "cf245c8a6d029e70a60d119c653963bd02ab2b65",
+ "tree": "714f352f9b8cbebb2457b8b6860245ba407d2e62",
+ "epic": {
+  "index": 7,
+  "id": "authoring",
+  "name": "Portable flow authoring framework",
+  "sourceCommit": "f1106bf73a5032b3f9f63eebc92d2307df936ba5",
+  "sourceSubject": "✨ feat(authoring): add the portable flow authoring framework",
+  "childIndex": 15,
+  "childCount": 43,
+  "head": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9"
+ },
+ "atomic": {
+  "globalIndex": 297,
+  "globalCount": 845,
+  "purpose": "✨ feat(registry): add the Frontmatter internals",
+  "type": "feat",
+  "kind": "module",
+  "scope": "registry",
+  "component": "packages/registry",
+  "unitKey": "internal/Frontmatter",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "befa30c0fa098dfb799e49529736dd285712fb98",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store"
+  ],
+  "sourceImports": [
+   "befa30c0fa098dfb799e49529736dd285712fb98"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "befa30c0fa098dfb799e49529736dd285712fb98",
+  "next": "da07325a0d109c3ddff0d08ce585a7604e9e5133",
+  "epicFirst": "f7a85bfa43ff3fa63e2ad6200bd2d4d7ec1397a2",
+  "epicLast": "cb945d2fc8c5db9c53fd49afe6857dfdcad0f3b9",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 307,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/registry/src/internal/Frontmatter.ts",
+   "mode": "100644",
+   "blob": "929239a7d04a8d11a033585d4a9267e4f30a4068",
+   "previousBlob": null,
+   "added": 149,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/registry/test/Frontmatter.test.ts",
+   "mode": "100644",
+   "blob": "48db2295e8b1bdebbedd376448cd44cb97e8ece1",
+   "previousBlob": null,
+   "added": 158,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

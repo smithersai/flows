@@ -1,0 +1,183 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+ "tree": "d8b082f93ff2e88a41bf642386e572a9d98dc062",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 1,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 513,
+  "globalCount": 845,
+  "purpose": "👷 ci(ci): add the GitHub Actions pipelines",
+  "type": "ci",
+  "kind": "module",
+  "scope": "ci",
+  "component": ".github",
+  "unitKey": "dir:workflows",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "7815804a6f1b8fd9568d8a0031bb0b58ee098100",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "7815804a6f1b8fd9568d8a0031bb0b58ee098100",
+  "next": "c2c7b6c8dcaf7021bff387510fc9885dfd5c5fd5",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 11,
+  "added": 1201,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": ".github/workflows/apps-deploy.yml",
+   "mode": "100644",
+   "blob": "3163317f96b81f5eed361f46d4de91d8a0898347",
+   "previousBlob": null,
+   "added": 274,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": ".github/workflows/canary.yml",
+   "mode": "100644",
+   "blob": "63c4d0619c84c4d10288069970f3a9d39bba04d9",
+   "previousBlob": null,
+   "added": 171,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": ".github/workflows/ci.yml",
+   "mode": "100644",
+   "blob": "4fe08421160476fe8d2980d8cac198fa3f9299dd",
+   "previousBlob": null,
+   "added": 245,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": ".github/workflows/gen.issue-intake.yml",
+   "mode": "100644",
+   "blob": "050e384199c0aedef1ddfa7bc7b6db6c1c902cd6",
+   "previousBlob": null,
+   "added": 40,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": ".github/workflows/gen.issue-reply.yml",
+   "mode": "100644",
+   "blob": "bcf9fff84d35ee33c4134df2f16c249286672176",
+   "previousBlob": null,
+   "added": 34,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": ".github/workflows/gen.poc-loop.yml",
+   "mode": "100644",
+   "blob": "87d1643ace8ec5a4d1f6fa2add324bb0cb5594f6",
+   "previousBlob": null,
+   "added": 111,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": ".github/workflows/gen.pr-review.yml",
+   "mode": "100644",
+   "blob": "ee32ad3b787f6ea14eec2428d26e21c6c58e7199",
+   "previousBlob": null,
+   "added": 40,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": ".github/workflows/gen.repro-proof.yml",
+   "mode": "100644",
+   "blob": "767ce520de0f58c71bae6ad12e5c79186f774866",
+   "previousBlob": null,
+   "added": 34,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": ".github/workflows/gen.repro-reverify.yml",
+   "mode": "100644",
+   "blob": "0cc29f0b0adc545d50426cae147751ab89838bac",
+   "previousBlob": null,
+   "added": 31,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": ".github/workflows/gen.verified-fix.yml",
+   "mode": "100644",
+   "blob": "3e15a9b0eb1c05baa8ecee895ad9f0c3bf8d5b3e",
+   "previousBlob": null,
+   "added": 41,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": ".github/workflows/release.yml",
+   "mode": "100644",
+   "blob": "b73c4875f4207f8f564d9bca837708438d705585",
+   "previousBlob": null,
+   "added": 180,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

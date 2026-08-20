@@ -1,0 +1,73 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "ed3d3b485dc97708914d1fffca91e42f5cc02a0a",
+ "tree": "e66f3f3c6966a1ee88a2422564420875df91a0cd",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 30,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 542,
+  "globalCount": 845,
+  "purpose": "✅ test(build): cover service/test (2/3)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "build",
+  "component": "packages/build/terraform",
+  "unitKey": "modules/cache/service/test",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "632aebc6c33b4873941e3f3bf808c3eea524a95e",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "632aebc6c33b4873941e3f3bf808c3eea524a95e",
+  "next": "2ff087e5707d963b79611e1983e18a6b4e57c296",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 1465,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build/terraform/modules/cache/service/test/protocol_test.js",
+   "mode": "100644",
+   "blob": "4110a8fe96af0837af8fd73defef67a70978d97e",
+   "previousBlob": null,
+   "added": 1465,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

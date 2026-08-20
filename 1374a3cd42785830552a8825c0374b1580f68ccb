@@ -1,0 +1,108 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "1374a3cd42785830552a8825c0374b1580f68ccb",
+ "tree": "aed930d08fc4960d1fc578e5548a4455068c64e4",
+ "epic": {
+  "index": 11,
+  "id": "build",
+  "name": "Self-hosted typed build graph",
+  "sourceCommit": "c5ed6858279c5597093ea323579a6edb1c4e08bc",
+  "sourceSubject": "✨ feat(build): add the self-hosted typed build graph",
+  "childIndex": 94,
+  "childCount": 98,
+  "head": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c"
+ },
+ "atomic": {
+  "globalIndex": 606,
+  "globalCount": 845,
+  "purpose": "✨ feat(build): add the cache/service modules (1/2)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "build",
+  "component": "packages/build/terraform",
+  "unitKey": "dir:modules/cache/service",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "e8120fa799ae7a9d6a4f8480de50a8772058534b",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform"
+  ],
+  "sourceImports": [
+   "30ba30cf00da696dbe01f0d63ac4e92cc4eab1ba"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "e8120fa799ae7a9d6a4f8480de50a8772058534b",
+  "next": "30ba30cf00da696dbe01f0d63ac4e92cc4eab1ba",
+  "epicFirst": "22b27f5cad9aec506c1204812e0e037b3c5c596e",
+  "epicLast": "78d8b44766da37e77c518d30ae4b9ccc7e368c7c",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 4,
+  "added": 1257,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/build/terraform/modules/cache/service/config.js",
+   "mode": "100644",
+   "blob": "f220ca0a04bc50e801b2841328c5782297d36492",
+   "previousBlob": null,
+   "added": 120,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/terraform/modules/cache/service/Dockerfile",
+   "mode": "100644",
+   "blob": "6e0a920b6b2478a0a76d7d9749803e4340930591",
+   "previousBlob": null,
+   "added": 13,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/terraform/modules/cache/service/protocol.js",
+   "mode": "100644",
+   "blob": "ba2ae080efad75aece57b3d79e3d12875601d9ed",
+   "previousBlob": null,
+   "added": 965,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/build/terraform/modules/cache/service/server.js",
+   "mode": "100644",
+   "blob": "c0cabba4c425a0bd27f95f4274b77706b8710e2f",
+   "previousBlob": null,
+   "added": 159,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

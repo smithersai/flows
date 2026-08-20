@@ -1,0 +1,84 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "e327944d71c115e6fcad22b7f9633e04d3d38bf7",
+ "tree": "ba3a0785175ff3f35eebdf6808cef258da6f9588",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 23,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 671,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the workflows module (4/8)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/.smithers",
+  "unitKey": "dir:workflows",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "9c33c61768a2de6231402fb681aa011ef6248fe0",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "160cb184fe3705cdb674df2b90f24876465ab37d",
+   "a2493f854e188738e36451261e0ba22e0fbd002f"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/cli",
+    "commit": "fec516964e3e6a618aace55755a6d0befd72daa8"
+   }
+  ]
+ },
+ "related": {
+  "previous": "9c33c61768a2de6231402fb681aa011ef6248fe0",
+  "next": "096830fb73c1ef1b86489821254f87bcd2bb82b5",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 1301,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/.smithers/workflows/production-readiness-swarm.tsx",
+   "mode": "100644",
+   "blob": "e4ca99a50fbf28aaeae923783a4af6bd1737e8fe",
+   "previousBlob": null,
+   "added": 1301,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

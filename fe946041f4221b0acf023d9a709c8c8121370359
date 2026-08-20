@@ -1,0 +1,147 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "fe946041f4221b0acf023d9a709c8c8121370359",
+ "tree": "c1d8ad3cd13492420b96c862594e1259d94e0def",
+ "epic": {
+  "index": 10,
+  "id": "platform",
+  "name": "Conformance, scoring, evaluation and telemetry",
+  "sourceCommit": "317910c088e178d40f3b1553a182a7ee2be5dd24",
+  "sourceSubject": "✅ test(platform): add conformance, scoring, evaluation, and telemetry",
+  "childIndex": 32,
+  "childCount": 36,
+  "head": "7815804a6f1b8fd9568d8a0031bb0b58ee098100"
+ },
+ "atomic": {
+  "globalIndex": 508,
+  "globalCount": 845,
+  "purpose": "✨ feat(evals): add the Baseline, Regression, Gate modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "evals",
+  "component": "packages/evals",
+  "unitKey": "Baseline",
+  "mergedUnitKeys": [
+   "Baseline",
+   "Regression",
+   "Gate"
+  ]
+ },
+ "dependencies": {
+  "parent": "d1dd5a677aac05103d9dfcd82ec9c82d55d36692",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent"
+  ],
+  "sourceImports": [
+   "279fd812dcd74deb156a25a482239bcd68632df4",
+   "d1dd5a677aac05103d9dfcd82ec9c82d55d36692"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/core",
+    "commit": "f2a4a762fb7e3760faf1380a1bfed4a4ad1ab183"
+   },
+   {
+    "package": "@smthrs/scorers",
+    "commit": "711dc85cd90b0b93d62275c9b334812c26bb1db9"
+   },
+   {
+    "package": "@smthrs/testing",
+    "commit": "a0e5f174f9c26f37d0db19e8811f39431063418e"
+   }
+  ]
+ },
+ "related": {
+  "previous": "d1dd5a677aac05103d9dfcd82ec9c82d55d36692",
+  "next": "beae0021b2399e65efc7b3b4e8faeda992eeb76a",
+  "epicFirst": "979f13d307eb3917b8f17afabcbde76137e83652",
+  "epicLast": "7815804a6f1b8fd9568d8a0031bb0b58ee098100",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 6,
+  "added": 677,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/evals/src/Baseline.ts",
+   "mode": "100644",
+   "blob": "2fbf88d4b1aac747a38850df0e4a93ad494d588e",
+   "previousBlob": null,
+   "added": 150,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/evals/test/Baseline.test.ts",
+   "mode": "100644",
+   "blob": "59dd2ef3eff3425d48e2d674fb3a5359010168ff",
+   "previousBlob": null,
+   "added": 54,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/evals/src/Regression.ts",
+   "mode": "100644",
+   "blob": "6d5717e08e9aa317394556dc9aff27baea06c2b9",
+   "previousBlob": null,
+   "added": 216,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/evals/test/Regression.test.ts",
+   "mode": "100644",
+   "blob": "e64234b015b81f367b2701843b7a89577b4990ef",
+   "previousBlob": null,
+   "added": 57,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/evals/src/Gate.ts",
+   "mode": "100644",
+   "blob": "2a9f7e4acd19d6be10ad90f86c3c25cdb0bdd1df",
+   "previousBlob": null,
+   "added": 96,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/evals/test/Gate.test.ts",
+   "mode": "100644",
+   "blob": "779134747bd7ac669a976f308325d3073ff87a26",
+   "previousBlob": null,
+   "added": 104,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

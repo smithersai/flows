@@ -1,0 +1,105 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "42fa6be85378f45f47cd14232dd22be6d9f24e69",
+ "tree": "e83815c8decdfa2580786c33c21b21b77ec78025",
+ "epic": {
+  "index": 4,
+  "id": "flow",
+  "name": "Typed flow plans and execution",
+  "sourceCommit": "f7ef2d9338882ff1569eb1a3a89328da6699c307",
+  "sourceSubject": "✨ feat(flow): define and execute typed flow plans",
+  "childIndex": 37,
+  "childCount": 54,
+  "head": "8f2310ef99183d31a7cb6a91238af374d246498b"
+ },
+ "atomic": {
+  "globalIndex": 108,
+  "globalCount": 845,
+  "purpose": "✅ test(engine): cover engine (1/5)",
+  "type": "test",
+  "kind": "tests",
+  "scope": "engine",
+  "component": "packages/engine",
+  "unitKey": "test",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "b17af994607bc2ef084b62d75c0b2509f8b56d23",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/crypto",
+    "commit": "3ac9a18fee84c753c34d31ae7baae150fa503fe6"
+   },
+   {
+    "package": "@smthrs/flow",
+    "commit": "8f2310ef99183d31a7cb6a91238af374d246498b"
+   },
+   {
+    "package": "@smthrs/keys",
+    "commit": "e145b0e5dfced2a00c300f9b139b14f6820bf771"
+   },
+   {
+    "package": "@smthrs/plan",
+    "commit": "a6c062c1ea8185f0a2b743039e577306a8ad4a47"
+   }
+  ]
+ },
+ "related": {
+  "previous": "b17af994607bc2ef084b62d75c0b2509f8b56d23",
+  "next": "e2257a272eef76e9222f29a8312c1ec466ed9d71",
+  "epicFirst": "8d222879944a121d441c2c37d5ed2b7943a88b54",
+  "epicLast": "8f2310ef99183d31a7cb6a91238af374d246498b",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 3,
+  "added": 1023,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine/test/ActionIdentityGaps.test.ts",
+   "mode": "100644",
+   "blob": "216eb060340f7624f541df62ef462cb3a38e24d7",
+   "previousBlob": null,
+   "added": 272,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine/test/ActionKeys.test.ts",
+   "mode": "100644",
+   "blob": "925a615d0d3ebd128952db281a2a102fcdb988b4",
+   "previousBlob": null,
+   "added": 568,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/engine/test/ActionMemoization.test.ts",
+   "mode": "100644",
+   "blob": "042d8ff79e1622da73992b675c1751ec73b7d541",
+   "previousBlob": null,
+   "added": 183,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

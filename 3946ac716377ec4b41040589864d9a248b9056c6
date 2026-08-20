@@ -1,0 +1,100 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "3946ac716377ec4b41040589864d9a248b9056c6",
+ "tree": "b80f24562c4871e1f3260ade2bb1d3cf989baaf6",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 33,
+  "childCount": 61,
+  "head": "a5193915fd7f1bc7634e32c28838552e883641db"
+ },
+ "atomic": {
+  "globalIndex": 158,
+  "globalCount": 845,
+  "purpose": "✨ feat(kernel): add HostServices",
+  "type": "feat",
+  "kind": "module",
+  "scope": "kernel",
+  "component": "packages/kernel",
+  "unitKey": "HostServices",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "0f6693542c80a163aafc93967b0ac948421944e2",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [
+   "c0c2f12f3058413f79742f7b6628b0b27c26ddde",
+   "fa47259987fb4978ba8fafdc253de94f8e01a839",
+   "57e30605973d10ac8231c7b313bab29c7dee66a3",
+   "0f6693542c80a163aafc93967b0ac948421944e2"
+  ],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   },
+   {
+    "package": "@smthrs/jj",
+    "commit": "a67499b875ddce7aa9fe4a7cc5414fc0ab9eb398"
+   },
+   {
+    "package": "@smthrs/journal",
+    "commit": "53707dc56fadf55020b995b9c46378219c43c007"
+   },
+   {
+    "package": "@smthrs/platform-browser",
+    "commit": "ca23816b16d5e35de879f35fe042c979b3f78807"
+   }
+  ]
+ },
+ "related": {
+  "previous": "0f6693542c80a163aafc93967b0ac948421944e2",
+  "next": "c98d190d33451460fb598ff84537b9f1502ce787",
+  "epicFirst": "5037300288116821b95e1046a67ca324243eeeeb",
+  "epicLast": "a5193915fd7f1bc7634e32c28838552e883641db",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 344,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/kernel/src/HostServices.ts",
+   "mode": "100644",
+   "blob": "c16060ceab50e980455acb5fafa82398db03cfdb",
+   "previousBlob": null,
+   "added": 131,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/kernel/test/HostServices.test.ts",
+   "mode": "100644",
+   "blob": "33d887dc115462df7d5814a59938373eb4e76971",
+   "previousBlob": null,
+   "added": 213,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

@@ -1,0 +1,131 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "d0f26075ef34a4be58951d06c5d7deecf016b25d",
+ "tree": "305c43684a38d190967ca8556e71e831e33f328a",
+ "epic": {
+  "index": 5,
+  "id": "host",
+  "name": "Capability-checked platform adapters",
+  "sourceCommit": "45d021d8191d15f5139e70fb8d7e17203f465f17",
+  "sourceSubject": "✨ feat(host): add capability-checked platform adapters",
+  "childIndex": 17,
+  "childCount": 61,
+  "head": "a5193915fd7f1bc7634e32c28838552e883641db"
+ },
+ "atomic": {
+  "globalIndex": 142,
+  "globalCount": 845,
+  "purpose": "✨ feat(platform-browser): add the BrowserChildProcessSpawner modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "platform-browser",
+  "component": "packages/platform-browser",
+  "unitKey": "dir:BrowserChildProcessSpawner",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "1f18bc2eae6d1fa9faeb3121687d78483002fce0",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/jj",
+    "commit": "a67499b875ddce7aa9fe4a7cc5414fc0ab9eb398"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "1f18bc2eae6d1fa9faeb3121687d78483002fce0",
+  "next": "58fcde266165ac4e816bc786f930555a36ec3ce6",
+  "epicFirst": "5037300288116821b95e1046a67ca324243eeeeb",
+  "epicLast": "a5193915fd7f1bc7634e32c28838552e883641db",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 6,
+  "added": 915,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/platform-browser/src/BrowserChildProcessSpawner/JustBashLike.ts",
+   "mode": "100644",
+   "blob": "4b35468260e8cda6bf2966b9a12701c00bd1b64c",
+   "previousBlob": null,
+   "added": 26,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/platform-browser/src/BrowserChildProcessSpawner/captured.ts",
+   "mode": "100644",
+   "blob": "f5d9af80d4e4e9ef84941b42908c27ace277a052",
+   "previousBlob": null,
+   "added": 46,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/platform-browser/src/BrowserChildProcessSpawner/index.ts",
+   "mode": "100644",
+   "blob": "f26ea17860917adf5766bec4fb0f1d32c22b2a38",
+   "previousBlob": null,
+   "added": 47,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/platform-browser/src/BrowserChildProcessSpawner/layer.ts",
+   "mode": "100644",
+   "blob": "77a348d20056e457fd57673024769151bfb787a9",
+   "previousBlob": null,
+   "added": 29,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/platform-browser/src/BrowserChildProcessSpawner/make.ts",
+   "mode": "100644",
+   "blob": "2151877f0093dd7e8cca82d1b7f82018d97e6a99",
+   "previousBlob": null,
+   "added": 164,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "packages/platform-browser/test/BrowserChildProcessSpawner.test.ts",
+   "mode": "100644",
+   "blob": "41553e991ded99856e506790320bc5331c03d350",
+   "previousBlob": null,
+   "added": 603,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

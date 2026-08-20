@@ -1,0 +1,144 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "7bd592c439286cef195c04b278151cb0f8ed3f35",
+ "tree": "8449135cc41c3ea21776efe6bbbb9d4148be13f4",
+ "epic": {
+  "index": 16,
+  "id": "docs-site",
+  "name": "Documentation site",
+  "sourceCommit": "2fd742db8891870cec6454b507fc94b3c65aa275",
+  "sourceSubject": "📚 docs(site): document the complete system",
+  "childIndex": 11,
+  "childCount": 17,
+  "head": "a71bed29530440d675e58d1dd55d8c65de45dbf2"
+ },
+ "atomic": {
+  "globalIndex": 813,
+  "globalCount": 845,
+  "purpose": "📝 docs(pages): document pages (2/2)",
+  "type": "docs",
+  "kind": "docs",
+  "scope": "pages",
+  "component": "docs/pages",
+  "unitKey": ".",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "01729a3d9d0c21b4b6fe5961f7867f143a59abf5",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server",
+   "ui",
+   "tui"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "01729a3d9d0c21b4b6fe5961f7867f143a59abf5",
+  "next": "ba611c4a5d6b7bc8ebdd21e30b173a5172d5c104",
+  "epicFirst": "d92b6bd2642c1332bcd06cb6e7fc430acdf97cda",
+  "epicLast": "a71bed29530440d675e58d1dd55d8c65de45dbf2",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 7,
+  "added": 1146,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "docs/pages/index.mdx",
+   "mode": "100644",
+   "blob": "a60638cebfe52ac5a5a3b21a3e49193211ef638b",
+   "previousBlob": null,
+   "added": 126,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/internals.md",
+   "mode": "100644",
+   "blob": "e7553d3b0065a989cee513d8598881ee8a308b5c",
+   "previousBlob": null,
+   "added": 134,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/observability.md",
+   "mode": "100644",
+   "blob": "093036366aee731f5e904711ce9a0dd77d2b2edb",
+   "previousBlob": null,
+   "added": 120,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/package-structure.mdx",
+   "mode": "100644",
+   "blob": "ffeef71343ae2f73041a7aa4fa953e9130e8de7c",
+   "previousBlob": null,
+   "added": 245,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/selection.md",
+   "mode": "100644",
+   "blob": "2ed32540175fe9d49afbd494335b4fb5a7b34376",
+   "previousBlob": null,
+   "added": 210,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/sqlite-operating-envelope.md",
+   "mode": "100644",
+   "blob": "489618f5c09c7576a5fdb9a0a5bbdc796c5173ef",
+   "previousBlob": null,
+   "added": 194,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  },
+  {
+   "change": "A",
+   "path": "docs/pages/telemetry.md",
+   "mode": "100644",
+   "blob": "c2f60ba1cfa78b56c4e934c249aca4a3b4955d08",
+   "previousBlob": null,
+   "added": 117,
+   "deleted": 0,
+   "binary": false,
+   "role": "docs"
+  }
+ ]
+}

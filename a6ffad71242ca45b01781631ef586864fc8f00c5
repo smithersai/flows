@@ -1,0 +1,75 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "a6ffad71242ca45b01781631ef586864fc8f00c5",
+ "tree": "dd10df901cb50a254aace31c8f8ec01dc04f2f46",
+ "epic": {
+  "index": 6,
+  "id": "engine-store",
+  "name": "Durable, replayable flow execution",
+  "sourceCommit": "a50562da3374a9fac5ad07f4f3c149b65e911833",
+  "sourceSubject": "✨ feat(engine-store): make flow execution durable and replayable",
+  "childIndex": 61,
+  "childCount": 96,
+  "head": "c93705a8b036d030082a6877bd6668709293285d"
+ },
+ "atomic": {
+  "globalIndex": 247,
+  "globalCount": 845,
+  "purpose": "✨ feat(engine-store): add the internal module (4/5)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "engine-store",
+  "component": "packages/engine-store/src",
+  "unitKey": "dir:internal",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "4e56bebed3471482be52aee7722842127632a620",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host"
+  ],
+  "sourceImports": [
+   "b99e4ffd9a87baf764aace571008b88ef841e23d",
+   "3f3525339467e1d760eee5916a80920d2503e180",
+   "911cd6e9d09f1da3b72864b41dbbb83034e27e89",
+   "9123f49c124e0267fbe38a2cc90282ad1bccc0c2",
+   "455867d72e555abc6350fae874587cf5704d28e7",
+   "4e56bebed3471482be52aee7722842127632a620"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "4e56bebed3471482be52aee7722842127632a620",
+  "next": "8e23429c594c30bd2f5e4d79a770dbfbd39e7d5e",
+  "epicFirst": "eec277e2e1bfd7b6ae08c5d31c63df081ea52207",
+  "epicLast": "c93705a8b036d030082a6877bd6668709293285d",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 1,
+  "added": 1793,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/engine-store/src/internal/RunDriver.ts",
+   "mode": "100644",
+   "blob": "a45dc0c9c5696583821dd6102145e70ea02ca6bc",
+   "previousBlob": null,
+   "added": 1793,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

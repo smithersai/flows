@@ -1,0 +1,94 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "53a74dc269f5c72c65e52e9ade4074d5a535a4ee",
+ "tree": "78e6a21ce765fea5b838fbeb9ca55636b3690085",
+ "epic": {
+  "index": 14,
+  "id": "ui",
+  "name": "Native graphical application",
+  "sourceCommit": "18263a7b5285eeafd180b1e55fd5b03b05d4ae8d",
+  "sourceSubject": "✨ feat(ui): add the native graphical application",
+  "childIndex": 111,
+  "childCount": 147,
+  "head": "dc151173e420d6ce8fda47487037fbb20a84711e"
+ },
+ "atomic": {
+  "globalIndex": 759,
+  "globalCount": 845,
+  "purpose": "✨ feat(ui): add the Suite, Stack modules",
+  "type": "feat",
+  "kind": "module",
+  "scope": "ui",
+  "component": "apps/ui/e2e",
+  "unitKey": "Suite",
+  "mergedUnitKeys": [
+   "Suite",
+   "Stack"
+  ]
+ },
+ "dependencies": {
+  "parent": "c3d19605a3b40f86461e4e72fe4bcf82fb4c6acd",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples",
+   "server"
+  ],
+  "sourceImports": [
+   "7982cd350eb2156b8e994448fc24c6ca5ef6706b",
+   "514d89cd44090b5737976110fd9e7c7242a619f9",
+   "c3d19605a3b40f86461e4e72fe4bcf82fb4c6acd"
+  ],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "c3d19605a3b40f86461e4e72fe4bcf82fb4c6acd",
+  "next": "120b9dbd09cfcfe7de042abcbae1b4593f0aebc9",
+  "epicFirst": "56054fdb2f3852db59d2e663a0e84beff2904624",
+  "epicLast": "dc151173e420d6ce8fda47487037fbb20a84711e",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 2,
+  "added": 402,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/Suite.ts",
+   "mode": "100644",
+   "blob": "f688c98234036c26c6afc753c79b1c0eb79f28af",
+   "previousBlob": null,
+   "added": 51,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/ui/e2e/Stack.ts",
+   "mode": "100644",
+   "blob": "07b477faace272021f4a3c59db33cc9e05440d63",
+   "previousBlob": null,
+   "added": 351,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}

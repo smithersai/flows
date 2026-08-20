@@ -1,0 +1,182 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "d4cd0efc35f3f1a08681e87546521f3ac7977b90",
+ "tree": "e28843dd65a5673281dc5b2df485d34a72b6bb19",
+ "epic": {
+  "index": 8,
+  "id": "control",
+  "name": "Model, memory, notification and control services",
+  "sourceCommit": "89096a990d02299ba490aa5b067fa1d83548adbd",
+  "sourceSubject": "✨ feat(control): add model, memory, notification, and control services",
+  "childIndex": 43,
+  "childCount": 66,
+  "head": "28962374658aba2757a5405dab6454616510b6b6"
+ },
+ "atomic": {
+  "globalIndex": 368,
+  "globalCount": 845,
+  "purpose": "✅ test(model): cover model, fixtures/anthropic, fixtures/openai",
+  "type": "test",
+  "kind": "tests",
+  "scope": "model",
+  "component": "packages/model",
+  "unitKey": "test",
+  "mergedUnitKeys": [
+   "test",
+   "test/fixtures/anthropic",
+   "test/fixtures/openai"
+  ]
+ },
+ "dependencies": {
+  "parent": "5d7f346b5c7d5b6d6470e58b2aed91e31cba613a",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring"
+  ],
+  "sourceImports": [],
+  "packageDependencies": [
+   {
+    "package": "@smthrs/capability",
+    "commit": "0939949b073e11e8e6015e4bed6d5c9910aeafb1"
+   },
+   {
+    "package": "@smthrs/kernel",
+    "commit": "0c4359b39616cb8ff64012063ce2f224e6805bff"
+   }
+  ]
+ },
+ "related": {
+  "previous": "5d7f346b5c7d5b6d6470e58b2aed91e31cba613a",
+  "next": "a4fb6e6d1f57792cbb3cdea6d3616f01f9e5ba00",
+  "epicFirst": "65dffaa9668923ae816eeaa5bce0901a958729b0",
+  "epicLast": "28962374658aba2757a5405dab6454616510b6b6",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 10,
+  "added": 152,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "packages/model/test/CommonJsBuild.test.ts",
+   "mode": "100644",
+   "blob": "080be116846636bded4df1b6398d00c127b6c2e1",
+   "previousBlob": null,
+   "added": 34,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/test/fixtures/anthropic/abort-mid-stream.sse",
+   "mode": "100644",
+   "blob": "768da05a1294963ed1a94d2ebceb85e47d70782e",
+   "previousBlob": null,
+   "added": 9,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/test/fixtures/anthropic/text.sse",
+   "mode": "100644",
+   "blob": "2aea189d5ce1bae0edaddc2dd3e4efc4b2a8b2c9",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/test/fixtures/anthropic/tool-call.sse",
+   "mode": "100644",
+   "blob": "2aa1d106c74b62343452ed41e91bc459e8e1967a",
+   "previousBlob": null,
+   "added": 21,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/test/fixtures/anthropic/usage.sse",
+   "mode": "100644",
+   "blob": "44c441ad4912ebca51ed06833edb1a9dc11f5262",
+   "previousBlob": null,
+   "added": 9,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/test/fixtures/openai/abort-mid-stream.sse",
+   "mode": "100644",
+   "blob": "c21f2b40ede45071f1ad718274038fe19ffb6695",
+   "previousBlob": null,
+   "added": 5,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/test/fixtures/openai/reasoning-tool-call.sse",
+   "mode": "100644",
+   "blob": "f30a927d0f5f76a2b6d770a4069bfd781d84335a",
+   "previousBlob": null,
+   "added": 17,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/test/fixtures/openai/text.sse",
+   "mode": "100644",
+   "blob": "c691044fd193fa03ed02b5c5c305ea126fd88381",
+   "previousBlob": null,
+   "added": 14,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/test/fixtures/openai/tool-call.sse",
+   "mode": "100644",
+   "blob": "9bdc8e07e6dfc281247e276d95465fa86bd0a1e2",
+   "previousBlob": null,
+   "added": 14,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  },
+  {
+   "change": "A",
+   "path": "packages/model/test/fixtures/openai/usage.sse",
+   "mode": "100644",
+   "blob": "b36aafbac943e83e46382ba43427fc90c0116821",
+   "previousBlob": null,
+   "added": 8,
+   "deleted": 0,
+   "binary": false,
+   "role": "test"
+  }
+ ]
+}

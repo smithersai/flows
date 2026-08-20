@@ -1,0 +1,130 @@
+{
+ "schemaVersion": 3,
+ "kind": "atomic-bootstrap-commit",
+ "commit": "2c25981c24aef87a1fdfa30d6bffe1fb102ab93e",
+ "tree": "1cbd08bfb7d0c0dac340e1ad4bd4b194276ba5a4",
+ "epic": {
+  "index": 13,
+  "id": "server",
+  "name": "Shared application contracts and worker backend",
+  "sourceCommit": "5e1bcec6b1db3f2e990cb2b79bec0050dfc34ba3",
+  "sourceSubject": "✨ feat(server): add shared application contracts and worker backend",
+  "childIndex": 8,
+  "childCount": 20,
+  "head": "b02e63ed129878a014ee9484e2d27a74aba94be1"
+ },
+ "atomic": {
+  "globalIndex": 636,
+  "globalCount": 845,
+  "purpose": "✨ feat(server): add the scripts/canary modules (1/3)",
+  "type": "feat",
+  "kind": "module",
+  "scope": "server",
+  "component": "apps/server",
+  "unitKey": "dir:scripts/canary",
+  "mergedUnitKeys": null
+ },
+ "dependencies": {
+  "parent": "96fa5a64bacd65349e5b825a3d410ec3125a1bb1",
+  "epicPredecessors": [
+   "repo",
+   "core",
+   "storage",
+   "flow",
+   "host",
+   "engine-store",
+   "authoring",
+   "control",
+   "agent",
+   "platform",
+   "build",
+   "examples"
+  ],
+  "sourceImports": [],
+  "packageDependencies": []
+ },
+ "related": {
+  "previous": "96fa5a64bacd65349e5b825a3d410ec3125a1bb1",
+  "next": "b92eb96c297d603abb2b25e68abef5b3395c529d",
+  "epicFirst": "210032b4effd3e4b5015806fab6679f7153e0fef",
+  "epicLast": "b02e63ed129878a014ee9484e2d27a74aba94be1",
+  "bootstrapHead": "e0e62c6484beb8268f1f3c7dd72e2f9dcde413c3"
+ },
+ "size": {
+  "files": 6,
+  "added": 1345,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "whole-file introduction from the epic source tree",
+  "exact": true
+ },
+ "paths": [
+  {
+   "change": "A",
+   "path": "apps/server/scripts/canary/build-probe.ts",
+   "mode": "100644",
+   "blob": "9023cf0e5712a76d244ad40e7a4525a076adff1e",
+   "previousBlob": null,
+   "added": 201,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/server/scripts/canary/BuildStamp.ts",
+   "mode": "100644",
+   "blob": "e67b7e858930bfdf26104228ae7eeae75315f863",
+   "previousBlob": null,
+   "added": 287,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/server/scripts/canary/invite-probe.ts",
+   "mode": "100644",
+   "blob": "9f4f686d38c23d438f87534bb8ed4e67f4a18f99",
+   "previousBlob": null,
+   "added": 222,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/server/scripts/canary/invite-verdict.ts",
+   "mode": "100644",
+   "blob": "bb9d17d4150411e1080232f902b08697de3e45b1",
+   "previousBlob": null,
+   "added": 239,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/server/scripts/canary/rollback-probe.ts",
+   "mode": "100644",
+   "blob": "46a6a90649a9e87d7dbc67d2b9f4c3a73b7ff410",
+   "previousBlob": null,
+   "added": 172,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  },
+  {
+   "change": "A",
+   "path": "apps/server/scripts/canary/rollback-verdict.ts",
+   "mode": "100644",
+   "blob": "eebd81e20c39a4c754f36f2f73bdd7afdea04335",
+   "previousBlob": null,
+   "added": 224,
+   "deleted": 0,
+   "binary": false,
+   "role": "src"
+  }
+ ]
+}
