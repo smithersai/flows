@@ -35,10 +35,18 @@ export class DisciplineArmed extends Schema.TaggedClass<DisciplineArmed>(
   readOnlyCap: Schema.Number,
   /** The frame budget the run stops at. */
   maxFrames: Schema.Number,
-  /** The per-call wall-clock budget one flow call runs under, in milliseconds. */
-  callMs: Schema.Number,
-  /** The whole-evaluation ceiling one cell runs under, in milliseconds. */
-  totalMs: Schema.Number
+  /** Maximum calls per cell, when this binding can enforce one. */
+  calls: Schema.optional(Schema.Number),
+  /** Maximum sandbox heap, when this binding can enforce one. */
+  memoryBytes: Schema.optional(Schema.Number),
+  /** Maximum interpreter steps, when this binding can enforce one. */
+  steps: Schema.optional(Schema.Number),
+  /** Maximum cell-compute time, when this binding can enforce one. */
+  timeMs: Schema.optional(Schema.Number),
+  /** Maximum whole-evaluation time, when this binding can enforce one. */
+  totalMs: Schema.optional(Schema.Number),
+  /** Maximum wall-clock time for one flow call. */
+  callMs: Schema.optional(Schema.Number)
 }) {}
 
 /**

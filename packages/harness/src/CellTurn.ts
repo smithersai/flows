@@ -1198,8 +1198,7 @@ export const run = (
             auditCompletion: current.auditCompletion,
             readOnlyCap: current.readOnlyCap,
             maxFrames: current.maxFrames,
-            callMs: limits.callMs ?? Sandbox.defaultLimits.callMs,
-            totalMs: limits.totalMs ?? Sandbox.defaultLimits.totalMs
+            ...limits
           })
         )
       }

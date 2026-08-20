@@ -186,15 +186,16 @@ describe("CellTurn", () => {
       ]
     })
 
-    expect(of(events, "discipline-armed")).toEqual([
+    const armed = of(events, "discipline-armed")
+    expect(armed).toEqual([
       expect.objectContaining({
         auditCompletion: true,
         readOnlyCap: 3,
         maxFrames: 2,
-        callMs: Sandbox.defaultLimits.callMs,
-        totalMs: Sandbox.defaultLimits.totalMs
+        callMs: Sandbox.defaultLimits.callMs
       })
     ])
+    expect(armed[0]).not.toHaveProperty("totalMs")
     expect(events[0]?._tag).toBe("discipline-armed")
   })
 

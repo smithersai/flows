@@ -209,7 +209,7 @@ const invalidLimit = (name: keyof Limits, requirement: string): SandboxError =>
 const validateLimits = (limits: Limits | undefined): SandboxError | undefined => {
   if (limits === undefined) return undefined
 
-  for (const name of ["calls", "steps", "timeMs", "callMs"] as const) {
+  for (const name of ["calls", "steps", "timeMs", "totalMs", "callMs"] as const) {
     const value = limits[name]
     if (value !== undefined && (!Number.isSafeInteger(value) || value < 0)) {
       return invalidLimit(name, "a non-negative safe integer")
@@ -405,6 +405,19 @@ interface Pending {
 export const callTimeoutTag = "flows/harness/Sandbox/CallTimedOut"
 
 /**
+ * The stable exception name a cell sees for an over-budget flow call.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const callTimeoutErrorName = "FlowCallTimeoutError"
+
+const seconds = (milliseconds: number): string => {
+  const value = milliseconds / 1_000
+  return Number.isInteger(value) ? String(value) : value.toFixed(3).replace(/0+$/, "")
+}
+
+/**
  * Settles one overrunning flow call as a catchable failure.
  *
  * The message is written for the model, because the model is who reads it: it
@@ -418,9 +431,9 @@ const callTimedOut = (flow: string, callMs: number): Cell.CallResult =>
   new Cell.CallResult({
     outcome: "failure",
     value: { _tag: callTimeoutTag, flow, budgetMs: callMs },
-    message: `Flow ${flow} did not settle within ${
-      Math.round(callMs / 1000)
-    } seconds and was cancelled. Narrow the call — a smaller root, a tighter pattern, a shorter command — and issue it again.`
+    message: `Flow ${flow} timed out after ${
+      seconds(callMs)
+    } seconds. Narrow the call — a smaller root, a tighter pattern, a shorter command — and issue it again.`
   })
 
 /**
@@ -719,7 +732,11 @@ const raised = (error: unknown): Cell.Raised => {
  */
 const callFailure = (result: Cell.CallResult): Error => {
   const error = new Error(result.message ?? "The flow call failed")
-  error.name = "FlowCallError"
+  error.name = result.value !== null && typeof result.value === "object" && "_tag" in result.value &&
+      result.value._tag === callTimeoutTag
+    ? callTimeoutErrorName
+    : "FlowCallError"
+  Object.assign(error, { value: result.value })
   return error
 }
 
@@ -756,6 +773,7 @@ export const makeRestricted = (): Sandbox =>
         if (evaluation.limits?.memoryBytes !== undefined) return yield* unsupportedLimit("memory")
         if (evaluation.limits?.steps !== undefined) return yield* unsupportedLimit("step")
         if (evaluation.limits?.timeMs !== undefined) return yield* unsupportedLimit("time")
+        if (evaluation.limits?.totalMs !== undefined) return yield* unsupportedLimit("whole-evaluation time")
         const compiled = compile(evaluation.cell)
         if (compiled instanceof Cell.Rejected) return compiled
 

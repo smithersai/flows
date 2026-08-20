@@ -153,6 +153,10 @@ export const trace = (
           auditCompletion: event.auditCompletion,
           readOnlyCap: event.readOnlyCap,
           maxFrames: event.maxFrames,
+          calls: event.calls,
+          memoryBytes: event.memoryBytes,
+          steps: event.steps,
+          timeMs: event.timeMs,
           callMs: event.callMs,
           totalMs: event.totalMs
         }

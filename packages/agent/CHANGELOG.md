@@ -29,6 +29,10 @@
 
 ### Added
 
+- Journaled `control.agent.discipline-armed` once at run start with the
+  completion audit, read-only and frame caps, and every effective sandbox
+  limit, so a run that never reaches completion still proves what it armed.
+
 - Added `Agent.Options.readOnlyCap`, armed by `AgentSession` for every task run
   (`AgentSession.Options.readOnlyCap`, default `CellTurn.defaultReadOnlyFrames`).
   It caps consecutive frames that write nothing; a run that is meant only to

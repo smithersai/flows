@@ -18,37 +18,42 @@ field that names them would be a leak — hence the assertion below.
 import json
 import sys
 
-from swebench.harness.constants import MAP_REPO_VERSION_TO_SPECS
-
 LEAKY = ("FAIL_TO_PASS", "PASS_TO_PASS")
 
 
-def main() -> int:
-    dataset_path, instance_id = sys.argv[1], sys.argv[2]
-    with open(dataset_path, encoding="utf-8") as handle:
-        rows = json.load(handle)
-
+def command_for(rows: list[dict], specs: dict, instance_id: str) -> str:
+    """Resolve one safe repository-level test command or raise ValueError."""
     matches = [row for row in rows if row["instance_id"] == instance_id]
     if not matches:
-        print(f"unknown instance {instance_id}", file=sys.stderr)
-        return 1
+        raise ValueError(f"unknown instance {instance_id}")
     instance = matches[0]
 
-    spec = MAP_REPO_VERSION_TO_SPECS.get(instance["repo"], {}).get(instance["version"], {})
+    spec = specs.get(instance["repo"], {}).get(instance["version"], {})
     command = spec.get("test_cmd")
     if not command:
-        print(
-            f"no test_cmd for {instance['repo']} {instance['version']}",
-            file=sys.stderr,
-        )
-        return 1
+        raise ValueError(f"no test_cmd for {instance['repo']} {instance['version']}")
 
     if isinstance(command, list):
         command = " && ".join(command)
     for field in LEAKY:
         if field in command:
-            print(f"refusing to print a command naming {field}", file=sys.stderr)
-            return 1
+            raise ValueError(f"refusing to print a command naming {field}")
+
+    return command
+
+
+def main() -> int:
+    from swebench.harness.constants import MAP_REPO_VERSION_TO_SPECS
+
+    dataset_path, instance_id = sys.argv[1], sys.argv[2]
+    with open(dataset_path, encoding="utf-8") as handle:
+        rows = json.load(handle)
+
+    try:
+        command = command_for(rows, MAP_REPO_VERSION_TO_SPECS, instance_id)
+    except ValueError as error:
+        print(error, file=sys.stderr)
+        return 1
 
     print(command)
     return 0

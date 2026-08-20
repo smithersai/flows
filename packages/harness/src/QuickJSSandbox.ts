@@ -72,7 +72,10 @@ const prelude = (catalog: string, state: string): string =>
       return bridge(flow, encodeInput(input === undefined ? null : input)).then(function (settled) {
         if (settled.ok) return settled.value
         var error = new Error(settled.message)
-        error.name = "FlowCallError"
+        error.name = settled.value && settled.value._tag === ${JSON.stringify(Sandbox.callTimeoutTag)}
+          ? ${JSON.stringify(Sandbox.callTimeoutErrorName)}
+          : "FlowCallError"
+        error.value = settled.value
         throw error
       })
     },
@@ -286,9 +289,13 @@ const evaluate = (
           reply(
             result.outcome === "success"
               ? { ok: true, value: result.value ?? null }
-              : { ok: false, message: result.message ?? "The flow call failed" }
+              : {
+                ok: false,
+                message: result.message ?? "The flow call failed",
+                value: result.value
+              }
           ),
-        abort: (message) => reply({ ok: false, message })
+        abort: (message) => reply({ ok: false, message, value: null })
       })
       return deferred.handle
     })
