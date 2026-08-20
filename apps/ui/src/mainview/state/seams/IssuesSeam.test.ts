@@ -394,7 +394,7 @@ describe("issues seam — source-only fallback (repo not imported)", () => {
 		await settled();
 		const card = cardOfKind(store, "issues-will/flows", "issue-list");
 		expect(card.title).toBe("Issues · will/flows");
-		expect(card.body).toBe("Read from GitHub — import for full features: /repos.import will/flows");
+		expect(card.body).toBe("Read from GitHub while repository preparation completes.");
 		expect(card.payload.repo).toBe("will/flows");
 		expect(card.payload.filter).toBe("open");
 		// GitHub spellings land in the same rows: user.login → author, comments → comments.
@@ -458,7 +458,7 @@ describe("issues seam — source-only fallback (repo not imported)", () => {
 		expect(store.collections.cards.get("issues-will/flows")).toBeUndefined();
 	});
 
-	test("issues.view on a 404 states that detail needs the import — no per-issue source read exists", async () => {
+	test("issues.view on a 404 states that detail waits for preparation — no per-issue source read exists", async () => {
 		const calls: string[] = [];
 		const { store, controller } = await issuesController(
 			backend({ "GET /api/repos/will/flows/issues/7": json(404, { message: "not found" }) }, calls),
@@ -467,7 +467,9 @@ describe("issues seam — source-only fallback (repo not imported)", () => {
 		expect(outcome.status).toBe("failed");
 		if (outcome.status === "failed") {
 			expect(outcome.error).toContain("Issue #7 in will/flows answered 404");
-			expect(outcome.error).toContain("run /repos.import will/flows");
+			// Importing is background work now: the read never asks the human for it.
+			expect(outcome.error).toContain("still being prepared");
+			expect(outcome.error).not.toContain("/repos.import");
 		}
 		expect(calls.some((call) => call.includes("/api/user/github-repos/"))).toBe(false);
 		expect(store.collections.cards.get("issue-will/flows-7")).toBeUndefined();
@@ -487,7 +489,7 @@ describe("issues seam — source-only fallback (repo not imported)", () => {
 			const outcome = await controller.commands.run(command, args);
 			expect(outcome.status).toBe("failed");
 			if (outcome.status === "failed") {
-				expect(outcome.error).toBe("will/flows isn't imported yet — run /repos.import will/flows first");
+				expect(outcome.error).toBe("will/flows isn't ready yet — try again shortly");
 			}
 		}
 		// Zero fallback traffic: the GET-only source namespace was never touched.

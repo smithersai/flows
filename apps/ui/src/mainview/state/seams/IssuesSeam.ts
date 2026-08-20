@@ -206,9 +206,9 @@ export const createIssuesSeam = (ctx: SeamContext): IssuesSeam => {
 			// githubRepoMetadata.ts), so the detail cannot degrade; state that.
 			if (issueResponse.status === 404) {
 				return (
-					`Issue #${number} in ${repo} answered 404. If ${repo} isn't imported, ` +
-					`only the issue list can read from GitHub — issue detail needs the ` +
-					"repository preparation is still running"
+					`Issue #${number} in ${repo} answered 404. Only the issue list can read ` +
+					`from GitHub while ${repo} is still being prepared — issue detail waits ` +
+					"for that to finish."
 				);
 			}
 			return readErrorMessage(

@@ -234,7 +234,7 @@ describe("files seam — files.list", () => {
 		const outcome = await controller.commands.run("files.list", "src acme/ghost");
 		expect(outcome.status).toBe("failed");
 		if (outcome.status === "failed") {
-			expect(outcome.error).toBe("acme/ghost isn't imported yet — run /repos.import acme/ghost first");
+			expect(outcome.error).toBe("acme/ghost isn't ready yet — try again shortly");
 		}
 		expect(listCard(store, "files-acme/ghost-src")).toBeUndefined();
 	});
@@ -312,7 +312,7 @@ describe("files seam — files.read", () => {
 		const outcome = await controller.commands.run("files.read", "README.md acme/ghost");
 		expect(outcome.status).toBe("failed");
 		if (outcome.status === "failed") {
-			expect(outcome.error).toBe("acme/ghost isn't imported yet — run /repos.import acme/ghost first");
+			expect(outcome.error).toBe("acme/ghost isn't ready yet — try again shortly");
 		}
 	});
 });

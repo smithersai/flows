@@ -445,7 +445,7 @@ describe("wave 10 — /clear sweeps before it clears (§2h)", () => {
 		const controller = createAppController(store, unavailableRepositories, silentAgent(), {
 			...backend(
 				{
-					"/api/agent/turn": () =>
+					"/api/model/stream": () =>
 						new Response(
 							`${JSON.stringify({ runId: "sweep", type: "delta", kind: "text", text: '{"notes":[{"title":"Prefers dark mode","body":"The user keeps the app in dark mode.","confidence":0.9}]}' })}\n${JSON.stringify({ runId: "sweep", type: "done" })}\n`,
 							{ status: 200, headers: { "content-type": "application/x-ndjson" } },
@@ -468,7 +468,7 @@ describe("wave 10 — /clear sweeps before it clears (§2h)", () => {
 		await settled();
 
 		// The sweep rode the comped chat path with the transcript.
-		expect(calls.some((call) => call.path === "/api/agent/turn" && call.method === "POST")).toBe(true);
+		expect(calls.some((call) => call.path === "/api/model/stream" && call.method === "POST")).toBe(true);
 		// The note landed in world with the house provenance BEFORE the clear.
 		const notes = [...store.collections.worldDocuments.values()].filter((document) =>
 			document.sources.includes("chat-sweep"),
@@ -491,7 +491,7 @@ describe("wave 10 — /clear sweeps before it clears (§2h)", () => {
 		const store = await webStore();
 		const controller = createAppController(store, unavailableRepositories, silentAgent(), {
 			...backend({
-				"/api/agent/turn": json(500, { status: "error", message: "chat upstream down" }),
+				"/api/model/stream": json(500, { status: "error", message: "chat upstream down" }),
 			}),
 		});
 		await signIn(store);
@@ -514,7 +514,7 @@ describe("wave 10 — /clear sweeps before it clears (§2h)", () => {
 		const store = await webStore();
 		const controller = createAppController(store, unavailableRepositories, silentAgent(), {
 			...backend({
-				"/api/agent/turn": () =>
+				"/api/model/stream": () =>
 					new Response(
 						`${JSON.stringify({ runId: "sweep", type: "delta", kind: "text", text: '{"notes":[]}' })}\n${JSON.stringify({ runId: "sweep", type: "done" })}\n`,
 						{ status: 200, headers: { "content-type": "application/x-ndjson" } },
