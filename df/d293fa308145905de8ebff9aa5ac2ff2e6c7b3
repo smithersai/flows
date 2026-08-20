@@ -1,0 +1,109 @@
+{
+ "schemaVersion": 3,
+ "kind": "replayed-main-commit",
+ "commit": "dfd293fa308145905de8ebff9aa5ac2ff2e6c7b3",
+ "tree": "4ddcd3ff02068e71405cd32fb8ac1be5ff0a9b1b",
+ "relevance": {
+  "retained": true,
+  "reason": "retained source change on the canonical main line after the 18-epic bootstrap; it carries product behaviour, its tests, or the documentation that states the behaviour",
+  "section": "post-bootstrap replay",
+  "indexInSection": 74,
+  "sectionCount": 83
+ },
+ "source": {
+  "commit": "232f58234b0b9c6847490dbb3dc3d8db437107e2",
+  "subject": "📝 docs(ui): grade the first open, the flows rows, and the page before hydration",
+  "priorCanonicalCommit": "e0ddb1987a46238e9a6fa4996f92381848952500",
+  "treeEqualToSource": true,
+  "indexOnSourceLine": 62,
+  "sourceLineCount": 71,
+  "subjectRewritten": false,
+  "rewriteReason": null,
+  "line": "canonical main development line above the 18-epic bootstrap, mirrored append-only into refs/heads/vibe",
+  "appendOnlyMirror": "eff700454cd3f6266502cada7c05a7313835c373",
+  "mirrorTreeEqualsBootstrapHeadTree": true,
+  "rebuild": {
+   "reason": "rebuilt onto the 13-commit split of canonical commit 2632c05da63099666add6437c743f4c5b3922f59",
+   "priorCanonicalCommit": "e0ddb1987a46238e9a6fa4996f92381848952500",
+   "treePreserved": true,
+   "tree": "4ddcd3ff02068e71405cd32fb8ac1be5ff0a9b1b"
+  }
+ },
+ "epic": {
+  "membership": "post-bootstrap",
+  "conceptualEpic": "ui",
+  "epicsTouched": [
+   {
+    "id": "ui",
+    "files": 1
+   }
+  ],
+  "bootstrapEpicCount": 18
+ },
+ "atomic": {
+  "globalIndex": 912,
+  "globalCount": 921,
+  "purpose": "📝 docs(ui): grade the first open, the flows rows, and the page before hydration",
+  "merge": false
+ },
+ "dependencies": {
+  "parents": [
+   "1c729265d2ae5e67e90581febc3e76540a3decd6"
+  ],
+  "parent": "1c729265d2ae5e67e90581febc3e76540a3decd6",
+  "sourceImports": [],
+  "packageDependencies": [],
+  "unresolvedRelativeImports": []
+ },
+ "importCycles": [],
+ "related": {
+  "previous": "1c729265d2ae5e67e90581febc3e76540a3decd6",
+  "next": "0b19817822da159fe5b5d7e00befb55b08d33e7a",
+  "bootstrapHead": "fffae75b8237d90c06e1e523162a7fe23b56959e",
+  "sectionFirst": "b9fc7e41632ba584ff7dfd832af8ebd8e61248c1",
+  "sectionLast": "6fe6857b28247375ab46b0d79cba15e74754ebd6"
+ },
+ "size": {
+  "files": 1,
+  "added": 18,
+  "deleted": 0
+ },
+ "provenance": {
+  "strategy": "verbatim replay of the source commit tree onto the atomic bootstrap",
+  "exact": true,
+  "treeEqualToSource": true,
+  "sourceCommit": "232f58234b0b9c6847490dbb3dc3d8db437107e2"
+ },
+ "paths": [
+  {
+   "change": "M",
+   "path": "apps/ui/MANUAL-REVIEW-CHECKLIST.md",
+   "mode": "100644",
+   "blob": "6ba02a33253026b4b4db2db0aafadad22ccfc337",
+   "previousBlob": "130e297c6994faf61782a05add72d7cc10d70018",
+   "added": 18,
+   "deleted": 0,
+   "binary": false,
+   "hunks": [
+    {
+     "oldStart": 69,
+     "oldLines": 0,
+     "newStart": 70,
+     "newLines": 6
+    },
+    {
+     "oldStart": 364,
+     "oldLines": 0,
+     "newStart": 371,
+     "newLines": 12
+    }
+   ],
+   "role": "docs",
+   "introducedByEpic": {
+    "index": 14,
+    "id": "ui",
+    "name": "Native graphical application"
+   }
+  }
+ ]
+}
