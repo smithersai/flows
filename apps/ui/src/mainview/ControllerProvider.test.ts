@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { AppController } from "./state/AppController";
 import type { BootSession } from "./BootSession";
-import { createControllerBoot } from "./ControllerProvider";
+import { createControllerBoot } from "./ControllerBootMemo";
 
 /*
  * The boot memo used to pin the FIRST session forever: a module-scope promise
@@ -35,8 +35,8 @@ describe("createControllerBoot", () => {
 		const second = boot(sessionB);
 		expect(second).not.toBe(first);
 		expect(loads).toBe(2);
-		expect(((await first) as { login: string | null }).login).toBe("a");
-		expect(((await second) as { login: string | null }).login).toBeNull();
+		expect(((await first) as unknown as { login: string | null }).login).toBe("a");
+		expect(((await second) as unknown as { login: string | null }).login).toBeNull();
 		// The first session's boot is not displaced retroactively: asking again
 		// for the CURRENT session reuses the current boot.
 		expect(boot(sessionB)).toBe(second);
