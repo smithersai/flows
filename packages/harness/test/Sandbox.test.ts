@@ -296,6 +296,81 @@ for (const [name, binding] of bindings) {
       })
     })
 
+    it("settles a stalled flow call at its own budget as a catchable failure", async () => {
+      // The defect this bounds: a broad `grep` that never settled held its
+      // frame for the whole 900,000 ms evaluation ceiling and was reported to
+      // the model as nothing at all. A per-call budget answers the call
+      // instead, inside the frame the cell is still running.
+      let entered = false
+      const outcome = await evaluate(
+        binding,
+        `try {
+           await ctx.call("fs/list", {})
+           return { intent: "complete", output: "unreachable" }
+         } catch (error) {
+           return { intent: "complete", output: error.message }
+         }`,
+        {
+          call: () =>
+            Effect.sync(() => {
+              entered = true
+            }).pipe(Effect.andThen(Effect.never)),
+          limits: { callMs: 50 }
+        }
+      )
+
+      expect(entered).toBe(true)
+      expect((outcome as Cell.Settled).transition).toMatchObject({
+        _tag: "complete",
+        output:
+          "Flow fs/list did not settle within 0 seconds and was cancelled. Narrow the call — a smaller root, a tighter pattern, a shorter command — and issue it again."
+      })
+    })
+
+    it("leaves the frame alive after a timed-out call, so a narrower call still runs", async () => {
+      const observed: Array<Sandbox.Invocation> = []
+      const outcome = await evaluate(
+        binding,
+        `try {
+           await ctx.call("fs/list", { path: "." })
+         } catch {
+           const narrowed = await ctx.call("fs/list", { path: "django" })
+           return { intent: "complete", output: narrowed.entries.join(",") }
+         }
+         return { intent: "complete", output: "unreachable" }`,
+        {
+          call: (invocation) => {
+            observed.push(invocation)
+            return invocation.ordinal === 0
+              ? Effect.never
+              : Effect.succeed(new Cell.CallResult({ outcome: "success", value: { entries: ["sites.py"] } }))
+          },
+          limits: { callMs: 50 }
+        }
+      )
+
+      expect(observed.map((call) => call.input)).toEqual([{ path: "." }, { path: "django" }])
+      expect((outcome as Cell.Settled).transition).toMatchObject({ _tag: "complete", output: "sites.py" })
+    })
+
+    it("does not charge a settled call against the next call's budget", async () => {
+      const outcome = await evaluate(
+        binding,
+        `await ctx.call("fs/list", { path: "one" })
+         await ctx.call("fs/list", { path: "two" })
+         return { intent: "complete", output: "both" }`,
+        {
+          call: () =>
+            Effect.sleep(120).pipe(
+              Effect.as(new Cell.CallResult({ outcome: "success", value: null }))
+            ),
+          limits: { callMs: 300, timeMs: undefined }
+        }
+      )
+
+      expect((outcome as Cell.Settled).transition).toMatchObject({ _tag: "complete", output: "both" })
+    })
+
     it("exposes the catalog, the state, and nothing else on the frozen context", async () => {
       const outcome = await evaluate(
         binding,
@@ -436,13 +511,15 @@ describe("Sandbox projections", () => {
         memoryBytes: Sandbox.defaultLimits.memoryBytes,
         steps: Sandbox.defaultLimits.steps + 1,
         timeMs: Sandbox.defaultLimits.timeMs,
-        totalMs: Sandbox.defaultLimits.totalMs
+        totalMs: Sandbox.defaultLimits.totalMs,
+        callMs: Sandbox.defaultLimits.callMs
       },
       {
         memoryBytes: Sandbox.defaultLimits.memoryBytes + 1,
         steps: Sandbox.defaultLimits.steps + 1,
         timeMs: Sandbox.defaultLimits.timeMs + 1,
-        totalMs: Sandbox.defaultLimits.totalMs
+        totalMs: Sandbox.defaultLimits.totalMs,
+        callMs: Sandbox.defaultLimits.callMs
       }
     ])
   })

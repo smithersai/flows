@@ -144,6 +144,19 @@ export const trace = (
   switch (event._tag) {
     case "model-delta":
       return undefined
+    case "discipline-armed":
+      // The positive record of what this run armed, written before any of it
+      // can fire. A run that never completes still proves its arming here.
+      return {
+        eventType: "control.agent.discipline-armed",
+        payload: {
+          auditCompletion: event.auditCompletion,
+          readOnlyCap: event.readOnlyCap,
+          maxFrames: event.maxFrames,
+          callMs: event.callMs,
+          totalMs: event.totalMs
+        }
+      }
     case "turn-opened":
       return {
         eventType: "control.agent.turn-opened",

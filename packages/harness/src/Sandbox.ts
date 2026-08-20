@@ -135,6 +135,19 @@ export interface Limits {
    * cell awaiting a ten-minute test suite is working, not stuck.
    */
   readonly totalMs?: number | undefined
+  /**
+   * Maximum wall-clock time one flow call may take, in milliseconds; a
+   * non-negative safe integer.
+   *
+   * The per-call budget {@link totalMs} cannot supply. `totalMs` is the frame's
+   * last resort, and a call that overruns it takes the whole frame down with a
+   * `limit_exceeded` rejection the model never sees as an answer: on the
+   * SWE-bench django instance one broad `grep` held its cell for the entire
+   * 900,000 ms ceiling, 75% of a 1,204-second run. This ceiling settles that
+   * same call as an ordinary catchable failure instead, so the cell observes a
+   * timeout it can narrow and retry inside the frame it is already in.
+   */
+  readonly callMs?: number | undefined
 }
 
 /**
@@ -168,7 +181,8 @@ export const defaultLimits = Object.freeze({
   memoryBytes: 128 * 1024 * 1024,
   steps: 1000,
   timeMs: 30_000,
-  totalMs: 900_000
+  totalMs: 900_000,
+  callMs: 120_000
 })
 
 /**
@@ -195,7 +209,7 @@ const invalidLimit = (name: keyof Limits, requirement: string): SandboxError =>
 const validateLimits = (limits: Limits | undefined): SandboxError | undefined => {
   if (limits === undefined) return undefined
 
-  for (const name of ["calls", "steps", "timeMs"] as const) {
+  for (const name of ["calls", "steps", "timeMs", "callMs"] as const) {
     const value = limits[name]
     if (value !== undefined && (!Number.isSafeInteger(value) || value < 0)) {
       return invalidLimit(name, "a non-negative safe integer")
@@ -237,7 +251,11 @@ export const withDefaults = (
     : {}),
   ...(capabilities.steps && limits?.steps === undefined ? { steps: defaultLimits.steps } : {}),
   ...(capabilities.timeMs && limits?.timeMs === undefined ? { timeMs: defaultLimits.timeMs } : {}),
-  ...(capabilities.timeMs && limits?.totalMs === undefined ? { totalMs: defaultLimits.totalMs } : {})
+  ...(capabilities.timeMs && limits?.totalMs === undefined ? { totalMs: defaultLimits.totalMs } : {}),
+  // Gated on `calls` rather than on `timeMs`: the per-call budget is enforced
+  // by the shared drive loop, which is exactly the loop a binding that queues
+  // flow calls runs, and not by the interpreter clock `timeMs` describes.
+  ...(capabilities.calls && limits?.callMs === undefined ? { callMs: defaultLimits.callMs } : {})
 })
 
 /**
@@ -374,6 +392,38 @@ interface Pending {
 }
 
 /**
+ * The tag a timed-out call carries in its {@link Cell.CallResult} value.
+ *
+ * A cell that catches the failure can branch on the tag rather than on the
+ * prose, and a grader reading the journal can count timeouts without matching
+ * a message.
+ *
+ * @category constants
+ * @since 0.1.0
+ * @slop
+ */
+export const callTimeoutTag = "flows/harness/Sandbox/CallTimedOut"
+
+/**
+ * Settles one overrunning flow call as a catchable failure.
+ *
+ * The message is written for the model, because the model is who reads it: it
+ * names the flow, the budget it spent, and the one action that recovers the
+ * frame. A rejection at the whole-evaluation ceiling teaches the model nothing
+ * — the frame is already gone by the time it could act.
+ *
+ * @private
+ */
+const callTimedOut = (flow: string, callMs: number): Cell.CallResult =>
+  new Cell.CallResult({
+    outcome: "failure",
+    value: { _tag: callTimeoutTag, flow, budgetMs: callMs },
+    message: `Flow ${flow} did not settle within ${
+      Math.round(callMs / 1000)
+    } seconds and was cancelled. Narrow the call — a smaller root, a tighter pattern, a shorter command — and issue it again.`
+  })
+
+/**
  * The state a binding's driver loop observes.
  *
  * Bindings differ only in how a cell is compiled and how its promises are
@@ -418,11 +468,19 @@ const drive = (
           return new Cell.Rejected({ code: "limit_exceeded", message })
         }
         calls = calls + 1
+        const callMs = limits?.callMs ?? defaultLimits.callMs
         const result = yield* handler({
           ordinal: next.ordinal,
           flow: next.flow,
           input: next.input
         }).pipe(
+          // The per-call ceiling, ahead of the interrupt cleanup below: a call
+          // that overruns is answered, not abandoned, so the cell sees a
+          // catchable failure and the frame keeps its remaining budget.
+          Effect.timeoutOrElse({
+            duration: callMs,
+            orElse: () => Effect.succeed(callTimedOut(next.flow, callMs))
+          }),
           Effect.onExit((exit) =>
             Exit.isSuccess(exit)
               ? Effect.void
