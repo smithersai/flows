@@ -599,6 +599,7 @@ export const baseFlows = (actions: CommandActions): ReadonlyArray<FlowEntry> => 
 	flow({
 		name: "repos.import",
 		summary: "Import a GitHub repository into Smithers Cloud",
+		hidden: true,
 		args: "[owner/repo]",
 		requires: ["signed-in"],
 		input: RepoTarget,

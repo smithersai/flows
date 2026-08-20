@@ -70,6 +70,15 @@ const recoCard: Extract<Card, { kind: "reco" }> = {
 };
 
 describe("the recommendation card (launch checklist A-8)", () => {
+	test("does not claim approval is waiting when the digest has no recommendation", () => {
+		const digestOnly: Card = {
+			...recoCard,
+			payload: { ...recoCard.payload, recommendation: null },
+		};
+		const markup = renderToStaticMarkup(<CardView card={digestOnly} {...cardViewHandlers} />);
+		expect(markup).not.toContain("Waiting for your approval below.");
+	});
+
 	test("renders proposes, why-now, and what-happens from the recommendation payload", () => {
 		const markup = renderToStaticMarkup(<CardView card={recoCard} {...cardViewHandlers} />);
 		expect(markup).toContain(recoCard.payload.recommendation!.proposes);

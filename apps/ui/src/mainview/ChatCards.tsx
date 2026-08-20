@@ -17,7 +17,7 @@ import {
 } from "@smthrs/ui";
 import type { ApprovalState } from "@smthrs/ui";
 import { MarkdownEditor } from "@smthrs/ui/adapters/markdown-editor";
-import { Check, ExternalLink, GitPullRequest, HardDrive, Maximize2, Minimize2, Server } from "lucide-react";
+import { Check, ExternalLink, GitPullRequest, HardDrive, Maximize2, Minimize2 } from "lucide-react";
 import { useState } from "react";
 import type { KeyboardEvent } from "react";
 import type { Card, WorldDocument } from "./state/AppState";
@@ -53,7 +53,10 @@ const pillStatus = (card: Card): string => {
 		if (card.payload.state === "low") return "pending";
 		return "done";
 	}
-	if (card.kind === "reco") return card.status === "acted" ? "done" : "waiting-approval";
+	if (card.kind === "reco") {
+		// A digest without a recommendation is information, not a pending act.
+		return card.status === "acted" ? "done" : card.payload.recommendation === null ? "done" : "waiting-approval";
+	}
 	if (card.kind === "grant-confirm") {
 		if (card.payload.phase === "granted") return "done";
 		if (card.payload.phase === "sending") return "running";
@@ -694,18 +697,6 @@ const ConnectCardBody = ({
 				</Button>
 			</li>
 		) : null}
-		<li className="connect-store-row">
-			<span className="connect-store-icon">
-				<Server size={16} aria-hidden="true" />
-			</span>
-			<span className="connect-store-text">
-				<strong>Smithers Cloud repository</strong>
-				<span>Import a GitHub repository into hosted workspace storage.</span>
-			</span>
-			<Button size="sm" variant="outline" data-flow="repos.import" onClick={() => onRunCommand("repos.import")}>
-				Import
-			</Button>
-		</li>
 	</ul>
 );
 

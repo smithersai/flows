@@ -12,7 +12,6 @@ import {
 	GitPullRequest,
 	HardDrive,
 	Plug,
-	Server,
 	Trash2,
 } from "lucide-react";
 import { useState } from "react";
@@ -46,7 +45,7 @@ export function ConnectorsSurface({ controller }: { readonly controller: AppCont
 
 	interface StoreRow {
 		readonly key: string;
-		readonly icon: "github" | "local" | "cloud";
+		readonly icon: "github" | "local";
 		readonly name: string;
 		readonly description: string;
 		readonly action:
@@ -81,18 +80,6 @@ export function ConnectorsSurface({ controller }: { readonly controller: AppCont
 					} satisfies StoreRow,
 				]
 			: []),
-		{
-			/*
-			 * No longer "coming soon": repos.import mirrors a GitHub repository
-			 * into Smithers Cloud (the platform proxy's import job), tracked by
-			 * the repo-import card.
-			 */
-			key: "cloud",
-			icon: "cloud",
-			name: "Smithers Cloud repository",
-			description: "Import a GitHub repository into hosted workspace storage.",
-			action: { kind: "button", label: "Import", flow: "repos.import" },
-		},
 	];
 
 	const rowIcon = (icon: StoreRow["icon"]) =>
@@ -100,9 +87,7 @@ export function ConnectorsSurface({ controller }: { readonly controller: AppCont
 			<GitPullRequest size={16} aria-hidden="true" />
 		) : icon === "local" ? (
 			<HardDrive size={16} aria-hidden="true" />
-		) : (
-			<Server size={16} aria-hidden="true" />
-		);
+		) : null;
 
 	const onRowsKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
 		if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;

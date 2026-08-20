@@ -27,7 +27,6 @@ import {
 	Plug,
 	Plus,
 	RotateCcw,
-	Server,
 	Sparkles,
 	Sun,
 	Trash2,
@@ -383,16 +382,6 @@ function ComposerConnect({
 		 */
 		...(signedIn
 			? [
-					{
-						key: "repos.import",
-						flow: "repos.import",
-						content: (
-							<>
-								<Server size={14} aria-hidden="true" />
-								Import to Smithers Cloud…
-							</>
-						),
-					},
 					{
 						key: "connect",
 						flow: "connect",
