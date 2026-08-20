@@ -195,6 +195,22 @@ describe("environment seam — env.view", () => {
 });
 
 describe("environment seam — env.set", () => {
+	test("concurrent edits preserve both variables", async () => {
+		const { store, controller } = await freshController();
+		await ready(store);
+		const [first, second] = await Promise.all([
+			controller.commands.run("env.set", "FIRST=1"),
+			controller.commands.run("env.set", "SECOND=2"),
+		]);
+		expect(first.status).toBe("executed");
+		expect(second.status).toBe("executed");
+		expect(envCard(store)?.payload.vars).toEqual([
+			{ name: "CI", value: "1" },
+			{ name: "FIRST", value: "1" },
+			{ name: "SECOND", value: "2" },
+		]);
+	});
+
 	test("merges the pair into the WHOLE document PUT, then re-reads into the card", async () => {
 		const { store, controller, requests } = await freshController();
 		await ready(store);

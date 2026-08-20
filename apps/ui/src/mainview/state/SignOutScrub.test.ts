@@ -43,7 +43,7 @@ const json = (status: number, body: unknown): Response =>
 
 const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-const backend = (routes: Record<string, () => Response>): AppServices => ({
+const backend = (routes: Record<string, () => Response | Promise<Response>>): AppServices => ({
 	fetchImpl: async (input) => {
 		const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
 		const path = new URL(url, "https://app.test").pathname;
@@ -52,12 +52,12 @@ const backend = (routes: Record<string, () => Response>): AppServices => ({
 	},
 });
 
-const signedIn = (store: AppStore): void => {
+const signedIn = (store: AppStore, login = "codeplanesmithers"): void => {
 	store.dispatch({
 		type: "identity.session.loaded",
 		actor: "system",
 		state: "signed-in",
-		login: "codeplanesmithers",
+		login,
 		allowlisted: true,
 		admin: false,
 		scopesPlain: null,
@@ -100,12 +100,30 @@ const seedAccountState = (store: AppStore): void => {
 			},
 		},
 	});
+	store.dispatch({
+		type: "toolcall.recorded",
+		actor: "smithers",
+		turnId: "alice-turn",
+		name: "issues.list",
+		arguments: JSON.stringify({ repo: "alice/private" }),
+		result: JSON.stringify({ title: "private issue" }),
+	});
+	store.dispatch({
+		type: "chain.event.appended",
+		actor: "smithers",
+		lineageId: "alice-chain",
+		seq: 0,
+		event: { _tag: "ChainStarted", goal: "read alice/private", envelope: null },
+	});
 };
 
 const leftovers = (store: AppStore) => ({
 	messages: store.collections.messages.size,
 	cards: store.collections.cards.size,
 	billing: store.collections.billingAccounts.get("billing")?.totalUsd ?? null,
+	billingState: store.collections.billingAccounts.get("billing")?.state ?? null,
+	toolCalls: store.collections.toolCalls.size,
+	chainEvents: store.collections.chainEvents.size,
 });
 
 describe("signing out leaves nothing of the account behind", () => {
@@ -123,7 +141,14 @@ describe("signing out leaves nothing of the account behind", () => {
 
 		await controller.commands.run("auth.sign-out");
 		await settled();
-		expect(leftovers(store)).toEqual({ messages: 0, cards: 0, billing: null });
+		expect(leftovers(store)).toEqual({
+			messages: 0,
+			cards: 0,
+			billing: null,
+			billingState: "unknown",
+			toolCalls: 0,
+			chainEvents: 0,
+		});
 		expect(store.collections.identitySessions.get("identity")?.state).toBe("signed-out");
 	});
 
@@ -140,7 +165,69 @@ describe("signing out leaves nothing of the account behind", () => {
 
 		await controller.loadSession();
 		await settled();
-		expect(leftovers(store)).toEqual({ messages: 0, cards: 0, billing: null });
+		expect(leftovers(store)).toEqual({
+			messages: 0,
+			cards: 0,
+			billing: null,
+			billingState: "unknown",
+			toolCalls: 0,
+			chainEvents: 0,
+		});
+	});
+
+	test("a direct Alice-to-Bob session replacement scrubs Alice before publishing Bob", async () => {
+		const store = await createAppStore({ kind: "localStorage", storage: memoryStorage() });
+		signedIn(store, "alice");
+		seedAccountState(store);
+
+		store.dispatch({
+			type: "identity.session.loaded",
+			actor: "system",
+			state: "signed-in",
+			login: "bob",
+			allowlisted: true,
+			admin: false,
+			scopesPlain: null,
+		});
+		await settled();
+
+		expect(store.collections.identitySessions.get("identity")?.login).toBe("bob");
+		expect(leftovers(store)).toEqual({
+			messages: 0,
+			cards: 0,
+			billing: null,
+			billingState: "unknown",
+			toolCalls: 0,
+			chainEvents: 0,
+		});
+		expect([...store.collections.transitions.values()].every((row) => !row.payload.includes("alice"))).toBe(true);
+	});
+
+	test("an Alice recommendation response cannot repopulate state after sign-out", async () => {
+		let answer!: (response: Response) => void;
+		const delayed = new Promise<Response>((resolve) => {
+			answer = resolve;
+		});
+		const store = await createAppStore({ kind: "localStorage", storage: memoryStorage() });
+		const controller = createAppController(
+			store,
+			unavailableRepositories,
+			unavailableAgent,
+			backend({
+				"/api/reco/first-run": () => delayed,
+				"/api/auth/logout": () => json(200, { ok: true }),
+			}),
+		);
+		signedIn(store, "alice");
+		const pending = controller.loadFirstRunReco();
+		await settled();
+		await controller.commands.run("auth.sign-out");
+		answer(json(200, { degraded: true, honestMessage: "Alice owns alice/private" }));
+		await pending;
+		await settled();
+
+		expect([...store.collections.messages.values()].some((message) => message.text.includes("alice/private"))).toBe(false);
+		expect(store.collections.identitySessions.get("identity")?.state).toBe("signed-out");
 	});
 
 	test("an unavailable identity seam scrubs nothing — silence is not a sign-out", async () => {
