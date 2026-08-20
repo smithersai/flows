@@ -251,6 +251,7 @@ export const projectStateResult = (
       }
       case eventType.cellSettled: {
         const decoded = decode(decodeCellSettled, entry)
+        /* v8 ignore next -- the first pass ran `decodeCellSettled` over every `cellSettled` entry of this same `events` array and returned on failure, and `decode` is a pure function of `entry.payload`, so re-decoding an entry that survived that pass cannot fail; the branch exists because `Result` has no way to carry that proof */
         if (Result.isFailure(decoded)) return Result.fail(decoded.failure)
         if (decoded.success.outcome._tag === "rejected") {
           messages.push({
@@ -269,6 +270,7 @@ export const projectStateResult = (
       }
       case eventType.transitionApplied: {
         const decoded = decode(decodeTransitionApplied, entry)
+        /* v8 ignore next -- as above: the first pass already ran `decodeTransitionApplied` over every `transitionApplied` entry of this same array and returned on failure, so this re-decode of a surviving entry cannot fail */
         if (Result.isFailure(decoded)) return Result.fail(decoded.failure)
         if (decoded.success.transition._tag !== "continue") break
         messages.length = 0

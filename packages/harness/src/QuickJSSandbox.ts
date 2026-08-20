@@ -189,6 +189,18 @@ const timeLimitExceeded = (timeMs: number): Cell.Rejected =>
     message: `This cell exceeded its wall-clock limit of ${timeMs} milliseconds`
   })
 
+/**
+ * The whole-evaluation ceiling for one call.
+ *
+ * `Sandbox.make` runs `Sandbox.withDefaults` over the caller's limits before it
+ * reaches this binding, and `totalMs` is filled whenever the `timeMs`
+ * capability is declared, which this binding declares.
+ */
+const totalMsOf = (evaluation: Sandbox.Evaluation): number => {
+  /* v8 ignore next -- see above: the ceiling always arrives filled, so neither the optional chain nor the coalesce takes its fallback; both only discharge optional types */
+  return evaluation.limits?.totalMs ?? Sandbox.defaultLimits.totalMs
+}
+
 const evaluate = (
   module: QuickJSWASMModule,
   evaluation: Sandbox.Evaluation
@@ -198,6 +210,7 @@ const evaluate = (
     if (compiled instanceof Cell.Rejected) return compiled
 
     const limits = Sandbox.withDefaults(capabilities, evaluation.limits)
+    /* v8 ignore next -- `withDefaults` fills `timeMs` from `defaultLimits` whenever the `timeMs` capability is declared, and this binding declares it, so the coalesce never reaches its fallback; it only discharges the optional type on `Sandbox.Limits` */
     const timeMs = limits.timeMs ?? Sandbox.defaultLimits.timeMs
     // The compute clock's baseline. Host calls shift it forward by their own
     // duration when they settle, so `timeMs` charges the cell for its
@@ -212,6 +225,7 @@ const evaluate = (
     const acquired = yield* Effect.acquireRelease(
       Effect.sync(() => {
         const runtime: QuickJSRuntime = module.newRuntime()
+        /* v8 ignore else -- `withDefaults` fills `memoryBytes` from `defaultLimits` whenever the `memoryBytes` capability is declared, and this binding declares it, so the heap ceiling is always set */
         if (limits.memoryBytes !== undefined) {
           runtime.setMemoryLimit(limits.memoryBytes)
         }
@@ -404,8 +418,8 @@ const evaluate = (
     // enforced by the interrupt handler above; this ceiling only exists so a
     // host call that never settles cannot hold the frame forever.
     Effect.timeoutOrElse({
-      duration: evaluation.limits?.totalMs ?? Sandbox.defaultLimits.totalMs,
-      orElse: () => Effect.succeed(timeLimitExceeded(evaluation.limits?.totalMs ?? Sandbox.defaultLimits.totalMs))
+      duration: totalMsOf(evaluation),
+      orElse: () => Effect.succeed(timeLimitExceeded(totalMsOf(evaluation)))
     })
   )
 

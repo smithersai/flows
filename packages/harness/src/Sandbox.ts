@@ -821,6 +821,7 @@ export const makeRestricted = (): Sandbox =>
         } catch (cause) {
           return new Cell.Rejected({
             code: "compile_failed",
+            /* v8 ignore next -- the `Function` constructor rejects unparseable source with a `SyntaxError` and raises nothing else, so `cause` is always an `Error`; the `String` arm only discharges the `unknown` a `catch` binding is typed as */
             message: `The cell did not compile: ${cause instanceof Error ? cause.message : String(cause)}`
           })
         }

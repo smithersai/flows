@@ -221,6 +221,7 @@ export const candidates = (text: string): ReadonlyArray<string> => {
 }
 
 const issuesOf = (error: unknown): ReadonlyArray<string> => {
+  /* v8 ignore next -- both callers pass an `Error`: `JSON.parse` throws `SyntaxError`, and `Schema.decodeUnknownEffect` fails with `SchemaError`, which extends `Data.TaggedError` and so extends `Error`; the `String` arm only discharges the `unknown` a `catch` binding and a schema failure channel are typed as */
   const rendered = error instanceof Error ? error.message : String(error)
   return rendered.split("\n").map((line) => line.trim()).filter((line) => line.length > 0).slice(0, maxIssues)
 }
