@@ -130,6 +130,7 @@ const GRAMMAR: Readonly<Record<string, (args: string | undefined) => Parsed>> = 
 		return ok(repo === undefined ? { name } : { name, repo });
 	},
 	"card.maximize": (args) => required("cardId", args, "card.maximize needs the card id"),
+	"act.detail": (args) => required("messageId", args, "act.detail needs the act row's id"),
 	// The clipboard text is taken verbatim: trimming would silently rewrite what
 	// the human asked to copy.
 	"copy-message": (args) =>

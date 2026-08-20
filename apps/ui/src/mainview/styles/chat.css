@@ -210,6 +210,34 @@
 	overflow-wrap: anywhere;
 }
 
+/*
+ * The act row's own affordance (will, 2026-08-19). It reads as the same mono
+ * line it always was — the button is the hit area and the keyboard stop, not a
+ * second visual element — and the detail opens under it, inside the row.
+ */
+.app-shell .tool-act-line .tool-act-toggle {
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.app-shell .tool-act-line .tool-act-toggle:hover {
+	color: var(--text);
+}
+
+.app-shell .tool-act-line .tool-act-detail {
+	display: block;
+	margin-top: 2px;
+	padding-left: 8px;
+	border-left: 1px solid var(--border);
+	color: var(--text-muted);
+	overflow-wrap: anywhere;
+}
+
 .app-shell .bubble-system-note .sui-marker-label {
 	padding: 0;
 	border: 0;

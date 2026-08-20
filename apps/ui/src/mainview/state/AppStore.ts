@@ -1731,9 +1731,27 @@ export const createAppStore = async (
 						role: "smithers",
 						text: transition.text,
 						act: transition.text,
+						// An act with nothing to add carries no detail, and a row
+						// with no detail has nothing to open: an honest empty state.
+						...(transition.detail === undefined || transition.detail === ""
+							? {}
+							: { actDetail: transition.detail, actExpanded: false }),
 						status: "complete",
 						createdAt,
 						ordinal: nextOrdinal(collections),
+					});
+					collections.sessions.update(SESSION_ID, (draft) => {
+						draft.revision = revision;
+					});
+					break;
+				}
+
+				case "message.act.toggled": {
+					const row = collections.messages.get(transition.id);
+					// Only a row that HAS a detail has something to open.
+					if (row === undefined || row.actDetail === undefined) return;
+					collections.messages.update(transition.id, (draft) => {
+						draft.actExpanded = draft.actExpanded !== true;
 					});
 					collections.sessions.update(SESSION_ID, (draft) => {
 						draft.revision = revision;

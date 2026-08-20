@@ -132,15 +132,17 @@ describe("launch-law parity: every affordance is a command", () => {
 		);
 		expect(counts).toEqual({
 			/*
-			 * 23 = 22 + the Files entry beside World in the surfaces menu. 22 was
-			 * 27 − the five per-item onClick handlers the connect menu used to
-			 * carry: its entries are DATA now (flow + optional args), rendered
-			 * through one handler that dispatches `runCommand`/`runCommandArgs`,
-			 * so the six affordances share a single binding site instead of
-			 * repeating it. 27 was 25 + the auth shortcut (the signed-out step's
-			 * first-tab-stop copy) + the reset confirm's own trigger (§28.4).
+			 * 24 = 23 + the act row's own toggle (will, 2026-08-19: the marker rows
+			 * open up). 23 was 22 + the Files entry beside World in the surfaces
+			 * menu. 22 was 27 − the five per-item onClick handlers the connect menu
+			 * used to carry: its entries are DATA now (flow + optional args),
+			 * rendered through one handler that dispatches
+			 * `runCommand`/`runCommandArgs`, so the six affordances share a single
+			 * binding site instead of repeating it. 27 was 25 + the auth shortcut
+			 * (the signed-out step's first-tab-stop copy) + the reset confirm's own
+			 * trigger (§28.4).
 			 */
-			"../App.tsx": 23,
+			"../App.tsx": 24,
 			"../ConnectorsSurface.tsx": 5,
 			"../ChatCards.tsx": 23,
 			"../DevtoolsPanel.tsx": 1,

@@ -253,6 +253,7 @@ describe("command registry bindings", () => {
 			"flow.list",
 			"flow.run",
 			"card.maximize",
+			"act.detail",
 			"card.minimize",
 			"copy-message",
 			"approval.approve",

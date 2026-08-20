@@ -1034,12 +1034,38 @@ function App({ controller }: { readonly controller: AppController }) {
 									}
 								/>
 							) : entry.message.act !== undefined ? (
+								/*
+								 * An act row opens up (will, 2026-08-19): "This is cool
+								 * but I can't click on it or hover to see more". Hover
+								 * states the detail, pressing it expands the SAME row in
+								 * place — a native button, so Enter and Space toggle it
+								 * and aria-expanded says which way it is. An act with no
+								 * detail stays the plain line it always was.
+								 */
 								<Marker
 									key={entry.message.id}
 									variant="note"
 									className="bubble-system-note tool-act-line"
 								>
-									{entry.message.text}
+									{entry.message.actDetail === undefined ? (
+										entry.message.text
+									) : (
+										<>
+											<button
+												type="button"
+												className="tool-act-toggle"
+												data-flow="act.detail"
+												aria-expanded={entry.message.actExpanded === true}
+												title={entry.message.actDetail}
+												onClick={() => controller.runCommandArgs("act.detail", entry.message.id)}
+											>
+												{entry.message.text}
+											</button>
+											{entry.message.actExpanded === true ? (
+												<span className="tool-act-detail">{entry.message.actDetail}</span>
+											) : null}
+										</>
+									)}
 								</Marker>
 							) : (
 								<ChatMessage

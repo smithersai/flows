@@ -479,6 +479,21 @@ export const baseFlows = (actions: CommandActions): ReadonlyArray<FlowEntry> => 
 		},
 	}),
 	flow({
+		/*
+		 * The act row's own drawer (will, 2026-08-19): "This is cool but I can't
+		 * click on it or hover to see more". A presentation transition, id-scoped
+		 * (hidden), and the human's alone — the agent does not open the
+		 * transcript's drawers for them.
+		 */
+		name: "act.detail",
+		summary: "Open or close what an act row did",
+		hidden: true,
+		userOnly: true,
+		args: "<messageId>",
+		input: Schema.Struct({ messageId: Schema.String }),
+		handler: ({ messageId }) => actions.toggleActDetail(messageId),
+	}),
+	flow({
 		name: "card.minimize",
 		summary: "Minimize the maximized card",
 		hidden: true,

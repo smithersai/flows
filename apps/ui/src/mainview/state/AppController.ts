@@ -62,6 +62,7 @@ import {
 	runLaunchCommandOf,
 	toolResultLaunchedRun,
 } from "./RunClaims";
+import { actDetail, actDetailField } from "./MessageScrub";
 import type { ImpossibleAskClass } from "./Instructions";
 import { smithersInstructions } from "./Instructions";
 import { agentVisibleCatalog } from "../flows/agentTools";
@@ -86,6 +87,20 @@ const MAX_TOOL_LEGS = 8;
  * author seat and the transcript doors — rather than acts on the app, so
  * they never render an act row of their own.
  */
+/*
+ * Why the chain turned back, in plain words. The visible line stays
+ * in-character ("Smithers adjusted its approach"); these are what the row
+ * opens up to, so a human can see the reason without reading the journal.
+ */
+const GATE_REASONS: Readonly<Record<string, string>> = {
+	shape: "the step it wrote did not fit the shape the app accepts",
+	fuel: "the step would have cost more than the turn had left",
+	catalog: "it reached for something this app does not have",
+	denied: "the act needed a permission it does not have",
+	call_failed: "the act it tried came back as a failure",
+	script_failed: "the step it wrote could not run",
+};
+
 /** The agent's structured follow-up channel (will, 2026-08-19) — a proposal, not an act. */
 const SUGGESTIONS_FLOW = "suggestions.propose";
 
@@ -166,6 +181,8 @@ export interface AppController {
 	/* Card maximize/minimize — the user's presentation transition (§2d′). */
 	readonly maximizeCard: (id: string) => string | void;
 	readonly minimizeCard: () => void;
+	/** Open or close one act row's detail in place (will, 2026-08-19). */
+	readonly toggleActDetail: (id: string) => string | void;
 	/* The admin dev-tools panel + debug reads (§2b/§2d; admin registry only). */
 	readonly toggleDevtools: () => void;
 	/** Flip which backend drives a turn (admin /debug.backend; DESIGN.md §14). */
@@ -2154,6 +2171,33 @@ export const createAppController = (
 		}
 	};
 
+	/*
+	 * What the act row opens up to (will, 2026-08-19): "This is cool but I can't
+	 * click on it or hover to see more".
+	 *
+	 * The flow the model actually called, the arguments it passed, and one short
+	 * line of what came back. Every part goes through the scrub, so a payload is
+	 * NAMED rather than pasted and the whole detail is bounded — the visible line
+	 * above it is untouched, and the full record stays in the dev-tools panel.
+	 */
+	const toolActDetail = (call: PendingToolCall, result: string): string | undefined => {
+		let flow = call.name;
+		let args = "";
+		try {
+			const parsed: unknown = JSON.parse(call.args);
+			if (typeof parsed === "object" && parsed !== null) {
+				if ("name" in parsed && typeof parsed.name === "string") flow = parsed.name.replace(/^\/+/, "");
+				if ("args" in parsed && typeof parsed.args === "string") args = parsed.args;
+				if (args === "" && "action" in parsed && typeof parsed.action === "string") args = parsed.action;
+			}
+		} catch {
+			// The raw arguments are the honest source when they do not parse.
+			args = call.args;
+		}
+		const answered = result.split("\n")[0] ?? "";
+		return actDetail([`/${flow}`, actDetailField(args), actDetailField(answered)]);
+	};
+
 	const toolActLine = (call: PendingToolCall, result: string): string => {
 		let inner = call.name;
 		let action: string | undefined;
@@ -2237,11 +2281,13 @@ export const createAppController = (
 		 * saying Smithers ran it would narrate the furniture.
 		 */
 		if (!isSuggestionCall(call.name, call.args)) {
+			const detail = toolActDetail(call, result);
 			store.dispatch({
 				type: "message.tool.executed",
 				actor: "smithers",
 				turnId: turn.id,
 				text: toolActLine(call, result),
+				...(detail === undefined ? {} : { detail }),
 			});
 		}
 		turn.toolItems.push(
@@ -2363,11 +2409,18 @@ export const createAppController = (
 				activeTurn.runLaunch = frame.name;
 			}
 			if (!CHAIN_SURFACE_CALLS.has(frame.name) && !frame.name.startsWith("sys/")) {
+				const detail = actDetail([
+					`/${frame.name}`,
+					// The chain's own vocabulary for how the call resolved.
+					frame.verdict === "run" ? "" : frame.verdict === "hit" ? "answered from cache" : "replayed",
+					actDetailField(frame.resultDigest ?? ""),
+				]);
 				store.dispatch({
 					type: "message.tool.executed",
 					actor: "smithers",
 					turnId: frame.runId,
 					text: `Smithers ran /${frame.name}`,
+					...(detail === undefined ? {} : { detail }),
 				});
 			}
 			return;
@@ -2388,11 +2441,15 @@ export const createAppController = (
 			return;
 		}
 		if (frame.type === "gate.rejected") {
+			// Why it changed course, in the gate's own vocabulary — never jargon
+			// in the visible line, but the detail may name the reason plainly.
+			const detail = actDetail([GATE_REASONS[frame.kind], actDetailField(frame.message ?? "")]);
 			store.dispatch({
 				type: "message.tool.executed",
 				actor: "smithers",
 				turnId: frame.runId,
 				text: "Smithers adjusted its approach",
+				...(detail === undefined ? {} : { detail }),
 			});
 			return;
 		}
@@ -2402,6 +2459,7 @@ export const createAppController = (
 				actor: "smithers",
 				turnId: frame.runId,
 				text: "Smithers picked up your note",
+				detail: `read ${frame.count} note${frame.count === 1 ? "" : "s"} you sent mid-turn`,
 			});
 			return;
 		}
@@ -2714,6 +2772,18 @@ export const createAppController = (
 
 	const minimizeCard = (): void => {
 		store.dispatch({ type: "card.minimized", actor: "user" });
+	};
+
+	/*
+	 * Open or close one act row's detail, in place in the transcript (will,
+	 * 2026-08-19). A presentation transition like maximize, and the human's
+	 * alone: the row expands under itself, never into a takeover.
+	 */
+	const toggleActDetail = (id: string): string | void => {
+		const row = store.collections.messages.get(id);
+		if (row === undefined || row.act === undefined) return `There is no act row with id ${id}.`;
+		if (row.actDetail === undefined) return "That act kept no detail to open.";
+		store.dispatch({ type: "message.act.toggled", actor: "user", id });
 	};
 
 	const toggleDevtools = (): void => {
@@ -4666,6 +4736,7 @@ export const createAppController = (
 		resumeWorkflowRuns,
 		maximizeCard,
 		minimizeCard,
+		toggleActDetail,
 		toggleDevtools,
 		toggleSurfacesMenu,
 		toggleConnectMenu,
@@ -4863,6 +4934,7 @@ export const createAppController = (
 		resumeWorkflowRuns,
 		maximizeCard,
 		minimizeCard,
+		toggleActDetail,
 		toggleDevtools,
 		toggleSurfacesMenu,
 		toggleConnectMenu,

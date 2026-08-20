@@ -28,6 +28,16 @@ export const MessageSchema = z.object({
 	action: z.object({ flow: z.string(), label: z.string() }).optional(),
 	/** A one-line visible tool act ("Smithers ran /world.new-note") renders as a marker row, not a bubble. */
 	act: z.string().optional(),
+	/*
+	 * What that act actually was (will, 2026-08-19): "This is cool but I can't
+	 * click on it or hover to see more". The flow's name and arguments plus a
+	 * short result line, scrubbed and bounded by MessageScrub — the row's
+	 * visible line still never carries a payload, and the whole record still
+	 * lives in the dev-tools panel. Absent when the act has nothing to add.
+	 */
+	actDetail: z.string().optional(),
+	/** Whether the row's detail is open in place. The human's toggle, never the agent's. */
+	actExpanded: z.boolean().optional(),
 	createdAt: z.number(),
 	ordinal: z.number().int().nonnegative(),
 });
@@ -725,6 +735,18 @@ export type AppTransition =
 			actor: "smithers";
 			turnId: string;
 			text: string;
+			/** What the act was, scrubbed and bounded — the hover and the expansion. */
+			detail?: string;
+	  }
+	| {
+			/*
+			 * The human opens or closes one act row's detail in place (will,
+			 * 2026-08-19). A presentation act like card.maximized, and theirs
+			 * alone — the agent never opens the transcript's own drawers.
+			 */
+			type: "message.act.toggled";
+			actor: "user";
+			id: string;
 	  }
 	| {
 			/*
