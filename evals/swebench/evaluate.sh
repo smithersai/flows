@@ -41,7 +41,10 @@ fi
 
 node "$S/lib/make-preds.mjs" "$PATCHES" "$MODEL" "$@" > "$S/preds-$RUN_ID.json"
 cd "$S" || exit 1
-.venv-swb/bin/python -m swebench.harness.run_evaluation \
+# lib/grade.py is the evaluator, run with the rig's architecture. See its
+# docstring: the evaluator picks arm64 from platform.machine() alone, while
+# every instance here was produced against a --platform linux/amd64 checkout.
+.venv-swb/bin/python "$S/lib/grade.py" \
   --dataset_name princeton-nlp/SWE-bench_Verified \
   --predictions_path "preds-$RUN_ID.json" \
   --run_id "$RUN_ID" \
