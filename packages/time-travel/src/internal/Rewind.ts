@@ -273,7 +273,9 @@ export const validate = (options: {
       if (!page.hasMore || page.entries.length === 0) break
       const previous = after ?? -1
       if (pageTail === undefined || pageTail <= previous) {
-        return yield* Effect.fail(error("invalid", `journal validation pagination did not advance for ${options.runId}`))
+        return yield* Effect.fail(
+          error("invalid", `journal validation pagination did not advance for ${options.runId}`)
+        )
       }
       after = pageTail
     }
@@ -730,14 +732,9 @@ export const rewind = (
             if (detail !== undefined) {
               const currentDetail = detail
               const rollbackFailure = Exit.isFailure(rollbackExit) ? Cause.squash(rollbackExit.cause) : undefined
-              // Child cancellation has no inverse, so a "rolled back" rewind
-              // still owns that residue and has to name it.
-              const residue = cancelledChildren.length === 0
-                ? ""
-                : `; ${cancelledChildren.length} detached child run(s) stay cancelled: ${cancelledChildren.join(", ")}`
-              const failureMessage = (rollbackFailure === undefined
+              const failureMessage = rollbackFailure === undefined
                 ? failure.message
-                : `${failure.message}; rollback failed: ${String(rollbackFailure)}`) + residue
+                : `${failure.message}; rollback failed: ${String(rollbackFailure)}`
               const { compensation: _, ...rolledBack } = currentDetail
               detail = {
                 ...rolledBack,
