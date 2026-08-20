@@ -536,10 +536,12 @@ describe("vitest coverage isolation conformance", () => {
       // construction because every application enters the trap.
       "plan/src/Planned.ts": 1,
       "run-store/src/AttemptStore.ts": 3,
-      // Fold conformance is checked by rebuilding live materializations; the
-      // directives cover malformed journal guardrails and unreachable
-      // projection fallbacks.
-      "run-store/src/Fold.ts": 45,
+      // The malformed-history battery covers the fold's defensive arms
+      // directly; the remaining directives name structurally unreachable
+      // read-path fallbacks (pagination beyond the 256-entry page, the
+      // compacted disambiguation, the empty page, and `Journal.project`'s
+      // seeded initial state).
+      "run-store/src/Fold.ts": 5,
       "run-store/src/migrations/0003_fold_snapshots.ts": 2,
       "step-cache/src/CacheStore.ts": 1
     }
