@@ -222,13 +222,23 @@ Before spending tokens on the rest of a wave, run and grade its first flows
 instance, then inspect that workspace's journal for exactly one
 `control.agent.discipline-armed` event per run. Its payload is the positive
 record of the discipline configured at run start: `readOnlyCap` must be nonzero,
-and `maxFrames` plus every armed sandbox limit (`calls`, `memoryBytes`, `steps`,
-`timeMs`, `callMs`, and `totalMs`) must match the wave's intended budgets. Stop
-the wave if the event is absent or the values are wrong.
+and `maxFrames`, `modelCallMs`, plus every armed sandbox limit (`calls`,
+`memoryBytes`, `steps`, `timeMs`, `callMs`, and `totalMs`) must match the wave's
+intended budgets. Stop the wave if the event is absent or the values are wrong.
 
 Gate on this event rather than on `control.agent.read-only-demanded`. The demand
 event proves an armed cap was reached, not merely armed; a run that writes early
 and often correctly has no such event.
+
+`modelCallMs` is the one armed budget a report can grade without any further
+instrumentation, because `control.agent.model-settled` already carries
+`durationMillis` for every call. Read the two together: no settled call may
+exceed the armed ceiling, and a call that reached it appears as a
+`control.agent.model-retried` event coded `call_timeout` followed by a second
+attempt. Wave 7 is the reason the budget exists — one 667,067 ms call on
+`pytest-dev__pytest-6197` spent 55% of that run's wall clock and produced a cell
+that raised on its first property access — so a wave whose longest
+`durationMillis` sits near the ceiling is reporting a real finding, not noise.
 
 For the wave report, read `control.agent.read-only-demanded` directly. Each
 event records the streak and configured cap that triggered the intervention,
