@@ -424,6 +424,7 @@ interface PinnedSubject {
   readonly platform?: string
   readonly marker?: { readonly path: string; readonly hash: string; readonly resolvedBy?: string }
   readonly cliDist?: { readonly hash: string; readonly files: number }
+  readonly cliSrc?: { readonly hash: string; readonly files: number }
   readonly refusals?: ReadonlyArray<{ readonly code: string; readonly message: string }>
 }
 
@@ -477,6 +478,7 @@ const markdown = [
   `| \`packages/harness/src/CellTurn.ts\` | \`${subject.marker?.hash ?? "—"}\` |`,
   `| loaded from | ${subject.marker?.resolvedBy ?? "—"} |`,
   `| \`packages/cli/dist/esm\` | \`${subject.cliDist?.hash ?? "—"}\` (${subject.cliDist?.files ?? 0} modules) |`,
+  `| \`packages/cli/src\` | \`${subject.cliSrc?.hash ?? "—"}\` (${subject.cliSrc?.files ?? 0} files, built above) |`,
   `| node | ${subject.node ?? "—"} ${subject.platform ?? ""} |`,
   "",
   ...(subject.refusals === undefined || subject.refusals.length === 0 ? [] : [

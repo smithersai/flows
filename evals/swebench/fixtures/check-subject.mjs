@@ -18,6 +18,13 @@
  * The third is that the HEAD comparison agrees with git in both directions, so
  * `dirty-subject` cannot quietly stop reporting.
  *
+ * The fourth is that the stamp covers `packages/cli/src`. That package is the
+ * only one whose loaded bytes are a build, so it is the only one whose source
+ * can drift away from what runs; leaving it out of the stamp is what let a
+ * mid-wave CLI edit pass the pin when the same edit to any other package would
+ * have stopped the wave. Held with `stampOf` against a changed input rather
+ * than by writing into a shared working tree.
+ *
  * @since 0.1.0
  */
 import assert from "node:assert/strict"
@@ -25,6 +32,7 @@ import { spawnSync } from "node:child_process"
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
+import { stampOf } from "../lib/subject.mjs"
 
 const here = import.meta.dirname
 const rig = resolve(here, "..")
@@ -64,6 +72,36 @@ try {
     0,
     "every package in the closure resolves the way the running process resolves it"
   )
+
+  // The CLI's source, and the stamp's dependence on it. `packages/cli` is the
+  // one package where "what is on disk" and "what runs" are two different
+  // things, so a pin that only hashed the build could not tell a wave that the
+  // build had gone stale under it.
+  assert.ok(fingerprint.cliSrc.hash.startsWith("sha256:"), "the CLI's own source is fingerprinted")
+  assert.ok(fingerprint.cliSrc.files > 0, "the CLI's source hash covers files")
+  assert.equal(stampOf(fingerprint), fingerprint.stamp, "the stamp is a function of the reported record")
+  assert.notEqual(
+    stampOf({ ...fingerprint, cliSrc: { ...fingerprint.cliSrc, hash: "sha256:built-from-something-else" } }),
+    fingerprint.stamp,
+    "an edit to packages/cli/src moves the stamp, so a wave stops until preflight rebuilds"
+  )
+  assert.notEqual(
+    stampOf({ ...fingerprint, cliDist: { ...fingerprint.cliDist, hash: "sha256:another-build" } }),
+    fingerprint.stamp,
+    "a rebuilt CLI moves the stamp"
+  )
+  assert.equal(
+    stampOf({ ...fingerprint, head: "0".repeat(40), node: "v0.0.0" }),
+    fingerprint.stamp,
+    "the stamp answers which bytes ran, not which commit or runtime was in the room"
+  )
+
+  // A path is counted once. A file tracked at HEAD and staged as deleted, which
+  // is the state a shared jj-colocated index leaves behind, is reported by both
+  // `git diff HEAD` and `git ls-files --others`.
+  for (const [name, value] of Object.entries(fingerprint.packages)) {
+    assert.equal(new Set(value.dirty).size, value.dirty.length, `${name} reports each differing path once`)
+  }
 
   // The pin, in both directions.
   const pin = join(temporary, "subject.json")

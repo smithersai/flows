@@ -73,8 +73,20 @@ non-zero exit is fatal), derives a content fingerprint with `lib/subject.mjs`,
 and writes `.subject.json`. The fingerprint records, for every package in the
 CLI's `@smthrs/*` dependency closure, where its entry point resolves and a
 content hash of the directory that answer selects — plus the hash of
-`packages/harness/src/CellTurn.ts` as the marker a report cites, the hash of
-`packages/cli/dist/esm`, the git HEAD, and the node version.
+`packages/harness/src/CellTurn.ts` as the marker a report cites, the hashes of
+`packages/cli/dist/esm` and `packages/cli/src`, the git HEAD, and the node
+version.
+
+`packages/cli/src` is in the stamp even though no process loads it. It is the
+only package where what is on disk and what runs are two different things, so
+it is the only one whose build can go stale under a wave: an edit to any other
+package changes bytes the CLI loads and stops the wave at the next `flows.sh`
+call, while an edit to the CLI's own source used to change nothing the pin could
+see. Hashing both means a pinned pair asserts that one `preflight.sh` run
+produced them together, and a CLI source change stops the wave until another one
+does. What no fingerprint can see is a complete `dist/esm` compiled from source
+that is no longer on disk; `preflight.sh` deletes `dist` before it builds, so a
+pinned pair only ever comes from a full rebuild.
 
 `preflight.sh` refuses to pin a subject that cannot be reported honestly:
 
@@ -254,6 +266,13 @@ justification count and the run's own cost. Run it after any change to
 `aefd3b39d`, `CellTurn.ts sha256:a834c2fd…`: **one demand event**, `streak=12
 cap=12 nextFrame=12 nextAction=read-only`, 13 frames, 0 justifications, 57,067
 input and 1,319 output tokens, $0.3249.
+
+The probe spends tokens, so its verdict cannot be re-run to settle an argument;
+the reading that turns a journal into that verdict can be.
+`fixtures/check-liveness-report.mjs`, in `verify.sh`, replays
+`lib/check-liveness.mjs` over synthesised journals and pins all four answers —
+fired, INCONCLUSIVE below the cap, FAILED naming a justification, and FAILED
+with nothing to blame — plus the streak arithmetic that a write clears.
 
 ## Evaluate
 

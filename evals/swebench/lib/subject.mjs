@@ -19,8 +19,23 @@
  *
  * So the fingerprint is: for every package in the CLI's `@smthrs/*` dependency
  * closure, where its entry point resolves to (src or dist), and a content hash
- * of the directory that answer selects — plus a content hash of the CLI's dist.
- * `--check` refuses a subject that cannot be reported honestly.
+ * of the directory that answer selects — plus content hashes of the CLI's dist
+ * and of the source that dist was built from. `--check` refuses a subject that
+ * cannot be reported honestly.
+ *
+ * The CLI's source is in the stamp even though the process never loads it,
+ * because point 2 above is the one place the loaded bytes and the source can
+ * disagree. Every other package moves the stamp the moment a sibling lane edits
+ * it, which is what stops a wave mid-flight; `packages/cli/src` used to move
+ * nothing, so the one package whose build can go stale was the one package the
+ * pin could not notice going stale. With both hashes in the stamp, a pinned pair
+ * asserts that one `preflight.sh` run produced them together, and a CLI source
+ * change stops the wave until another one does.
+ *
+ * What this still cannot see: a `dist/esm` that is complete, hashes cleanly, and
+ * was compiled from source that is no longer on disk. Detecting that needs a
+ * rebuild, which is what `preflight.sh` performs — it deletes `dist` before it
+ * builds — so the pinned pair is only ever produced from a full rebuild.
  *
  * The refusals, and what each one caught:
  *
@@ -86,11 +101,18 @@ const git = (...args) => {
  * including files git does not track. Both halves matter: a sibling lane's
  * uncommitted edit and a stray new module are equally able to change what a
  * wave measures.
+ *
+ * The two halves overlap. A file that is tracked at `HEAD` and staged as
+ * deleted, which is the state a shared jj-colocated index leaves behind, is
+ * reported by `diff HEAD` and by `ls-files --others` at once. The set is
+ * deduplicated so a count of differing paths is a count of files.
  */
 const differsFromHead = (prefix) => {
   const tracked = git("diff", "--name-only", "HEAD", "--", prefix) ?? ""
   const untracked = git("ls-files", "--others", "--exclude-standard", "--", prefix) ?? ""
-  return [...tracked.split("\n"), ...untracked.split("\n")].filter((line) => line.length > 0).sort()
+  return [...new Set([...tracked.split("\n"), ...untracked.split("\n")])]
+    .filter((line) => line.length > 0)
+    .sort()
 }
 
 /**
@@ -147,6 +169,35 @@ const closure = (refusals) => {
   }
   return found
 }
+
+/**
+ * The one-line stamp a wave pins itself to, from the parts of a fingerprint
+ * that describe content rather than circumstance.
+ *
+ * Deliberately excluded: `head`, `node`, `platform`, and every `dirty` list.
+ * The stamp answers "are these the same bytes", so a wave does not stop
+ * because a sibling lane committed something that changed no file the CLI
+ * loads, and does not continue because two different trees happen to sit on
+ * one commit. Deliberately included: `cliSrc`, which the process never loads —
+ * see the note where it is built.
+ *
+ * Exported so a test can hold the stamp against a changed input and see it
+ * move, without editing a shared working tree to find out.
+ */
+export const stampOf = (record) =>
+  `sha256:${
+    createHash("sha256").update(JSON.stringify({
+      marker: record.marker,
+      cliDist: { hash: record.cliDist.hash, files: record.cliDist.files },
+      cliSrc: { hash: record.cliSrc.hash, files: record.cliSrc.files },
+      packages: Object.fromEntries(
+        Object.entries(record.packages).map(([name, value]) => [name, {
+          hash: value.hash,
+          loadsFrom: value.loadsFrom
+        }])
+      )
+    })).digest("hex")
+  }`
 
 /**
  * Builds the fingerprint. Never throws on a bad subject: the problems are
@@ -225,6 +276,30 @@ export const fingerprint = ({ compareToHead = true } = {}) => {
     hash: hashFiles([...emitted].sort()),
     missing
   }
+  // The CLI's own source, which is NOT what the process loads — the build is.
+  // It is fingerprinted anyway, and folded into the stamp, because `packages/cli`
+  // is the only package where the loaded bytes and the source can drift apart,
+  // and nothing else in the rig can see that drift:
+  //
+  //   - Every other package is loaded from `src`, so a mid-wave edit to it
+  //     moves its hash, moves the stamp, and stops the wave at the next
+  //     `flows.sh` call. Editing `packages/cli/src` moved nothing, because only
+  //     `dist/esm` was hashed. The one package whose build can go stale was the
+  //     one package the pin could not notice going stale.
+  //   - `dirty-subject` only asks whether `src` differs from `HEAD`, and
+  //     `flows.sh` runs `--expect` without `--check`, which skips that
+  //     comparison entirely. It was never the thing stopping a wave.
+  //
+  // Including it here means a wave stops whenever the CLI's source moves, and
+  // the only way to restart is `./preflight.sh`, which rebuilds `dist` from that
+  // source and re-pins both hashes together. A pinned pair therefore states that
+  // one preflight produced them, which is the claim a stale build breaks.
+  const cliSources = filesUnder(join(root, "packages/cli/src"))
+  const cliSrc = {
+    directory: "packages/cli/src",
+    files: cliSources.length,
+    hash: hashFiles(cliSources)
+  }
   // The marker a wave report cites. `CellTurn.ts` is where the read-only cap,
   // the park refusal and the mutation accounting live, so it is the single
   // file that answers "which controls could this wave possibly have run".
@@ -246,18 +321,10 @@ export const fingerprint = ({ compareToHead = true } = {}) => {
     platform: `${process.platform}-${process.arch}`,
     marker,
     cliDist,
+    cliSrc,
     packages
   }
-  const stamp = `sha256:${
-    createHash("sha256").update(JSON.stringify({
-      marker: record.marker,
-      cliDist: { hash: record.cliDist.hash, files: record.cliDist.files },
-      packages: Object.fromEntries(
-        Object.entries(packages).map(([name, value]) => [name, { hash: value.hash, loadsFrom: value.loadsFrom }])
-      )
-    })).digest("hex")
-  }`
-  return { root, refusals, stamp, ...record }
+  return { root, refusals, stamp: stampOf(record), ...record }
 }
 
 const options = process.argv.slice(2)
@@ -318,6 +385,7 @@ if (process.argv[1] === new URL(import.meta.url).pathname) {
     console.log(`  CellTurn.ts   ${subject.marker.hash}`)
     console.log(`                loaded from ${subject.marker.resolvedBy}`)
     console.log(`  cli dist      ${subject.cliDist.hash} (${subject.cliDist.files} modules)`)
+    console.log(`  cli src       ${subject.cliSrc.hash} (${subject.cliSrc.files} files, built into the dist above)`)
     for (const [name, value] of Object.entries(subject.packages)) {
       const dirty = value.dirty.length === 0 ? "" : ` DIRTY(${value.dirty.length})`
       console.log(`  ${name.padEnd(24)} ${value.loadsFrom.padEnd(4)} ${value.hash}${dirty}`)

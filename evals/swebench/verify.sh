@@ -7,13 +7,14 @@
 # `ModelSettled.durationMillis` field — scores both, and asserts every reported
 # number against `fixtures/mirror-results.json` and the committed codex baseline.
 # Then replays the rig's instance guidance and its patch capture over throwaway
-# git repositories shaped like the official images, and checks that the subject
-# fingerprint still names the bytes the CLI actually loads.
+# git repositories shaped like the official images, checks that the subject
+# fingerprint still names the bytes the CLI actually loads, and replays the
+# read-only liveness checker over synthesised journals.
 #
 # Spends no tokens, needs no docker, needs no dataset. Run it after touching
-# scorecard.ts, prices.ts, the journal's event shapes, patch capture, or
-# lib/subject.mjs. The subject check needs a built CLI: run ./preflight.sh
-# first if `packages/cli/dist` is absent.
+# scorecard.ts, prices.ts, the journal's event shapes, patch capture,
+# lib/subject.mjs, or lib/check-liveness.mjs. The subject check needs a built
+# CLI: run ./preflight.sh first if `packages/cli/dist` is absent.
 set -eu
 S="$(cd "$(dirname "$0")" && pwd)"
 
@@ -53,3 +54,6 @@ node "$S/fixtures/check-capture.mjs"
 echo "== the subject under test"
 node "$S/fixtures/check-agreement.mjs"
 node "$S/fixtures/check-subject.mjs"
+
+echo "== the read-only liveness reading"
+node "$S/fixtures/check-liveness-report.mjs"
