@@ -1,6 +1,6 @@
 #!/bin/bash
 # Proves `lib/lock.sh` — the one serialization point every lane in this rig
-# shares — against the four things that actually happen to it.
+# shares — against the five things that actually happen to it.
 #
 #   fixtures/check-lock.sh
 #
@@ -16,6 +16,8 @@
 #   3  release is by owner: a lane that never held the lock cannot free it —
 #      which is what `run-instance.sh` used to do to whoever was extracting
 #   4  a bounded wait fails rather than hanging, and says who is holding it
+#   5  a lane killed while it is waiting takes no lock: the acquire is a child
+#      of that lane and outlives it
 #
 # Each lane is a separate process, because a `( … ) &` subshell shares `$$` with
 # the shell that spawned it and the pid in the lock is the whole point.
@@ -94,8 +96,12 @@ check "$([ -d "$LOCK" ] && echo 0 || echo 1)" "a stray release left the live loc
 check "$([ "$("$S/lib/lock.sh" owner "$LOCK")" = "$$" ] && echo 0 || echo 1)" "and the owner is unchanged"
 
 echo "== 4. the wait is bounded"
+# The waiter needs a live owner of its own: an acquire for a pid that is already
+# gone gives up at once, which is test 5.
+sleep 30 &
+WAITER=$!
 START="$(date +%s)"
-if "$S/lib/lock.sh" acquire "$LOCK" --owner 999999 --timeout 2 --poll 1 2> "$TMP/timeout.txt"; then
+if "$S/lib/lock.sh" acquire "$LOCK" --owner "$WAITER" --timeout 2 --poll 1 2> "$TMP/timeout.txt"; then
   check 1 "a lock held by a live owner is never stolen"
 else
   check 0 "a lock held by a live owner is never stolen"
@@ -104,10 +110,31 @@ check "$(grep -q "still held by pid $$" "$TMP/timeout.txt" && echo 0 || echo 1)"
   "the timeout names who is holding it"
 TOOK=$(( $(date +%s) - START ))
 check "$([ "$TOOK" -le 8 ] && echo 0 || echo 1)" "and it gave up on time (${TOOK}s)"
+kill -9 "$WAITER" 2>/dev/null; wait "$WAITER" 2>/dev/null
 "$S/lib/lock.sh" release "$LOCK" --owner $$ --quiet
+
+echo "== 5. a lane killed while it waits leaves no lock behind"
+# `lock.sh acquire` is a child of the lane it acquires for, so it outlives a
+# lane that is killed mid-wait. Taking the lock for a pid that is already gone
+# leaves one nobody will release — self-healing, because the next waiter steals
+# a dead owner's lock, but not if that pid has been recycled by then.
+: > "$TRACE"
+"$TMP/holder.sh" blocker 6 &
+BLOCKER=$!
+sleep 1
+"$TMP/holder.sh" doomed 1 &
+DOOMED=$!
+sleep 1
+kill -9 "$DOOMED" 2>/dev/null
+wait "$DOOMED" 2>/dev/null
+wait "$BLOCKER" 2>/dev/null
+sleep 3
+check "$([ -d "$LOCK" ] && echo 1 || echo 0)" "no lock is left behind for the lane that died"
+check "$(grep -q '^IN doomed' "$TRACE" && echo 1 || echo 0)" "and it never entered"
 
 if [ "$FAILURES" -gt 0 ]; then
   echo "check-lock.sh: $FAILURES failure(s)"
   exit 1
 fi
-echo "check-lock.sh: one lane at a time, a killed holder recovered, and no lane frees another's lock."
+echo "check-lock.sh: one lane at a time, a killed holder recovered, no lane frees another's lock,"
+echo "  and a lane that dies waiting takes none."

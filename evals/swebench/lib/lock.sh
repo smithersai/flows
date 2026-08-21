@@ -118,15 +118,29 @@ case "$MODE" in
     esac
     WAITED=0
     while :; do
+      # This runs as a child of the lane it is acquiring for, and that lane can
+      # be killed while this waits. A lock taken for a pid that is already gone
+      # is a lock nobody will release: the next waiter does take it back, but
+      # only because that pid is dead, and a recycled pid would look alive. So
+      # the caller is checked on every pass and again after the lock is taken.
+      if ! kill -0 "$OWNER" 2>/dev/null; then
+        note "the lane this was acquiring for (pid $OWNER) is gone — not taking $DIR"
+        exit 1
+      fi
       if mkdir "$DIR" 2>/dev/null; then
         printf '%s\n' "$OWNER" > "$DIR/pid"
         if [ -n "$LABEL" ]; then printf '%s\n' "$LABEL" > "$DIR/label"; fi
         # Settle: a process that stole this lock in the same instant would have
         # replaced the directory, and its pid — not ours — is what is in there.
         sleep 1
-        if [ "$(owner_of "$DIR")" = "$OWNER" ]; then exit 0; fi
-        note "$DIR was taken by pid $(owner_of "$DIR") while we were claiming it — waiting"
-        continue
+        if [ "$(owner_of "$DIR")" != "$OWNER" ]; then
+          note "$DIR was taken by pid $(owner_of "$DIR") while we were claiming it — waiting"
+          continue
+        fi
+        if kill -0 "$OWNER" 2>/dev/null; then exit 0; fi
+        note "the lane this was acquiring for (pid $OWNER) died as it took $DIR — releasing it"
+        steal "$DIR"
+        exit 1
       fi
       if stealable "$DIR"; then steal "$DIR"; continue; fi
       if [ "$WAITED" -ge "$TIMEOUT" ]; then
