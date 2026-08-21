@@ -28,19 +28,24 @@ CLI wrapper, and the evaluator environment with it.
 | `run-instance.sh`          | One instance through the flows harness                               |
 | `run-instance-codex.sh`    | One instance through the Codex CLI, same conditions                  |
 | `run-sample.sh`            | The sample, in draw order, one harness                               |
+| `run-matrix.sh`            | The sample n times over, one harness, at a bounded concurrency       |
+| `select-candidate.mjs`     | Picks one instance's submission out of its n runs, from journals alone |
 | `evaluate.sh`              | Grades collected patches with the official evaluator                 |
+| `grade-matrix.sh`          | Grades a matrix in three groups: flows rounds, codex rounds, selected |
+| `matrix-report.mjs`        | Reliability, best-of-n, selector quality, single-attempt continuity  |
 | `regen-patch.sh`           | Re-derives one patch from a surviving workspace                      |
 | `scorecard.ts`             | Quality + speed + cost, per instance and in aggregate                |
 | `prices.ts`                | The committed USD price table, with its sources                      |
-| `verify.sh`                | Offline check that the scorecard still computes what it claims       |
+| `verify.sh`                | Offline check that the rig still computes what it claims             |
 | `baseline/`                | The committed codex numbers and patches to compare against           |
 | `fixtures/`                | The recorded numbers `verify.sh` replays                             |
-| `lib/`                     | Sampler, prompt writers, prediction builder, patch capture, subject fingerprint |
+| `lib/`                     | Sampler, prompt writers, prediction builder, patch capture, subject fingerprint, per-run naming, journal reader |
 
 Everything else the rig writes — `swb-verified.json`, `sample.json`,
 `.venv-swb/`, `.subject.json`, `work/`, `work-liveness/`, `patches/`,
-`timings/`, `logs-*/`, `preds-*.json`, the evaluator's reports, `scorecard.*` —
-is transient and gitignored.
+`timings/`, `logs-*/`, `journals/`, `selected/`, `matrix-*.json`,
+`preds-*.json`, the evaluator's reports, `scorecard.*` — is transient and
+gitignored.
 
 ## The subject under test
 
@@ -139,7 +144,8 @@ mounts it back at `/testbed` so the container's interpreter sees the same tree
 the agent edits, records the capture base (below), writes the fix flow with
 `lib/write-flow.mjs`, drives the CLI through `plan` → `approve` → `run` under a
 timeout, then captures the patch. It leaves `work/<id>/` (including the run's
-journal in `work/<id>/.flows/`), `patches/<id>.patch`,
+journal in `work/<id>/.flows/`), `journals/<id>-r1/` (that journal, copied out
+so it survives the next wave), `patches/<id>.patch`,
 `patches/<id>.patch.untracked`, `timings/<id>.json`, and
 `logs-agent/<id>.run.log`.
 
@@ -156,6 +162,9 @@ The whole sample, one harness at a time:
 ./run-sample.sh flows 5
 ./run-sample.sh codex 5
 ```
+
+Both run scripts take an optional trailing **run index**, which is how one
+instance carries five attempts at once. See [Best-of-n](#best-of-n).
 
 ## Patch capture
 
@@ -364,6 +373,260 @@ the report — see the script). `SWB_CACHE_LEVEL` sets `--cache_level` (default
 `instance` for a supplementary grading that should leave the image cache as it
 found it.
 
+Three overrides exist for the best-of-n matrix, where one instance has n patches
+and the evaluator's predictions can only ever be keyed by instance id:
+`SWB_PATCH_SUFFIX=-r3` grades `<id>-r3.patch` as `<id>`'s prediction,
+`SWB_PATCHES=selected` grades a different directory, and `SWB_MODEL_NAME`
+changes the name the report is filed under. `grade-matrix.sh` drives all three.
+
+## Best-of-n
+
+A single-attempt number says what a harness did once. It does not say whether it
+would do it again, and waves 3 through 11 have shown the same instance resolving
+in one wave and shipping an empty patch in the next. This is the protocol for
+measuring the other thing: **n attempts per instance on both harnesses, and one
+submission per instance chosen from the runs' own records.**
+
+```sh
+./preflight.sh                       # pin the subject, once
+./run-matrix.sh flows 5 3            # 5 attempts of each instance, 3 at a time
+./run-matrix.sh codex 5 3            # the same on the other side
+./grade-matrix.sh w12 all 5          # select, then grade all three groups
+node matrix-report.mjs --prefix w12  # the report
+```
+
+### Per-run artifacts
+
+Every artifact name comes from `lib/run-paths.sh`, which both run scripts and the
+matrix driver derive their names from, so the two harnesses cannot drift apart:
+
+| | no run index | run index `r3` |
+| --- | --- | --- |
+| flows workspace | `work/<id>` | `work/<id>-r3` |
+| flows patch | `patches/<id>.patch` | `patches/<id>-r3.patch` |
+| flows timings | `timings/<id>.json` | `timings/<id>-r3.json` |
+| flows logs | `logs-agent/<id>.*` | `logs-agent/<id>-r3.*` |
+| flows container | `flowsbench-<id>` | `flowsbench-<id>-r3` |
+| journal archive | `journals/<id>-r1/` | `journals/<id>-r3/` |
+| codex workspace | `work-codex/<id>` | `work-codex/<id>-r3` |
+| codex patch | `patches-codex/<id>.patch` | `patches-codex/<id>-r3.patch` |
+| codex timings | `timings-codex/<id>.json` | `timings-codex/<id>-r3.json` |
+| codex logs | `logs-codex/<id>.*` | `logs-codex/<id>-r3.*` |
+| codex container | `codexbench-<id>` | `codexbench-<id>-r3` |
+
+**No index is today's names**, so `regen-patch.sh`, `scorecard.ts --work work`
+and every wave report that quotes a path keep working. A run still *has* an
+index — `r1` when none was given — because the journal archive and the matrix
+manifest are keyed by `<id>-<index>` and a nameless run could be recorded in
+neither.
+
+`fixtures/check-run-paths.mjs`, in `verify.sh`, pins the whole table, proves five
+rounds name five distinct sets on both sides, and proves the run scripts derive
+their names from that one file rather than spelling them again.
+
+### Disk
+
+Two things bound a matrix, and they are bounded by different numbers.
+
+**The host disk holds workspaces, and `jobs` bounds it.** A flows run now
+archives its journal to `journals/<id>-<index>/` right after the patch is
+captured — `engine.db` and its write-ahead log — and then, if it was given a run
+index, deletes the extracted testbed. Everything downstream reads the archive:
+the selector, and any later forensics. A run *without* an index keeps its
+workspace, because `regen-patch.sh` re-derives a patch from it and the
+scorecard's default `--work work` reads its journal in place;
+`SWB_KEEP_WORKSPACE=1` keeps a matrix run's workspace for debugging and
+`SWB_DELETE_WORKSPACE=1` deletes an unindexed one. A codex run already deleted
+its workspace, so nothing changed there.
+
+Measured on the current five-instance sample, post-run, on this machine:
+
+| instance | workspace | of which `.git` | journal |
+| --- | --- | --- | --- |
+| `astropy__astropy-8707` | 127 MB | 40 MB | 6.4 MB |
+| `django__django-16612` | 162 MB | 96 MB | 1.2 MB |
+| `pydata__xarray-7393` | 33 MB | 14 MB | 7.4 MB |
+| `pytest-dev__pytest-6197` | 25 MB | 15 MB | 3.4 MB |
+| `sphinx-doc__sphinx-11445` | 72 MB | 44 MB | 2.4 MB |
+
+So a 25-run flows matrix at `jobs=3` peaks at three live workspaces — **at most
+3 × 162 MB ≈ 0.5 GB** — plus 25 archived journals at up to 7.4 MB each, about
+0.2 GB, plus patches in kilobytes. Under 1 GB, and flat in the number of rounds.
+Keeping all 25 workspaces instead would be 5 × 419 MB ≈ 2.1 GB and would grow
+linearly with the round count and with the sample.
+
+**The docker VM holds images, and the sample size bounds it — not `jobs`.** The
+matrix is round-major, so every instance's image is used in every round and all
+of them stay warm for the whole matrix whatever the concurrency is. Measured
+with `docker system df -v`: the five official images report 2.68–4.67 GB each
+and share a 1.4 GB base, for **12.0 GB resident** (10.5 GB unique + 1.5 GB
+shared). Adding the workspace and journal peak above, a 25-run flows matrix on
+this sample is about **12.7 GB resident, inside a 16 GiB budget** — and the term
+that would have broken it is the one the deletion removes, because it is the only
+term that grows with the round count. A container's own writable layer is
+negligible: the testbed is bind-mounted from the host, not copied into the image.
+
+The extraction itself stays serialized by `run-instance.sh`'s existing lock, so
+the disk-bandwidth spike is one `docker cp` at a time however many runs are in
+flight.
+
+### The driver
+
+```sh
+./run-matrix.sh <flows|codex> <count-per-instance> <jobs> [timeout-seconds]
+```
+
+It schedules `count × instances` runs — the sample's first `SWB_SAMPLE_COUNT`
+draws, 5 by default — and enforces two rules:
+
+- **`jobs` runs in flight, no more**, the same bound `run-sample.sh` applies and
+  for the same reason: concurrency buys overlap on the model-bound agent runs,
+  not on the extraction.
+- **Never two simultaneous runs of one instance.** They would share an image and
+  an image cache, so the second would report a warm pull the first paid for; and
+  each live run of an instance holds a testbed, so running an instance's five
+  attempts back to back would put five of one repository's workspaces on disk at
+  once. The schedule is round-major — every instance's r1, then every
+  instance's r2 — and a run waits on its own instance's previous attempt.
+
+It does not stop on a failing run: a timeout is a result the matrix is
+measuring. Every run's exit status, patch size and wall clock lands in
+`matrix-<harness>.json`, sorted by instance and round rather than by finishing
+order.
+
+`fixtures/check-matrix.mjs`, in `verify.sh`, replays the scheduler with
+`SWB_RUN_CMD` pointing at a stub that records its own start and end. It asserts
+from that ledger that the two rules held, that the driver did overlap runs at
+all, and that the manifest it wrote agrees with what the runs actually did — no
+docker, no model, no tokens.
+
+### The selector
+
+```sh
+node select-candidate.mjs <instance_id> [--journals dir] [--patches dir] [--out dir]
+```
+
+**The selector must never read evaluator output**, and its header says so. A
+best-of-n number is only a number about the harness if the choice among the n
+runs is made from what the harness itself recorded; a selector that peeked at the
+official report — or at the dataset's `FAIL_TO_PASS` list — would be reporting an
+oracle, and an oracle says nothing about whether a run can tell its own work is
+finished.
+
+The rule is enforced by what the program can name. It takes an instance id and
+three **directories**, and every file it opens is derived from the id and a run
+index: `journals/<id>-<rN>/engine.db` and `patches/<id>-<rN>.patch`. The
+evaluator's reports are `<model-name>.<run-id>.json` at the rig root, and no
+argument, flag or code path here can name one. An unrecognised flag is refused
+rather than ignored.
+
+It ranks candidates on four predicates, each read back off the journal through
+the harness's own modules rather than re-implemented — `lib/journal-facts.mjs`
+rebuilds the controller's per-frame state from the event stream and asks
+`NarrowedCheck`, `Sufficiency`, `UnresolvedFailure` and `UnmovedTree` the same
+questions `CellTurn` asks them:
+
+1. **a check failed over the pre-edit tree** — a call reported a failing exit
+   status in a frame at epoch 0, before the run had changed anything, in a frame
+   that itself changed nothing (`NarrowedCheck.Check` `stable`, so the digest
+   stamped on it is a tree the check really ran over);
+2. **the tree moved after it** — a later frame's `mutation-observed` says the
+   workspace changed;
+3. **the same check, or a broader one, went green over the final tree** —
+   `Sufficiency.find`'s own relation, restricted to frames whose closing digest
+   is the digest the run finished on. "Broader" is `NarrowedCheck` `narrows`:
+   every term of the passing check carried by the failing one;
+4. **the completion holds** — the run applied a `complete` transition, and at
+   that frame neither `UnmovedTree.find` nor `UnresolvedFailure.find` names a
+   condition.
+
+More predicates held wins. Ties break on the predicates in that order, then on a
+**broader final check** (fewer terms), then a **non-empty patch**, then **lower
+cost**, then the **lower run index** — the last key making the order total, so
+the same journals always choose the same run.
+
+It writes `selected/<id>.patch`, byte for byte the chosen run's patch, and
+`selected/<id>.rationale.json`, which names the journal sequence number behind
+every predicate of every candidate and the reason each unheld predicate did not
+hold. The choice can be second-guessed from the journals without re-running
+anything.
+
+Three readings the journal cannot give, all stated in `lib/journal-facts.mjs`
+rather than guessed silently: whether a call declared a write is per frame and
+not per call, so a call is read as mutating when its flow is an editing flow;
+the call signature is the canonical form of `[flow, input]` rather than the
+controller's digest of it, which is the same equivalence relation; and a
+`sufficiency-observed` event is journaled without its fields today, so the
+selector recomputes the pair rather than reading it.
+
+`fixtures/check-selector.mjs`, in `verify.sh`, replays the selector over two real
+waves. Wave 10 and wave 11 ran the same five instances and both distillations
+survive (`packages/harness/test/fixtures/wave10Journals.json` and
+`fixtures/wave11-journals.json`), so `fixtures/rehydrate-journals.mjs` turns them
+back into the databases the selector reads and the two-candidate case is two real
+runs of one instance. It pins wave 11's four predicates per instance, the choice
+each pair produces and the key that decides it — score for three of them,
+the broader final check for the other two, the run index where everything ties —
+and that the same journals twice produce byte-identical output.
+
+### Grading and reporting
+
+The evaluator keys its predictions by instance id, so one instance can carry
+exactly one patch per grading. A matrix of n runs per instance is therefore n
+gradings a side, one per round, plus one for the selected patches:
+
+```sh
+./grade-matrix.sh w12 all 5
+```
+
+| group | run ids | patches |
+| --- | --- | --- |
+| flows rounds | `w12-flows-r1` … `w12-flows-r5` | `patches/<id>-r<n>.patch` |
+| codex rounds | `w12-codex-r1` … `w12-codex-r5` | `patches-codex/<id>-r<n>.patch` |
+| selected | `w12-selected` | `selected/<id>.patch` |
+
+`all` selects first and grades second. Running the selector after a grading
+changes nothing about what it reads — it cannot name a report — but grading first
+is the order that invites the mistake, so the driver does not offer it.
+
+```sh
+node matrix-report.mjs --prefix w12 --count 5
+```
+
+writes `matrix-report.json` and `matrix-report.md`: the per-instance reliability
+matrix (n verdicts each side), best-of-n on both sides, selector quality, and the
+single-attempt r1 columns that waves 3 through 11 reported, so the matrix can be
+read against them.
+
+**Disclosure obligations.** The two best-of-n columns are *not* the same
+measurement, and the report says so on every line that carries them:
+
+- **flows best-of-n is the verdict of the patch the selector chose**, from
+  journals and patches alone, before anything was graded. It is a number the
+  harness could produce in production.
+- **codex best-of-n is an oracle**: resolved when *any* of the n codex runs
+  resolved. The grader makes that choice after grading all n, and no codex run
+  could make it. It is an upper bound on what a codex best-of-n would score, not
+  a measured one.
+- A comparison between them therefore favours codex by exactly the selector's
+  miss rate, and the report prints the flows side's oracle too, so the gap
+  between "the selector chose" and "an oracle would have chosen" is a number
+  rather than an argument.
+- **Selector quality** is that gap per instance: of the instances where at least
+  one flows run resolved, `hit` where the selector took a resolving run and
+  `miss` where it took another. An instance where nothing resolved is `n/a`,
+  because there was nothing to hit.
+
+The report also cross-checks the chosen patch against itself: the same bytes are
+graded once in their own round and once in the selected set, and a disagreement
+is a rig fault the report names rather than a result.
+
+`fixtures/check-matrix-report.mjs`, in `verify.sh`, replays the generator over
+`fixtures/matrix-reports.json` — the verdicts waves 7 through 11 and the drive's
+four codex gradings actually recorded, arranged as five rounds. It pins the
+reliability matrix, keeps `not graded` distinct from `empty patch`, and asserts
+the oracle label and the rig-fault warning appear in the markdown.
+
 ## Score
 
 ```sh
@@ -455,6 +718,15 @@ different sample and do not edit the pinned list to match a new draw.
   a wave that has to be restarted is cheaper than a wave whose report names a
   commit half of it did not run.
 - **Grading is the official evaluator.** Never grade a patch by reading it.
+- **A best-of-n number names how it was chosen.** The flows column is the
+  selector's pre-grading choice and the codex column is an oracle; a write-up
+  that prints them side by side without saying which is which is claiming a win
+  the measurement does not support. Say it in the sentence that carries the
+  numbers, not in a footnote. See [Best-of-n](#best-of-n).
+- **The selector never sees the answer.** It reads `journals/` and `patches/`
+  and nothing else, and it runs before grading. A change that gives it any other
+  input — the evaluator's report, the dataset row, a hand-written verdict —
+  turns every best-of-n number the rig has ever produced into an oracle.
 - **Never correct a patch by hand.** If a captured patch holds something the
   agent did not write, that is a capture defect: fix `lib/capture-patch.sh` or
   `lib/snapshot-base.sh` and re-derive with `regen-patch.sh`. A patch edited
@@ -510,10 +782,16 @@ a journal carrying exactly those numbers and asserts the scorecard reports them:
 
 That is an offline check of the tooling — no tokens, no docker, no dataset. It
 also replays the repository-specific verification guidance, the patch capture
-(`fixtures/check-capture.mjs`), and the subject fingerprint
+(`fixtures/check-capture.mjs`), the subject fingerprint
 (`fixtures/check-subject.mjs`, which needs a built CLI: run `./preflight.sh`
-first if `packages/cli/dist` is absent). Run it after touching `scorecard.ts`,
-`prices.ts`, the journal's event shapes, or anything under `lib/`.
+first if `packages/cli/dist` is absent), and the whole best-of-n half: the
+per-run naming rule (`fixtures/check-run-paths.mjs`), the matrix scheduler over
+a stub harness command (`fixtures/check-matrix.mjs`), the journal-only selector
+over two real waves (`fixtures/check-selector.mjs`), and the report generator
+over recorded evaluator verdicts (`fixtures/check-matrix-report.mjs`). Run it
+after touching `scorecard.ts`, `prices.ts`, the journal's event shapes,
+`select-candidate.mjs`, `run-matrix.sh`, `matrix-report.mjs`, or anything under
+`lib/`.
 
 ## `flows.sh`
 

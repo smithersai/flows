@@ -27,6 +27,13 @@
 /flows-cell-harness.*.json
 /codex-cli.*.json
 
+# Best-of-n artifacts: the archived journals a matrix run leaves behind, the
+# patches its selector chose, the matrix manifests, and the matrix report.
+/journals/
+/selected/
+/matrix-*.json
+/matrix-report.md
+
 # Generated fixture: `./verify.sh` rebuilds it from the committed numbers.
 /fixtures/work/
 /fixtures/patches/

@@ -4,10 +4,16 @@
 # image-derived checkout, same live container for tests, same prompt content,
 # same wall-clock budget.
 #
-#   run-instance-codex.sh <instance_id> [timeout-seconds] [model]
+#   run-instance-codex.sh <instance_id> [timeout-seconds] [model] [run-index]
 #
 # Produces patches-codex/<instance_id>.patch, timings-codex/<instance_id>.json,
 # and logs-codex/<instance_id>.*.
+#
+# With a run index — `run-instance-codex.sh <id> 1500 gpt-5.6-sol r3` — every one
+# of those names carries `-r3`, from the same `lib/run-paths.sh` the flows script
+# derives its names from, so a matrix run of five attempts per instance names its
+# artifacts identically on both sides. A codex run already deletes its workspace
+# when it finishes, so there is no disk policy to add here.
 #
 # This spends real API tokens and needs docker. See README.md.
 set -u
@@ -15,6 +21,7 @@ S="$(cd "$(dirname "$0")" && pwd)"
 INSTANCE="$1"
 BUDGET="${2:-1500}"
 MODEL="${3:-gpt-5.6-sol}"
+INDEX="${4:-}"
 DATASET="${SWB_DATASET:-$S/swb-verified.json}"
 
 if [ ! -f "$DATASET" ]; then
@@ -23,10 +30,13 @@ fi
 
 IMAGE_ID="$(echo "$INSTANCE" | sed 's/__/_1776_/')"
 IMAGE="swebench/sweb.eval.x86_64.${IMAGE_ID}:latest"
-WORK="$S/work-codex/$INSTANCE"
-CONTAINER="codexbench-$(echo "$INSTANCE" | tr '_.' '--')"
 
-mkdir -p "$S/work-codex" "$S/patches-codex" "$S/logs-codex" "$S/timings-codex"
+# Every artifact name this run writes, from the one place that knows the rule.
+# `run-paths.sh` re-validates the instance id and the index before either reaches
+# a path, a container name or an image name.
+RUN_PATHS="$("$S/lib/run-paths.sh" codex "$INSTANCE" ${INDEX:+"$INDEX"})" || exit $?
+eval "$RUN_PATHS"
+mkdir -p "$WORK_ROOT" "$PATCH_ROOT" "$LOG_ROOT" "$TIMINGS_ROOT"
 
 # The isolated CODEX_HOME must exist and hold an API-key login before
 # `codex exec` runs. The CLI refuses to start when CODEX_HOME names a missing
@@ -37,16 +47,16 @@ mkdir -p "$S/work-codex" "$S/patches-codex" "$S/logs-codex" "$S/timings-codex"
 mkdir -p "$S/.codex-home"
 if ! CODEX_HOME="$S/.codex-home" codex login status >/dev/null 2>&1; then
   if [ -z "${OPENAI_API_KEY:-}" ]; then
-    echo "[$INSTANCE] no OPENAI_API_KEY to log codex in with"; exit 1
+    echo "[$RUN_ID] no OPENAI_API_KEY to log codex in with"; exit 1
   fi
   printenv OPENAI_API_KEY | CODEX_HOME="$S/.codex-home" codex login --with-api-key >/dev/null 2>&1 || {
-    echo "[$INSTANCE] codex login failed"; exit 1; }
+    echo "[$RUN_ID] codex login failed"; exit 1; }
 fi
 
-echo "[$INSTANCE] image $IMAGE"
+echo "[$RUN_ID] image $IMAGE"
 if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
-  docker pull --platform linux/amd64 "$IMAGE" >"$S/logs-codex/$INSTANCE.pull.log" 2>&1 || {
-    echo "[$INSTANCE] PULL FAILED"; exit 1; }
+  docker pull --platform linux/amd64 "$IMAGE" >"$LOG_PREFIX.pull.log" 2>&1 || {
+    echo "[$RUN_ID] PULL FAILED"; exit 1; }
 fi
 
 # Serialize the testbed extraction across concurrent lanes: docker cp of a
@@ -66,14 +76,14 @@ trap - EXIT
 # image's own pre_install churn cannot enter the patch. Both harnesses are
 # captured under one rule or the comparison is not a comparison.
 CAPTURE_BASE="$("$S/lib/snapshot-base.sh" "$WORK")"
-echo "[$INSTANCE] capture base $CAPTURE_BASE"
+echo "[$RUN_ID] capture base $CAPTURE_BASE"
 
 docker rm -f "$CONTAINER" >/dev/null 2>&1
 docker run -d --platform linux/amd64 --name "$CONTAINER" \
   -v "$WORK:/testbed" -w /testbed "$IMAGE" sleep infinity >/dev/null 2>&1 || {
-  echo "[$INSTANCE] CONTAINER START FAILED"; exit 1; }
+  echo "[$RUN_ID] CONTAINER START FAILED"; exit 1; }
 
-node "$S/lib/write-prompt-codex.mjs" "$DATASET" "$INSTANCE" "$CONTAINER" > "$S/logs-codex/$INSTANCE.prompt.md"
+node "$S/lib/write-prompt-codex.mjs" "$DATASET" "$INSTANCE" "$CONTAINER" > "$LOG_PREFIX.prompt.md"
 
 # Network access is a benchmark condition, not a detail. SWB_CODEX_NETWORK=off
 # runs codex under its workspace-write sandbox, which denies network egress;
@@ -92,7 +102,7 @@ else
   CODEX_SANDBOX_ARGS="--dangerously-bypass-approvals-and-sandbox"
 fi
 
-echo "[$INSTANCE] codex start ($MODEL, ${BUDGET}s)"
+echo "[$RUN_ID] codex start ($MODEL, ${BUDGET}s)"
 START=$(date +%s)
 # Isolated CODEX_HOME: API-key auth (the same key the flows runs billed), no
 # user config — so reasoning effort is pinned here, not inherited from the
@@ -106,21 +116,21 @@ timeout "$BUDGET" codex exec \
   --skip-git-repo-check \
   --ephemeral \
   --color never \
-  -o "$S/logs-codex/$INSTANCE.last-message.txt" \
-  - < "$S/logs-codex/$INSTANCE.prompt.md" \
-  > "$S/logs-codex/$INSTANCE.run.log" 2>&1
+  -o "$LOG_PREFIX.last-message.txt" \
+  - < "$LOG_PREFIX.prompt.md" \
+  > "$LOG_PREFIX.run.log" 2>&1
 CODE=$?
 END=$(date +%s)
-echo "[$INSTANCE] codex done in $((END-START))s (exit $CODE)"
+echo "[$RUN_ID] codex done in $((END-START))s (exit $CODE)"
 
-printf '{\n  "instance_id": "%s",\n  "model": "%s",\n  "budgetSeconds": %s,\n  "network": "%s",\n  "exitCode": %s,\n  "startedAt": %s,\n  "endedAt": %s,\n  "wallClockSeconds": %s\n}\n' \
-  "$INSTANCE" "$MODEL" "$BUDGET" "${SWB_CODEX_NETWORK:-on}" "$CODE" "$((START*1000))" "$((END*1000))" "$((END-START))" \
-  > "$S/timings-codex/$INSTANCE.json"
+printf '{\n  "instance_id": "%s",\n  "run_id": "%s",\n  "runIndex": "%s",\n  "model": "%s",\n  "budgetSeconds": %s,\n  "network": "%s",\n  "exitCode": %s,\n  "startedAt": %s,\n  "endedAt": %s,\n  "wallClockSeconds": %s\n}\n' \
+  "$INSTANCE" "$RUN_ID" "$RUN_INDEX" "$MODEL" "$BUDGET" "${SWB_CODEX_NETWORK:-on}" "$CODE" "$((START*1000))" "$((END*1000))" "$((END-START))" \
+  > "$TIMINGS"
 
-"$S/lib/capture-patch.sh" "$WORK" "$S/patches-codex/$INSTANCE.patch" \
+"$S/lib/capture-patch.sh" "$WORK" "$PATCH" \
   ':(exclude)AGENTS.md' >/dev/null
 
 docker rm -f "$CONTAINER" >/dev/null 2>&1
 rm -rf "$WORK"
-echo "[$INSTANCE] patch bytes: $(wc -c < "$S/patches-codex/$INSTANCE.patch" | tr -d ' ')"
-echo "[$INSTANCE] untracked files left out of the patch: $(wc -l < "$S/patches-codex/$INSTANCE.patch.untracked" | tr -d ' ')"
+echo "[$RUN_ID] patch bytes: $(wc -c < "$PATCH" | tr -d ' ')"
+echo "[$RUN_ID] untracked files left out of the patch: $(wc -l < "$PATCH.untracked" | tr -d ' ')"

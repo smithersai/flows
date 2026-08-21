@@ -8,6 +8,16 @@
 # <model-name>.<run-id>.json, into this directory. Both are transient and
 # gitignored; the scorecard reads the report.
 #
+# Two overrides serve the best-of-n matrix, where one instance has n patches and
+# the evaluator's predictions can only be keyed by instance id:
+#
+#   SWB_PATCH_SUFFIX=-r3   grade <id>-r3.patch as <id>'s prediction
+#   SWB_PATCHES=selected   grade a different directory (relative to this one)
+#   SWB_MODEL_NAME=...     the model name the report is filed under
+#
+# So a 25-run flows matrix grades as five run ids, one per round, and the
+# selected patches grade as a sixth. `grade-matrix.sh` drives all of it.
+#
 # SWB_EVAL_WORKERS sets the evaluator's concurrency. It defaults to 1, and
 # raising it is not merely a speed/disk tradeoff: with this evaluator (swebench
 # 4.0.4) and `--cache_level env`, concurrent workers race in the post-run image
@@ -45,12 +55,22 @@ if [ "$HARNESS" = "codex" ]; then
 else
   PATCHES="$S/patches"; MODEL="flows-cell-harness"
 fi
+if [ -n "${SWB_PATCHES:-}" ]; then PATCHES="$S/${SWB_PATCHES}"; fi
+if [ -n "${SWB_MODEL_NAME:-}" ]; then MODEL="${SWB_MODEL_NAME}"; fi
+SUFFIX="${SWB_PATCH_SUFFIX:-}"
+case "$SUFFIX" in
+  ''|-r[0-9]*) ;;
+  *) echo "SWB_PATCH_SUFFIX must be empty or -r<digits>"; exit 2 ;;
+esac
+if [ ! -d "$PATCHES" ]; then
+  echo "no patches directory at $PATCHES"; exit 1
+fi
 
 if [ ! -x "$S/.venv-swb/bin/python" ]; then
   echo "no evaluator venv at $S/.venv-swb — run ./bootstrap.sh first"; exit 1
 fi
 
-node "$S/lib/make-preds.mjs" "$PATCHES" "$MODEL" "$@" > "$S/preds-$RUN_ID.json"
+node "$S/lib/make-preds.mjs" "$PATCHES" "$MODEL" "$SUFFIX" "$@" > "$S/preds-$RUN_ID.json"
 cd "$S" || exit 1
 # lib/grade.py is the evaluator, run with the rig's architecture. See its
 # docstring: the evaluator picks arm64 from platform.machine() alone, while
