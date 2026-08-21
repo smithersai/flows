@@ -64,6 +64,8 @@ describe("AgentEvent", () => {
         modelCallMs: 300_000,
         repeatCap: 4,
         narrowingCap: 1,
+        unmovedCap: 1,
+        unresolvedCap: 1,
         calls: 8,
         memoryBytes: 1024,
         steps: 10_000,
@@ -173,6 +175,20 @@ describe("AgentEvent", () => {
         currentDigest: "digest-after",
         nextFrame: 7
       }),
+      new AgentEvent.UnmovedDemanded({
+        eventType: "flows.harness.unmoved-demanded.v1",
+        openedDigest: "digest-opened",
+        currentDigest: "digest-opened",
+        nextFrame: 7
+      }),
+      new AgentEvent.UnresolvedDemanded({
+        eventType: "flows.harness.unresolved-demanded.v1",
+        flow: "bash",
+        failed: "{\"command\":\"check suite\"}",
+        instead: "{\"command\":\"check suite -only one\"}",
+        currentDigest: "digest-after",
+        nextFrame: 7
+      }),
       new AgentEvent.Resolved({
         eventType: "flows.harness.resolved.v1",
         message: assistantMessage
@@ -197,7 +213,9 @@ describe("AgentEvent", () => {
         approvalChannel: false,
         modelCallMs: 0,
         repeatCap: 0,
-        narrowingCap: 0
+        narrowingCap: 0,
+        unmovedCap: 0,
+        unresolvedCap: 0
       }),
       new AgentEvent.Suspended({
         eventType: "flows.harness.suspended.v1",

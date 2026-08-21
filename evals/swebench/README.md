@@ -222,7 +222,8 @@ Before spending tokens on the rest of a wave, run and grade its first flows
 instance, then inspect that workspace's journal for exactly one
 `control.agent.discipline-armed` event per run. Its payload is the positive
 record of the discipline configured at run start: `readOnlyCap` must be nonzero,
-and `maxFrames`, `modelCallMs`, `repeatCap`, `narrowingCap`, plus every armed
+and `maxFrames`, `modelCallMs`, `repeatCap`, `narrowingCap`, `unmovedCap`,
+`unresolvedCap`, plus every armed
 sandbox limit (`calls`, `memoryBytes`, `steps`, `timeMs`, `callMs`, and
 `totalMs`) must match the wave's intended budgets. Stop the wave if the event is
 absent or the values are wrong.
@@ -259,6 +260,33 @@ a nonzero `narrowingCap` is a wave whose runs each re-ran their broad check over
 the tree they submitted, and zero with `narrowingCap: 0` says nothing was ever
 asked. Each event carries both inputs and both workspace digests, so a report
 can second-guess the demand from the journal without replaying the run.
+
+`unmovedCap` and `unresolvedCap` are the other two controls that act on a
+completion, armed the same way and read from `control.agent.unmoved-demanded`
+and `control.agent.unresolved-demanded`. Both are journaled when the demand is
+issued and both fire at most once per run.
+
+`unmoved-demanded` carries the digest the run opened on and the digest its
+completing frame closed on, which are equal by construction; reconcile them
+against the run's own `control.agent.mutation-observed` events, which say the
+same thing frame by frame. Wave 9's `django__django-16612` is the recorded case:
+seven frames, eleven calls, no editing call of any kind, one digest throughout,
+a zero-byte patch, and a completion describing an edit.
+
+`unresolved-demanded` carries the failing check and the reading the run took in
+its place, both over the digest the frame closed on. It is not a rule about
+failing checks: wave 9's `astropy__astropy-8707` **resolved** after a post-edit
+broad check reported two failures, because it never went back to what that check
+covered. The demand fires only where the run itself returned to the same
+subject with a different command, which is wave 9's `pytest-dev__pytest-6197` —
+`pytest -rA testing/python/collect.py` at seq 394 reporting "2 failed, 72
+passed", then four named cases out of that file at seq 429 reporting "4 passed",
+then `complete`.
+
+When one completing frame trips more than one of the three, only the first is
+issued, in the order `unmoved`, `unresolved`, `narrowed`: descending order of
+how fundamental the missing thing is. A journal therefore never carries two
+completion demands at one `transition-applied`.
 
 For the wave report, read `control.agent.read-only-demanded` directly. Each
 event records the streak and configured cap that triggered the intervention,

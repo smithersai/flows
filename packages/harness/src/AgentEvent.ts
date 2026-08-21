@@ -66,6 +66,19 @@ export class DisciplineArmed extends Schema.TaggedClass<DisciplineArmed>(
    * and the answer that comes back is the answer that stands.
    */
   narrowingCap: Schema.Number,
+  /**
+   * Completions this run may have bounced for an unmoved tree; zero disarms.
+   *
+   * Journaled for the same reason as the other two completion caps: the demand
+   * fires at most once and usually not at all, so a wave that records none must
+   * be able to say whether the control was armed and never needed.
+   */
+  unmovedCap: Schema.Number,
+  /**
+   * Completions this run may have bounced for a failing check it replaced
+   * rather than answered; zero disarms.
+   */
+  unresolvedCap: Schema.Number,
   /** Maximum calls per cell, when this binding can enforce one. */
   calls: Schema.optional(Schema.Number),
   /** Maximum sandbox heap, when this binding can enforce one. */
@@ -320,6 +333,64 @@ export class NarrowedDemanded extends Schema.TaggedClass<NarrowedDemanded>(
 }) {}
 
 /**
+ * The controller refusing one completion with no change behind it.
+ *
+ * Written when a frame returns `complete` while the tree it closed on is
+ * byte-for-byte the tree the run opened on. Written when the demand is
+ * *issued*, like the narrowing demand, because what answers it is the next
+ * frame's own record — an edit that moves the digest, or a second completion
+ * saying no change was needed — and the journal already writes both.
+ *
+ * The two digests are the whole audit trail: a grader can decide after the fact
+ * whether the demand was right by comparing them to the run's
+ * `mutation-observed` record, without replaying anything.
+ *
+ * @category events
+ * @since 0.1.0
+ */
+export class UnmovedDemanded extends Schema.TaggedClass<UnmovedDemanded>(
+  "flows/harness/AgentEvent/UnmovedDemanded"
+)("unmoved-demanded", {
+  eventType: Schema.Literal("flows.harness.unmoved-demanded.v1"),
+  /** Workspace digest the run opened on. */
+  openedDigest: Schema.String,
+  /** Workspace digest the completing frame closed on, equal to the first. */
+  currentDigest: Schema.String,
+  /** The frame the demand was attached to, which is the one that must answer it. */
+  nextFrame: Schema.Int
+}) {}
+
+/**
+ * The controller refusing one completion that stepped around a failing check.
+ *
+ * Written when a frame returns `complete` while a check recorded over the same
+ * tree reported a failing exit status, was never re-run, and a later check went
+ * back to the same subject with a different command.
+ *
+ * `failed` and `instead` quote the two inputs as the run wrote them, and
+ * `currentDigest` is the tree both were measured over, so the record says which
+ * reading the completion stands on and which one replaced it.
+ *
+ * @category events
+ * @since 0.1.0
+ */
+export class UnresolvedDemanded extends Schema.TaggedClass<UnresolvedDemanded>(
+  "flows/harness/AgentEvent/UnresolvedDemanded"
+)("unresolved-demanded", {
+  eventType: Schema.Literal("flows.harness.unresolved-demanded.v1"),
+  /** The flow both checks named. */
+  flow: Schema.String,
+  /** The failing check's input as the run wrote it, clipped. */
+  failed: Schema.String,
+  /** The input of the reading the run took instead, clipped. */
+  instead: Schema.String,
+  /** Workspace digest both checks were recorded over, and the frame closed on. */
+  currentDigest: Schema.String,
+  /** The frame the demand was attached to, which is the one that must answer it. */
+  nextFrame: Schema.Int
+}) {}
+
+/**
  * What one frame did to the workspace, and how the controller knows.
  *
  * Emitted once per frame that ran a cell. It is the frame's own answer to the
@@ -499,6 +570,8 @@ export const AgentEvent = Schema.Union([
   ReadOnlyDemanded,
   RepeatDemanded,
   NarrowedDemanded,
+  UnmovedDemanded,
+  UnresolvedDemanded,
   Suspended,
   CompactionSettled,
   SteeringDrained,

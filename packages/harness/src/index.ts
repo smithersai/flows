@@ -112,3 +112,15 @@ export * as TruncatedOutput from "./TruncatedOutput.ts"
  * @since 0.1.0
  */
 export * as NarrowedCheck from "./NarrowedCheck.ts"
+
+/**
+ * @category models
+ * @since 0.1.0
+ */
+export * as UnmovedTree from "./UnmovedTree.ts"
+
+/**
+ * @category models
+ * @since 0.1.0
+ */
+export * as UnresolvedFailure from "./UnresolvedFailure.ts"

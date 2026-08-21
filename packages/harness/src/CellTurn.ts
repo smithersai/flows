@@ -32,6 +32,8 @@ import * as NarrowedCheck from "./NarrowedCheck.ts"
 import * as Sandbox from "./Sandbox.ts"
 import * as Steering from "./Steering.ts"
 import * as TruncatedOutput from "./TruncatedOutput.ts"
+import * as UnmovedTree from "./UnmovedTree.ts"
+import * as UnresolvedFailure from "./UnresolvedFailure.ts"
 
 const NonNegativeSafeInt = Schema.Int.check(
   Schema.isGreaterThanOrEqualTo(0),
@@ -142,6 +144,41 @@ export const defaultRepeatFrames = 4
  */
 export const defaultNarrowingDemands = 1
 
+/**
+ * Default number of completions a run may have bounced for an unmoved tree.
+ *
+ * One, for the reason {@link defaultNarrowingDemands} is one: the sanctioned
+ * shape for a control that judges a completion is demand-then-continue, and a
+ * second bounce would be the loop arguing with the run.
+ *
+ * The failure it answers is the eleventh named failure mode of the SWE-bench
+ * cell harness, and the only one where the harness held the deciding fact for
+ * the whole run and never consulted it: seven frames of `mutation-observed` on
+ * one digest, followed by a completion describing an edit that does not exist.
+ * See `UnmovedTree` for the journal it was read off.
+ *
+ * Zero disarms the demand.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const defaultUnmovedDemands = 1
+
+/**
+ * Default number of completions a run may have bounced for a failing check it
+ * replaced rather than answered.
+ *
+ * One, for the same reason as the other two completion caps. See
+ * `UnresolvedFailure` for the journal it was read off, and for why a failing
+ * check on its own is not the trigger.
+ *
+ * Zero disarms the demand.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const defaultUnresolvedDemands = 1
+
 const MaxFrames = NonNegativeSafeInt.pipe(
   Schema.withConstructorDefault(Effect.succeed(defaultMaxFrames)),
   Schema.withDecodingDefaultKey(Effect.succeed(defaultMaxFrames))
@@ -168,6 +205,8 @@ const eventType = {
   readOnlyDemanded: "flows.harness.read-only-demanded.v1",
   repeatDemanded: "flows.harness.repeat-demanded.v1",
   narrowedDemanded: "flows.harness.narrowed-demanded.v1",
+  unmovedDemanded: "flows.harness.unmoved-demanded.v1",
+  unresolvedDemanded: "flows.harness.unresolved-demanded.v1",
   modelDelta: "flows.harness.model-delta.v1",
   modelSettled: "flows.harness.model-settled.v1",
   mutationObserved: "flows.harness.mutation-observed.v1",
@@ -341,6 +380,47 @@ export class State extends Schema.Class<State>("flows/harness/CellTurn/State")({
     Schema.withDecodingDefaultKey(Effect.succeed(0))
   ),
   /**
+   * Completions this run may have bounced for an unmoved tree. Zero disarms
+   * the demand. See {@link defaultUnmovedDemands} and `UnmovedTree`.
+   */
+  unmovedCap: NonNegativeSafeInt.pipe(
+    Schema.withConstructorDefault(Effect.succeed(defaultUnmovedDemands)),
+    Schema.withDecodingDefaultKey(Effect.succeed(defaultUnmovedDemands))
+  ),
+  /** Completions this run has already had bounced for an unmoved tree. */
+  unmovedDemands: NonNegativeSafeInt.pipe(
+    Schema.withConstructorDefault(Effect.succeed(0)),
+    Schema.withDecodingDefaultKey(Effect.succeed(0))
+  ),
+  /**
+   * Completions this run may have bounced for a failing check it replaced
+   * rather than answered. Zero disarms the demand. See
+   * {@link defaultUnresolvedDemands} and `UnresolvedFailure`.
+   */
+  unresolvedCap: NonNegativeSafeInt.pipe(
+    Schema.withConstructorDefault(Effect.succeed(defaultUnresolvedDemands)),
+    Schema.withDecodingDefaultKey(Effect.succeed(defaultUnresolvedDemands))
+  ),
+  /** Completions this run has already had bounced for such a check. */
+  unresolvedDemands: NonNegativeSafeInt.pipe(
+    Schema.withConstructorDefault(Effect.succeed(0)),
+    Schema.withDecodingDefaultKey(Effect.succeed(0))
+  ),
+  /**
+   * Content address of the workspace this run opened on.
+   *
+   * Recorded once, from the first frame whose opening measurement covered the
+   * tree, and never restamped: the whole question `UnmovedTree` asks is whether
+   * the tree a completion describes is the tree the run was handed, and an
+   * origin that moved with the run could not answer it. Empty means no frame
+   * has produced a complete opening measurement, which makes the demand inert
+   * rather than wrong.
+   */
+  openingDigest: Schema.String.pipe(
+    Schema.withConstructorDefault(Effect.succeed("")),
+    Schema.withDecodingDefaultKey(Effect.succeed(""))
+  ),
+  /**
    * Checks this run has run, oldest first, each stamped with the tree it ran
    * over.
    *
@@ -352,7 +432,7 @@ export class State extends Schema.Class<State>("flows/harness/CellTurn/State")({
    */
   checks: NarrowedCheck.Ledger,
   /**
-   * The output of the completion a narrowing demand handed back, if any.
+   * The output of the completion a completion demand handed back, if any.
    *
    * The demand takes a finished answer away and asks for one more frame. It is
    * allowed to do that only because the run gets to answer again — so the one
@@ -474,6 +554,19 @@ export const make = (options: {
    */
   readonly narrowingCap?: number | undefined
   /**
+   * Caps how many completions may be bounced for an unmoved tree: at the first
+   * completion whose closing digest is the digest the run opened on, the
+   * controller names both and asks for another frame. Omitted takes
+   * {@link defaultUnmovedDemands}; zero disarms it.
+   */
+  readonly unmovedCap?: number | undefined
+  /**
+   * Caps how many completions may be bounced for a failing check the run
+   * replaced rather than answered. Omitted takes
+   * {@link defaultUnresolvedDemands}; zero disarms it.
+   */
+  readonly unresolvedCap?: number | undefined
+  /**
    * Whether a human can answer this run. Omitted or false refuses a `park`
    * transition and answers it in-frame; only a host that has wired somewhere
    * for an answer to come from may claim true.
@@ -502,6 +595,11 @@ export const make = (options: {
     callSignatures: [],
     narrowingCap: options.narrowingCap ?? defaultNarrowingDemands,
     narrowingDemands: 0,
+    unmovedCap: options.unmovedCap ?? defaultUnmovedDemands,
+    unmovedDemands: 0,
+    unresolvedCap: options.unresolvedCap ?? defaultUnresolvedDemands,
+    unresolvedDemands: 0,
+    openingDigest: "",
     checks: [],
     approvalChannel: options.approvalChannel ?? false,
     workspace: undefined,
@@ -1314,6 +1412,15 @@ const frame = (
       readonly input: Schema.Json
       /** What the flow said about its own failure, when it said it ran nothing. */
       readonly invalidProbe: { readonly reason: string; readonly message: string } | undefined
+      /**
+       * Whether the result reported a failing exit status about its subject.
+       *
+       * A call that declared an invalid probe is never failing here, whatever
+       * its exit status: the flow itself said the failure was about the command
+       * and not about the code, so the result is not a statement about the tree
+       * at all. See `UnresolvedFailure` `failed`.
+       */
+      readonly failing: boolean
     }> = []
     /** Ordinals of the invocations that reached the engine this frame. */
     const performed = new Set<number>()
@@ -1325,6 +1432,7 @@ const frame = (
               ? JSON.stringify(result.value) ?? "null"
               : result.message ?? "failed"
             const descriptor = descriptors.get(invocation.flow)
+            const probe = result.outcome === "success" ? invalidProbeOf(result.value) : undefined
             observedCalls.push({
               flow: invocation.flow,
               ok: result.outcome === "success",
@@ -1336,7 +1444,9 @@ const frame = (
               // asking it again learns nothing either.
               signature: signatureOf(invocation.flow, invocation.input),
               input: invocation.input,
-              invalidProbe: result.outcome === "success" ? invalidProbeOf(result.value) : undefined
+              invalidProbe: probe,
+              failing: result.outcome === "success" && probe === undefined &&
+                UnresolvedFailure.failed(result.value)
             })
           })
         )
@@ -1431,11 +1541,26 @@ const frame = (
         flow: call.flow,
         signature: call.signature,
         input: call.input,
-        digest: workspaceDigest
+        digest: workspaceDigest,
+        failing: call.failing,
+        // A frame that also edited cannot say whether its checks ran before or
+        // after the edit, so the tree stamped on them is a guess in one
+        // direction. `UnresolvedFailure` refuses to carry a failure on such a
+        // stamp; see `NarrowedCheck.Check` `stable`.
+        stable: !mutated
       })
       return recorded === undefined ? [] : [recorded]
     })
     const checks = NarrowedCheck.remember(state.checks, frameChecks)
+
+    // The tree the run was handed, fixed the first time a frame measured one
+    // and never restamped. See `State.openingDigest`.
+    const openingDigest = state.openingDigest !== ""
+      ? state.openingDigest
+      : Option.match(opened, {
+        onNone: () => "",
+        onSome: (value) => value.complete ? value.digest : ""
+      })
 
     // Read-only discipline is armed for the whole frame, not for one exit: a
     // raise, a refused park and a settled transition all continue the run, and
@@ -1486,6 +1611,7 @@ const frame = (
         repeatFrames,
         callSignatures,
         checks,
+        openingDigest,
         ...(mutated ? { readOnlyGrace: 0, pendingReadOnlyDemand: undefined } : {})
       })
       yield* emit(
@@ -1555,6 +1681,7 @@ const frame = (
             repeatFrames,
             callSignatures,
             checks,
+            openingDigest,
             ...(mutated ? { readOnlyGrace: 0 } : {})
           }
         )
@@ -1617,18 +1744,64 @@ const frame = (
     }
 
     if (transition._tag === "complete") {
-      // The completion's own evidence, judged once. A run gets exactly one
-      // frame wrong for free — the last one — and this is the shape it takes:
-      // a check that repeats an earlier, broader one and adds conditions to
-      // it, run after a change the broader one never saw. The loop names the
-      // check that is missing and hands the frame back; it does not re-run
-      // anything, and it does not judge the answer that comes back. A budget
-      // with no frame left to spend cannot ask, so it does not: turning a
-      // completion into an exhausted budget would lose the run's answer to
+      // The completion's own evidence, judged once per demand. A run gets
+      // exactly one frame wrong for free — the last one — and three things can
+      // be wrong with it, each read off measurements the controller already
+      // took and each with its own cap:
+      //
+      // 1. `UnmovedTree`: the tree it is completing on is the tree it opened
+      //    on, so there is no change for any evidence to be about;
+      // 2. `UnresolvedFailure`: a check over this exact tree reported a failing
+      //    exit status and the run answered it with a different reading of the
+      //    same subject rather than with the check itself;
+      // 3. `NarrowedCheck`: this frame's check repeats an earlier, broader one
+      //    and adds conditions to it, run after a change the broader one never
+      //    saw.
+      //
+      // At most one is named, in that order, because they are in descending
+      // order of how fundamental the missing thing is: there is nothing to
+      // check, then the check said no, then the check said less than it looks
+      // like it said. Naming two at once would ask the run to answer a
+      // question it has not been given a frame for.
+      //
+      // The loop names what is missing and hands the frame back; it does not
+      // re-run anything, and it does not judge the answer that comes back. A
+      // budget with no frame left to spend cannot ask, so it does not: turning
+      // a completion into an exhausted budget would lose the run's answer to
       // make a point about it.
-      const narrowing = state.narrowingDemands < state.narrowingCap && state.frame + 1 < state.maxFrames
+      const room = state.frame + 1 < state.maxFrames
+      const unmoved = room && state.unmovedDemands < state.unmovedCap
+        ? UnmovedTree.find({ opened: openingDigest, digest: workspaceDigest })
+        : undefined
+      const unresolved = unmoved === undefined && room && state.unresolvedDemands < state.unresolvedCap
+        ? UnresolvedFailure.find({ ledger: checks, digest: workspaceDigest })
+        : undefined
+      const narrowing = unmoved === undefined && unresolved === undefined && room &&
+          state.narrowingDemands < state.narrowingCap
         ? NarrowedCheck.find({ ledger: state.checks, frame: frameChecks, digest: workspaceDigest })
         : undefined
+      if (unmoved !== undefined) {
+        yield* emit(
+          new AgentEvent.UnmovedDemanded({
+            eventType: eventType.unmovedDemanded,
+            openedDigest: unmoved.opened,
+            currentDigest: unmoved.closed,
+            nextFrame: state.frame + 1
+          })
+        )
+      }
+      if (unresolved !== undefined) {
+        yield* emit(
+          new AgentEvent.UnresolvedDemanded({
+            eventType: eventType.unresolvedDemanded,
+            flow: unresolved.failed.flow,
+            failed: unresolved.failed.label,
+            instead: unresolved.instead.label,
+            currentDigest: workspaceDigest,
+            nextFrame: state.frame + 1
+          })
+        )
+      }
       if (narrowing !== undefined) {
         yield* emit(
           new AgentEvent.NarrowedDemanded({
@@ -1641,6 +1814,18 @@ const frame = (
             nextFrame: state.frame + 1
           })
         )
+      }
+      const demanded = unmoved !== undefined
+        ? { note: UnmovedTree.demand(unmoved), spent: { unmovedDemands: state.unmovedDemands + 1 } }
+        : unresolved !== undefined
+        ? {
+          note: UnresolvedFailure.demand(unresolved),
+          spent: { unresolvedDemands: state.unresolvedDemands + 1 }
+        }
+        : narrowing !== undefined
+        ? { note: NarrowedCheck.demand(narrowing), spent: { narrowingDemands: state.narrowingDemands + 1 } }
+        : undefined
+      if (demanded !== undefined) {
         yield* emit(
           new AgentEvent.TurnClosed({
             eventType: eventType.turnClosed,
@@ -1656,7 +1841,7 @@ const frame = (
             // was already holding, not a projected context: a completion names
             // no context for a next frame, and a run answering this one needs
             // the frame it just wrote.
-            contextWindow: observed(state, settled.message, NarrowedCheck.demand(narrowing)),
+            contextWindow: observed(state, settled.message, demanded.note),
             agentState: transition.state,
             truncatedOutputs: TruncatedOutput.retain(ledger),
             workspace: closed,
@@ -1665,7 +1850,8 @@ const frame = (
             repeatFrames,
             callSignatures,
             checks,
-            narrowingDemands: state.narrowingDemands + 1,
+            openingDigest,
+            ...demanded.spent,
             // The answer the demand is taking away, kept so it cannot be lost.
             // A frame was reserved for the run to answer in, but nothing makes
             // that frame end in a completion, and a run that spends it and
@@ -1808,6 +1994,7 @@ const frame = (
         repeatFrames: repeatDemanded ? 0 : repeatFrames,
         callSignatures,
         checks,
+        openingDigest,
         pendingReadOnlyDemand: demanded && !justified ? { streak: readOnlyFrames, cap } : undefined
       })
     }
@@ -1857,6 +2044,8 @@ export const run = (
             modelCallMs: current.modelCallMs,
             repeatCap: current.repeatCap,
             narrowingCap: current.narrowingCap,
+            unmovedCap: current.unmovedCap,
+            unresolvedCap: current.unresolvedCap,
             ...limits
           })
         )

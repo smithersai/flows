@@ -86,6 +86,8 @@ describe("trace", () => {
           modelCallMs: 300_000,
           repeatCap: 4,
           narrowingCap: 1,
+          unmovedCap: 1,
+          unresolvedCap: 1,
           calls: 64,
           memoryBytes: 134_217_728,
           steps: 1_000,
@@ -116,6 +118,12 @@ describe("trace", () => {
             // at most once in a run and usually not at all, so its absence
             // from a wave says nothing unless the arming is on the record.
             narrowingCap: 1,
+            // The two controls that judge what a completion is about rather
+            // than how it was verified — whether the run changed anything, and
+            // whether it answered the check that told it something was broken
+            // — journaled for the same reason and read the same way.
+            unmovedCap: 1,
+            unresolvedCap: 1,
             calls: 64,
             memoryBytes: 134_217_728,
             steps: 1_000,
@@ -148,6 +156,47 @@ describe("trace", () => {
             broaderDigest: "tree-before",
             currentDigest: "tree-after",
             nextFrame: 19
+          }
+        }
+      ],
+      [
+        "unmoved-demanded",
+        new AgentEvent.UnmovedDemanded({
+          eventType: "flows.harness.unmoved-demanded.v1",
+          openedDigest: "tree-opened",
+          currentDigest: "tree-opened",
+          nextFrame: 7
+        }),
+        {
+          eventType: "control.agent.unmoved-demanded",
+          // Both digests, because the judgement is the comparison: one alone
+          // cannot tell an unmoved tree from a measurement that never happened,
+          // and the pair reconciles against the run's `mutation-observed`
+          // record without replaying anything.
+          payload: { openedDigest: "tree-opened", currentDigest: "tree-opened", nextFrame: 7 }
+        }
+      ],
+      [
+        "unresolved-demanded",
+        new AgentEvent.UnresolvedDemanded({
+          eventType: "flows.harness.unresolved-demanded.v1",
+          flow: "bash",
+          failed: "{\"command\":\"run the whole check\"}",
+          instead: "{\"command\":\"diff it && run one case of the check\"}",
+          currentDigest: "tree-after",
+          nextFrame: 14
+        }),
+        {
+          eventType: "control.agent.unresolved-demanded",
+          // The failing reading and the one that displaced it, for the same
+          // reason the narrowing pair travels together: either alone is
+          // unremarkable and the demand is entirely about the two of them.
+          payload: {
+            flow: "bash",
+            failed: "{\"command\":\"run the whole check\"}",
+            instead: "{\"command\":\"diff it && run one case of the check\"}",
+            currentDigest: "tree-after",
+            nextFrame: 14
           }
         }
       ],

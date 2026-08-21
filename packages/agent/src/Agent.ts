@@ -178,6 +178,27 @@ export interface Options {
    */
   readonly narrowingCap?: number | undefined
   /**
+   * Caps how many completions may be bounced for an unmoved tree; see
+   * `CellTurn.defaultUnmovedDemands` for the default and the run it was read
+   * off.
+   *
+   * Armed by default. A run that changed something never reaches it, and a run
+   * whose task genuinely needs no change answers it in one sentence, so the
+   * only caller with a reason to pass zero is one whose completions are not
+   * claims about a workspace at all — a question, a review, a summary.
+   */
+  readonly unmovedCap?: number | undefined
+  /**
+   * Caps how many completions may be bounced for a failing check the run
+   * replaced rather than answered; see `CellTurn.defaultUnresolvedDemands`.
+   *
+   * Armed by default, and computed entirely from calls the run already made:
+   * it fires only where a check reported a failing exit status over the tree
+   * being completed on and a later call went back to the same subject with a
+   * different command.
+   */
+  readonly unresolvedCap?: number | undefined
+  /**
    * Whether a human can answer this run; see `CellTurn.make`.
    *
    * The default is false, because the default run is unattended. Only a caller
@@ -381,6 +402,8 @@ const runProduction: Service["run"] = (options) =>
             modelCallMs: options.modelCallMs,
             repeatCap: options.repeatCap,
             narrowingCap: options.narrowingCap,
+            unmovedCap: options.unmovedCap,
+            unresolvedCap: options.unresolvedCap,
             approvalChannel: options.approvalChannel
           })
           return CellTurn.run({ state, flows, limits: options.limits }).pipe(

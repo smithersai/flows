@@ -2255,3 +2255,324 @@ describe("CellTurn truncated output", () => {
     expect(system).toContain("git checkout or git restore")
   })
 })
+
+describe("CellTurn unmoved workspace", () => {
+  const shell = descriptor("bash", { capabilities: ["proc:spawn:*"], tier: "irreversible" })
+
+  const completing = (
+    cells: ReadonlyArray<string>,
+    calls: ReadonlyArray<ScriptedEngine.CallStep>,
+    overrides: { readonly maxFrames?: number; readonly unmovedCap?: number } = {}
+  ) =>
+    run({
+      state: CellTurn.make({
+        session: "session-1",
+        seat: "anthropic:test-model",
+        modelParams: ModelRequest.GenerationParams.make(),
+        layers: ["layer-a"],
+        capabilityEnvelope: ["fs:write:**", "proc:spawn:*"].map((declared) => {
+          const parsed = declared.split(":")
+          return new Capability.CapabilityPattern({
+            action: `${parsed[0]}:${parsed[1]}` as Capability.PatternAction,
+            resource: parsed.slice(2).join(":")
+          })
+        }),
+        placement: Option.none(),
+        contextWindow: window,
+        maxFrames: overrides.maxFrames ?? cells.length,
+        repeatCap: 0,
+        ...(overrides.unmovedCap === undefined ? {} : { unmovedCap: overrides.unmovedCap })
+      }),
+      flows: [shell, editor],
+      script: cells.map(emits),
+      calls,
+      tree: "a.py=base"
+    })
+
+  /** A frame that reads and asks for another. */
+  const reading = `await ctx.call("bash", { mode: "unhermetic", command: "read a.py" })
+     return { intent: "continue", state: {}, context: [{ role: "user", text: "read it" }] }`
+
+  const done = (output: string) => `return { intent: "complete", state: {}, output: ${JSON.stringify(output)} }`
+
+  it("bounces one completion whose run never moved the tree it was handed", async () => {
+    const { events, model } = await completing(
+      [reading, reading, done("changed the redirect to keep the query string"), done("re-read it: nothing to change")],
+      [{ _tag: "Success", value: null }, { _tag: "Success", value: null }]
+    )
+
+    // The recorded shape: seven frames of reading, a zero-byte patch, and a
+    // completion describing an edit that does not exist. Every other control
+    // was correct about its own subject and silent — the run finished below
+    // the read-only cap, declared no write to veto, and ran no check to narrow.
+    const demanded = of(events, "unmoved-demanded")
+    expect(demanded).toEqual([
+      expect.objectContaining({ openedDigest: "a.py=base", currentDigest: "a.py=base", nextFrame: 3 })
+    ])
+
+    // The demand is an in-frame observation, so the frame that answers it holds
+    // the cell it just wrote plus one sentence naming what is missing.
+    expect(JSON.stringify(model.recorder.requests[3]?.messages)).toContain("Unmoved workspace")
+    expect(JSON.stringify(model.recorder.requests[2]?.messages)).not.toContain("Unmoved workspace")
+
+    // "No change is needed" is one of the two answers the demand names, and it
+    // is taken as it is written.
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      expect.objectContaining({ text: "re-read it: nothing to change" })
+    ])
+  })
+
+  it("accepts the next completion whether or not it changed anything, and never asks twice", async () => {
+    const { events } = await completing(
+      [done("described a change"), done("still described a change")],
+      []
+    )
+
+    expect(of(events, "unmoved-demanded")).toHaveLength(1)
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      expect.objectContaining({ text: "still described a change" })
+    ])
+  })
+
+  it("says nothing when the run moved the tree, wherever in the run it moved it", async () => {
+    const { events } = await completing(
+      [
+        `await ctx.call("edit", { path: "a.py", text: "fix" })
+         return { intent: "continue", state: {}, context: [{ role: "user", text: "edited" }] }`,
+        reading,
+        done("fixed it")
+      ],
+      [{ _tag: "Success", value: null, tree: "a.py=fixed" }, { _tag: "Success", value: null }]
+    )
+
+    // The origin is fixed at the run's first measurement and never restamped,
+    // so a run that edits early and then reads for six frames is still a run
+    // that changed something.
+    expect(of(events, "unmoved-demanded")).toEqual([])
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      expect.objectContaining({ text: "fixed it" })
+    ])
+  })
+
+  it("says nothing when the host measures nothing to compare", async () => {
+    const { events } = await run({
+      state: state({ maxFrames: 2 }),
+      script: [emits(done("done"))]
+    })
+
+    // An unmeasured tree cannot say it held still, and a demand on that basis
+    // would bounce every run on a host with no workspace at all.
+    expect(of(events, "unmoved-demanded")).toEqual([])
+    expect(of(events, "resolved")).toHaveLength(1)
+  })
+
+  it("takes the completion rather than the demand when no frame is left to spend", async () => {
+    const { events } = await completing([done("described a change")], [], { maxFrames: 1 })
+
+    expect(of(events, "unmoved-demanded")).toEqual([])
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      expect.objectContaining({ text: "described a change" })
+    ])
+  })
+
+  it("leaves a run whose unmoved demand is disarmed alone", async () => {
+    const { events } = await completing([done("described a change")], [], { unmovedCap: 0 })
+
+    expect(of(events, "unmoved-demanded")).toEqual([])
+    expect(of(events, "discipline-armed")[0]?.unmovedCap).toBe(0)
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      expect.objectContaining({ text: "described a change" })
+    ])
+  })
+})
+
+describe("CellTurn unanswered failure", () => {
+  const shell = descriptor("bash", { capabilities: ["proc:spawn:*"], tier: "irreversible" })
+
+  const checking = (
+    cells: ReadonlyArray<string>,
+    calls: ReadonlyArray<ScriptedEngine.CallStep>,
+    overrides: { readonly maxFrames?: number; readonly unresolvedCap?: number } = {}
+  ) =>
+    run({
+      state: CellTurn.make({
+        session: "session-1",
+        seat: "anthropic:test-model",
+        modelParams: ModelRequest.GenerationParams.make(),
+        layers: ["layer-a"],
+        capabilityEnvelope: ["fs:write:**", "proc:spawn:*"].map((declared) => {
+          const parsed = declared.split(":")
+          return new Capability.CapabilityPattern({
+            action: `${parsed[0]}:${parsed[1]}` as Capability.PatternAction,
+            resource: parsed.slice(2).join(":")
+          })
+        }),
+        placement: Option.none(),
+        contextWindow: window,
+        maxFrames: overrides.maxFrames ?? cells.length,
+        repeatCap: 0,
+        ...(overrides.unresolvedCap === undefined ? {} : { unresolvedCap: overrides.unresolvedCap })
+      }),
+      flows: [shell, editor],
+      script: cells.map(emits),
+      calls,
+      tree: "a.py=base"
+    })
+
+  /** The edit that moves the tree, so the completion is not an unmoved one. */
+  const editing = `await ctx.call("edit", { path: "a.py", text: "fix" })
+     return { intent: "continue", state: {}, context: [{ role: "user", text: "edited" }] }`
+
+  const running = (command: string) =>
+    `await ctx.call("bash", { mode: "unhermetic", command: ${JSON.stringify(command)} })
+     return { intent: "continue", state: {}, context: [{ role: "user", text: "checked" }] }`
+
+  const finishing = (command: string, output: string) =>
+    `await ctx.call("bash", { mode: "unhermetic", command: ${JSON.stringify(command)} })
+     return { intent: "complete", state: {}, output: ${JSON.stringify(output)} }`
+
+  const edited: ScriptedEngine.CallStep = { _tag: "Success", value: null, tree: "a.py=fixed" }
+  const red: ScriptedEngine.CallStep = { _tag: "Success", value: { exitCode: 1, stdout: "2 failed" } }
+  const green: ScriptedEngine.CallStep = { _tag: "Success", value: { exitCode: 0, stdout: "4 passed" } }
+
+  it("bounces one completion that replaced a failing check with a reading of the same subject", async () => {
+    const { events, model } = await checking(
+      [
+        editing,
+        running("check src/a.py"),
+        finishing("diff src/b.py && check src/a.py::one", "narrowed"),
+        finishing("check src/a.py", "re-ran it in full")
+      ],
+      [edited, red, green, green]
+    )
+
+    const demanded = of(events, "unresolved-demanded")
+    expect(demanded).toEqual([
+      expect.objectContaining({ flow: "bash", currentDigest: "a.py=fixed", nextFrame: 3 })
+    ])
+    expect(demanded[0]?.failed).toContain("check src/a.py")
+    expect(demanded[0]?.instead).toContain("::one")
+
+    expect(JSON.stringify(model.recorder.requests[3]?.messages)).toContain("Unanswered failure")
+    expect(JSON.stringify(model.recorder.requests[2]?.messages)).not.toContain("Unanswered failure")
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      expect.objectContaining({ text: "re-ran it in full" })
+    ])
+  })
+
+  it("accepts a completion that states why the failures are expected", async () => {
+    const { events, model } = await checking(
+      [
+        editing,
+        running("check src/a.py"),
+        finishing("check src/a.py::one", "narrowed"),
+        `return { intent: "complete", state: {}, output: "both failures predate this change" }`
+      ],
+      [edited, red, green]
+    )
+
+    // Fixing what the check reported and saying why it is not yours are the two
+    // ways out, and they are equals: the second runs no command at all.
+    expect(JSON.stringify(model.recorder.requests[3]?.messages)).toContain(
+      "why the failures it reported are expected"
+    )
+    expect(of(events, "unresolved-demanded")).toHaveLength(1)
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      expect.objectContaining({ text: "both failures predate this change" })
+    ])
+  })
+
+  it("says nothing when the run walked away from the check that failed", async () => {
+    const { events } = await checking(
+      [editing, running("check src/a.py"), finishing("check other/thing.py", "checked elsewhere")],
+      [edited, red, green]
+    )
+
+    // The wave's own counter-example, and the reason this is not a rule about
+    // failing checks: the instance that resolved ran a broad check after its
+    // edit, was told two things failed, and finished without going back to it.
+    expect(of(events, "unresolved-demanded")).toEqual([])
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      expect.objectContaining({ text: "checked elsewhere" })
+    ])
+  })
+
+  it("says nothing when the run re-ran the check itself rather than replacing it", async () => {
+    const { events } = await checking(
+      [editing, running("check src/a.py"), finishing("check src/a.py", "re-ran and it still fails")],
+      [edited, red, red]
+    )
+
+    // Re-running a failing check and completing on what it printed is the
+    // answer, not the evasion — whatever it printed the second time.
+    expect(of(events, "unresolved-demanded")).toEqual([])
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      expect.objectContaining({ text: "re-ran and it still fails" })
+    ])
+  })
+
+  it("says nothing when the flow declared its own call broken", async () => {
+    const { events } = await checking(
+      [editing, running("check src/a.py"), finishing("check src/a.py::one", "narrowed")],
+      [
+        edited,
+        {
+          _tag: "Success",
+          value: { exitCode: 4, invalidProbe: { reason: "unknown-test", message: "no such name" } }
+        },
+        green
+      ]
+    )
+
+    // A result that names something which does not exist reads identically on
+    // a broken tree and a fixed one, so it is not a failure of the code and
+    // cannot be the failure a completion is standing on.
+    expect(of(events, "unresolved-demanded")).toEqual([])
+  })
+
+  it("says nothing when the failing check shares its frame with the edit", async () => {
+    const { events } = await checking(
+      [
+        `await ctx.call("edit", { path: "a.py", text: "fix" })
+         await ctx.call("bash", { mode: "unhermetic", command: "check src/a.py" })
+         return { intent: "continue", state: {}, context: [{ role: "user", text: "edited and checked" }] }`,
+        finishing("check src/a.py::one", "narrowed")
+      ],
+      [edited, red, green]
+    )
+
+    // Nothing orders a frame's calls against its edits, so that frame's checks
+    // are stamped with the tree it closed on whether they ran before or after.
+    // Reading a failure off that stamp would attribute a pre-edit result to a
+    // post-edit tree — which is a reproduction run in the same frame as its own
+    // fix, still reporting the bug.
+    expect(of(events, "unresolved-demanded")).toEqual([])
+  })
+
+  it("takes the completion rather than the demand when no frame is left to spend", async () => {
+    const { events } = await checking(
+      [editing, running("check src/a.py"), finishing("check src/a.py::one", "narrowed")],
+      [edited, red, green],
+      { maxFrames: 3 }
+    )
+
+    expect(of(events, "unresolved-demanded")).toEqual([])
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      expect.objectContaining({ text: "narrowed" })
+    ])
+  })
+
+  it("leaves a run whose unanswered-failure demand is disarmed alone", async () => {
+    const { events } = await checking(
+      [editing, running("check src/a.py"), finishing("check src/a.py::one", "narrowed")],
+      [edited, red, green],
+      { unresolvedCap: 0 }
+    )
+
+    expect(of(events, "unresolved-demanded")).toEqual([])
+    expect(of(events, "discipline-armed")[0]?.unresolvedCap).toBe(0)
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      expect.objectContaining({ text: "narrowed" })
+    ])
+  })
+})

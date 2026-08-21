@@ -106,8 +106,15 @@ const clip = (text: string, width: number): string => text.length > width ? `${t
  * it reads a version number or a decimal as a target too. Both errors are in
  * the same direction: a term wrongly read as a target suppresses a demand, and
  * a demand this module does not issue costs nothing.
+ *
+ * Exported because `UnresolvedFailure` asks a different question of the same
+ * distinction — whether a later call came back to what an earlier one was about
+ * — and a second copy of this predicate would be a second thing to keep true.
+ *
+ * @category predicates
+ * @since 0.1.0
  */
-const targeting = (term: string): boolean => term.includes("/") || term.includes(".")
+export const targeting = (term: string): boolean => term.includes("/") || term.includes(".")
 
 /**
  * The distinct terms of one call input, sorted.
@@ -160,7 +167,36 @@ export class Check extends Schema.Class<Check>("flows/harness/NarrowedCheck/Chec
    */
   digest: Schema.String,
   /** The call's input as it was written, clipped, for the demand to quote. */
-  label: Schema.String
+  label: Schema.String,
+  /**
+   * Whether the call's own result reported a failing exit status.
+   *
+   * Nothing in this module reads it: a check that reported failures is exactly
+   * as good evidence of what the tree does as one that reported none, and the
+   * narrowing relation is about the shape of a question rather than its answer.
+   * It is recorded here because `UnresolvedFailure` asks about the answer, and
+   * two ledgers over the same calls would be two things to keep true. See
+   * `UnresolvedFailure` `failed` for what "reported" means, and why a flow that
+   * declares no exit status is neither failing nor passing.
+   */
+  failing: Schema.Boolean.pipe(
+    Schema.withConstructorDefault(Effect.succeed(false)),
+    Schema.withDecodingDefaultKey(Effect.succeed(false))
+  ),
+  /**
+   * Whether the frame that ran this check left the workspace as it found it.
+   *
+   * A frame's calls are not ordered against its edits in anything the harness
+   * records, so a check taken in a frame that also edited is stamped with that
+   * frame's closing digest whether it ran before or after the edit. For
+   * {@link find} that reads a stale check as current and costs a demand. For a
+   * *failure* carried by such a check the same stamp would attribute a result
+   * to a tree the check never ran over, so `UnresolvedFailure` requires this.
+   */
+  stable: Schema.Boolean.pipe(
+    Schema.withConstructorDefault(Effect.succeed(false)),
+    Schema.withDecodingDefaultKey(Effect.succeed(false))
+  )
 }) {}
 
 /**
@@ -190,6 +226,10 @@ export const check = (options: {
   readonly signature: string
   readonly input: Schema.Json
   readonly digest: string
+  /** Whether the call's result reported a failing exit status. */
+  readonly failing?: boolean | undefined
+  /** Whether the frame that ran it left the workspace as it found it. */
+  readonly stable?: boolean | undefined
 }): Check | undefined => {
   const collected = terms(options.input)
   if (collected.length > maxTerms) return undefined
@@ -198,7 +238,9 @@ export const check = (options: {
     signature: options.signature,
     terms: collected,
     digest: options.digest,
-    label: clip(CanonicalJson.stringify(options.input), labelWidth)
+    label: clip(CanonicalJson.stringify(options.input), labelWidth),
+    failing: options.failing ?? false,
+    stable: options.stable ?? false
   })
 }
 

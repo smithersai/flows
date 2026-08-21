@@ -124,6 +124,18 @@ export interface Options {
    */
   readonly narrowingCap?: number | undefined
   /**
+   * Completions a run may have bounced for an unmoved tree before the
+   * controller stops naming it. Defaults to `CellTurn.defaultUnmovedDemands`;
+   * zero disarms it.
+   */
+  readonly unmovedCap?: number | undefined
+  /**
+   * Completions a run may have bounced for a failing check it replaced rather
+   * than answered. Defaults to `CellTurn.defaultUnresolvedDemands`; zero
+   * disarms it.
+   */
+  readonly unresolvedCap?: number | undefined
+  /**
    * Whether a human answers this executor's runs, which is what makes a cell's
    * `park` transition honorable.
    *
@@ -205,6 +217,13 @@ export const trace = (
           // so a wave's report can say whether the run that finished was ever
           // asked about the evidence it finished on.
           narrowingCap: event.narrowingCap,
+          // The two controls that judge what a completion is *about* rather
+          // than how it was verified: whether the run changed anything at all,
+          // and whether it answered the check that told it something was
+          // broken. Journaled with the rest so a wave can tell "armed and never
+          // needed" from "never armed".
+          unmovedCap: event.unmovedCap,
+          unresolvedCap: event.unresolvedCap,
           calls: event.calls,
           memoryBytes: event.memoryBytes,
           steps: event.steps,
@@ -300,6 +319,33 @@ export const trace = (
           broader: event.broader,
           narrower: event.narrower,
           broaderDigest: event.broaderDigest,
+          currentDigest: event.currentDigest,
+          nextFrame: event.nextFrame
+        }
+      }
+    case "unmoved-demanded":
+      // Both digests, because the judgement is the comparison: a reader with
+      // only one of them cannot tell an unmoved tree from a measurement that
+      // never happened, and the pair reconciles directly against the run's own
+      // `mutation-observed` record.
+      return {
+        eventType: "control.agent.unmoved-demanded",
+        payload: {
+          openedDigest: event.openedDigest,
+          currentDigest: event.currentDigest,
+          nextFrame: event.nextFrame
+        }
+      }
+    case "unresolved-demanded":
+      // The failing check and the reading that displaced it travel together
+      // for the same reason the narrowing pair does: either one alone is
+      // unremarkable, and the demand is entirely about the two of them.
+      return {
+        eventType: "control.agent.unresolved-demanded",
+        payload: {
+          flow: event.flow,
+          failed: event.failed,
+          instead: event.instead,
           currentDigest: event.currentDigest,
           nextFrame: event.nextFrame
         }
@@ -885,6 +931,8 @@ export const make = (
           modelCallMs: options.modelCallMs,
           repeatCap: options.repeatCap,
           narrowingCap: options.narrowingCap,
+          unmovedCap: options.unmovedCap,
+          unresolvedCap: options.unresolvedCap,
           approvalChannel: options.approvalChannel ?? false
         }).pipe(
           Stream.runForEach(record),
