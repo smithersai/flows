@@ -47,7 +47,11 @@ S="$(cd "$(dirname "$0")/.." && pwd)"
 ID="${1:-}"
 FB="${FB_DIR:-$S/fullbench}"
 INDEX="${SWB_FULLBENCH_INDEX:-r90}"
-RUN_ID="${SWB_FULLBENCH_RUN_ID:-fullbench}"
+# EVAL_RUN_ID, not RUN_ID: `eval "$RUN_PATHS"` below exports the per-run
+# RUN_ID (e.g. <id>-r90) and silently clobbered the accumulating evaluator
+# run id — 44 instances graded into per-run ids with no `fullbench` report
+# tree, and --aggregate would have re-graded all of them from scratch.
+EVAL_RUN_ID="${SWB_FULLBENCH_RUN_ID:-fullbench}"
 MIN_FREE_MIB="${SWB_FULLBENCH_MIN_FREE_MIB:-8192}"
 DISK_WAIT_MAX="${SWB_FULLBENCH_DISK_WAIT_MAX:-3600}"
 DISK_INTERVAL="${SWB_FULLBENCH_DISK_INTERVAL:-60}"
@@ -196,7 +200,7 @@ rm -f -- "$FB/patches/$ID.patch" "$FB/patches/$ID.patch.untracked" \
 # predecessor was graded but never recorded (killed between the report and the
 # manifest row) would be handed the dead attempt's verdict for this attempt's
 # patch. Deleting the directory is what makes a re-run a re-grade.
-rm -rf -- "$EVAL_LOG_ROOT/$RUN_ID/$MODEL/$ID"
+rm -rf -- "$EVAL_LOG_ROOT/$EVAL_RUN_ID/$MODEL/$ID"
 mkdir -p "$FB/patches" "$FB/journals" "$FB/timings" "$FB/logs" "$FB/reports"
 
 # ---------------------------------------------------------------------------
@@ -298,9 +302,9 @@ else
     fail "another evaluator held $GRADE_LOCK for too long"
   fi
   if [ "$KEEP_IMAGE" = "1" ]; then CACHE_LEVEL=instance; else CACHE_LEVEL=env; fi
-  log "grading as $RUN_ID (cache_level $CACHE_LEVEL)"
+  log "grading as $EVAL_RUN_ID (cache_level $CACHE_LEVEL)"
   if [ -n "${SWB_GRADE_CMD:-}" ]; then
-    "$SWB_GRADE_CMD" "$RUN_ID" "$ID" >> "$FB/logs/$ID.grade.log" 2>&1
+    "$SWB_GRADE_CMD" "$EVAL_RUN_ID" "$ID" >> "$FB/logs/$ID.grade.log" 2>&1
   else
     # `evaluate.sh` resolves SWB_PATCHES against the rig directory, so the
     # archive it grades has to be inside it. Stripping the rig prefix off FB is
@@ -313,11 +317,11 @@ else
     fi
     SWB_PATCHES="$REL_PATCHES" SWB_MODEL_NAME="$MODEL" SWB_CACHE_LEVEL="$CACHE_LEVEL" \
       SWB_GRADE_LOCK_HELD=1 \
-      "$S/evaluate.sh" "$RUN_ID" "$ID" >> "$FB/logs/$ID.grade.log" 2>&1
+      "$S/evaluate.sh" "$EVAL_RUN_ID" "$ID" >> "$FB/logs/$ID.grade.log" 2>&1
   fi
   GRADE_STATUS=$?
 
-  REPORT="$EVAL_LOG_ROOT/$RUN_ID/$MODEL/$ID/report.json"
+  REPORT="$EVAL_LOG_ROOT/$EVAL_RUN_ID/$MODEL/$ID/report.json"
   if [ -f "$REPORT" ]; then
     cp "$REPORT" "$FB/reports/$ID.json"
     VERDICT="$(node -e '
