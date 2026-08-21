@@ -2,14 +2,14 @@
   "subject": {
     "root": "/Users/williamcory/flows/flows",
     "refusals": [],
-    "stamp": "sha256:801f12a56280a772dbf398a6de77e6ec031fb8d44e9e6e452ebeb1ced6661768",
-    "head": "fa78b9bd28f1533e5a468ee786864bc1429b3fd0",
-    "headSubject": "🐛 fix(agent,harness): bound the overrun re-issue, count a rejected cell, and let a host arm the repeat cap",
+    "stamp": "sha256:b970dd40d1c65aff549c2357a36197500d55a29f0f04a48a1ff42c1304500d71",
+    "head": "662716da9774c1e086f60f5d344bbfcbd5998127",
+    "headSubject": "🐛 fix(harness): give a bounced completion back rather than lose it to the budget",
     "node": "v24.18.0",
     "platform": "darwin-arm64",
     "marker": {
       "path": "packages/harness/src/CellTurn.ts",
-      "hash": "sha256:2c9c7d0e825eba3932236b010c69b06575fe16d166047a65c655af316e554106",
+      "hash": "sha256:1409018179f19fffb17472e90eef2bc7067faf20632e81919a0b9d0b9e6f49fe",
       "resolvedBy": "packages/harness/src/CellTurn.ts"
     },
     "cliDist": {
@@ -30,7 +30,7 @@
         "loadsFrom": "src",
         "hashedDirectory": "packages/agent/src",
         "files": 13,
-        "hash": "sha256:f5f435316a0a1c54b266550bdb9b243db0c828119bdbeadaacb617ad58a53ec3",
+        "hash": "sha256:c3c3332232978ef6c87f752ff1a02713dd5328ccbcfbb14d4431ea0ce2def1d6",
         "dirty": []
       },
       "@smthrs/artifacts": {
@@ -146,8 +146,8 @@
         "resolvedEntry": "packages/harness/src/index.ts",
         "loadsFrom": "src",
         "hashedDirectory": "packages/harness/src",
-        "files": 20,
-        "hash": "sha256:1e3ebbdb9a5c32810f54a78755c08a3c3ba8e65c5a4d8c78e6d75a534506fc4d",
+        "files": 21,
+        "hash": "sha256:06f2b1dc20b7d41718116cef93a3502120832150acdd0828af57037e75a44e60",
         "dirty": []
       },
       "@smthrs/jj": {
@@ -332,27 +332,27 @@
       }
     },
     "instances": {
-      "astropy__astropy-8707": "sha256:801f12a56280a772dbf398a6de77e6ec031fb8d44e9e6e452ebeb1ced6661768",
-      "django__django-16612": "sha256:801f12a56280a772dbf398a6de77e6ec031fb8d44e9e6e452ebeb1ced6661768",
-      "pydata__xarray-7393": "sha256:801f12a56280a772dbf398a6de77e6ec031fb8d44e9e6e452ebeb1ced6661768",
-      "pytest-dev__pytest-6197": "sha256:801f12a56280a772dbf398a6de77e6ec031fb8d44e9e6e452ebeb1ced6661768",
-      "sphinx-doc__sphinx-11445": "sha256:801f12a56280a772dbf398a6de77e6ec031fb8d44e9e6e452ebeb1ced6661768"
+      "astropy__astropy-8707": "sha256:b970dd40d1c65aff549c2357a36197500d55a29f0f04a48a1ff42c1304500d71",
+      "django__django-16612": "sha256:b970dd40d1c65aff549c2357a36197500d55a29f0f04a48a1ff42c1304500d71",
+      "pydata__xarray-7393": "sha256:b970dd40d1c65aff549c2357a36197500d55a29f0f04a48a1ff42c1304500d71",
+      "pytest-dev__pytest-6197": "sha256:b970dd40d1c65aff549c2357a36197500d55a29f0f04a48a1ff42c1304500d71",
+      "sphinx-doc__sphinx-11445": "sha256:b970dd40d1c65aff549c2357a36197500d55a29f0f04a48a1ff42c1304500d71"
     },
     "agreement": "one subject, pinned and stamped by every instance"
   },
   "aggregate": {
     "instances": 5,
-    "flowsResolved": 4,
+    "flowsResolved": 3,
     "codexResolved": 5,
     "flowsWins": 0,
-    "codexWins": 1,
-    "bothPass": 4,
+    "codexWins": 2,
+    "bothPass": 3,
     "bothFail": 0,
-    "flowsWallClockSeconds": 1247,
+    "flowsWallClockSeconds": 1309,
     "codexWallClockSeconds": 529,
-    "flowsTokens": 555321,
+    "flowsTokens": 434390,
     "codexTokens": 195987,
-    "flowsUsd": 3.8846,
+    "flowsUsd": 3.5102,
     "codexUsdFloor": 0.9799,
     "perCallLatency": "journaled"
   },
@@ -361,28 +361,28 @@
       "instanceId": "astropy__astropy-8707",
       "quality": {
         "verdict": "resolved",
-        "patchBytes": 811,
+        "patchBytes": 837,
         "status": "completed",
-        "editsAttempted": 0,
-        "editsSucceeded": 0
+        "editsAttempted": 1,
+        "editsSucceeded": 1
       },
       "speed": {
-        "wallClockSeconds": 337,
-        "journalSeconds": 336,
+        "wallClockSeconds": 126,
+        "journalSeconds": 124,
         "budgetSeconds": 1200,
-        "turns": 11,
-        "modelCalls": 11,
-        "flowCalls": 22,
+        "turns": 7,
+        "modelCalls": 7,
+        "flowCalls": 13,
         "flowCallsRefused": 0,
-        "meanCallLatencyMs": 28388,
+        "meanCallLatencyMs": 14870,
         "perCallLatency": "journaled"
       },
       "cost": {
         "model": "openai:gpt-5.6-sol",
-        "inputTokens": 74165,
-        "cachedInputTokens": 9648,
-        "outputTokens": 15525,
-        "usd": 0.7932,
+        "inputTokens": 46263,
+        "cachedInputTokens": 14449,
+        "outputTokens": 6624,
+        "usd": 0.365,
         "priceSource": "OpenAI API list price, verified 2026-08-19"
       },
       "baseline": {
@@ -393,7 +393,7 @@
         "usd": 0.1893,
         "priceSource": "OpenAI API list price, verified 2026-08-19"
       },
-      "subject": "sha256:801f12a56280a772dbf398a6de77e6ec031fb8d44e9e6e452ebeb1ced6661768",
+      "subject": "sha256:b970dd40d1c65aff549c2357a36197500d55a29f0f04a48a1ff42c1304500d71",
       "callout": "both pass",
       "runIds": [
         "plan:plan-1",
@@ -403,29 +403,29 @@
     {
       "instanceId": "django__django-16612",
       "quality": {
-        "verdict": "resolved",
-        "patchBytes": 635,
+        "verdict": "empty patch",
+        "patchBytes": 0,
         "status": "completed",
-        "editsAttempted": 1,
-        "editsSucceeded": 1
+        "editsAttempted": 0,
+        "editsSucceeded": 0
       },
       "speed": {
-        "wallClockSeconds": 89,
-        "journalSeconds": 87,
+        "wallClockSeconds": 160,
+        "journalSeconds": 159,
         "budgetSeconds": 1200,
-        "turns": 5,
-        "modelCalls": 5,
-        "flowCalls": 12,
+        "turns": 7,
+        "modelCalls": 7,
+        "flowCalls": 11,
         "flowCallsRefused": 0,
-        "meanCallLatencyMs": 13552,
+        "meanCallLatencyMs": 20023,
         "perCallLatency": "journaled"
       },
       "cost": {
         "model": "openai:gpt-5.6-sol",
-        "inputTokens": 27988,
-        "cachedInputTokens": 4812,
-        "outputTokens": 4560,
-        "usd": 0.2551,
+        "inputTokens": 40516,
+        "cachedInputTokens": 9622,
+        "outputTokens": 9036,
+        "usd": 0.4304,
         "priceSource": "OpenAI API list price, verified 2026-08-19"
       },
       "baseline": {
@@ -436,8 +436,8 @@
         "usd": 0.1542,
         "priceSource": "OpenAI API list price, verified 2026-08-19"
       },
-      "subject": "sha256:801f12a56280a772dbf398a6de77e6ec031fb8d44e9e6e452ebeb1ced6661768",
-      "callout": "both pass",
+      "subject": "sha256:b970dd40d1c65aff549c2357a36197500d55a29f0f04a48a1ff42c1304500d71",
+      "callout": "codex win",
       "runIds": [
         "plan:plan-1",
         "run-1"
@@ -449,26 +449,26 @@
         "verdict": "resolved",
         "patchBytes": 623,
         "status": "completed",
-        "editsAttempted": 3,
+        "editsAttempted": 5,
         "editsSucceeded": 1
       },
       "speed": {
-        "wallClockSeconds": 475,
-        "journalSeconds": 473,
+        "wallClockSeconds": 559,
+        "journalSeconds": 557,
         "budgetSeconds": 1200,
-        "turns": 23,
-        "modelCalls": 23,
-        "flowCalls": 56,
-        "flowCallsRefused": 3,
-        "meanCallLatencyMs": 18268,
+        "turns": 18,
+        "modelCalls": 18,
+        "flowCalls": 43,
+        "flowCallsRefused": 5,
+        "meanCallLatencyMs": 28590,
         "perCallLatency": "journaled"
       },
       "cost": {
         "model": "openai:gpt-5.6-sol",
-        "inputTokens": 181923,
-        "cachedInputTokens": 48576,
-        "outputTokens": 28747,
-        "usd": 1.5534,
+        "inputTokens": 130017,
+        "cachedInputTokens": 57056,
+        "outputTokens": 31473,
+        "usd": 1.3375,
         "priceSource": "OpenAI API list price, verified 2026-08-19"
       },
       "baseline": {
@@ -479,7 +479,7 @@
         "usd": 0.1745,
         "priceSource": "OpenAI API list price, verified 2026-08-19"
       },
-      "subject": "sha256:801f12a56280a772dbf398a6de77e6ec031fb8d44e9e6e452ebeb1ced6661768",
+      "subject": "sha256:b970dd40d1c65aff549c2357a36197500d55a29f0f04a48a1ff42c1304500d71",
       "callout": "both pass",
       "runIds": [
         "plan:plan-1",
@@ -492,26 +492,26 @@
         "verdict": "unresolved",
         "patchBytes": 551,
         "status": "completed",
-        "editsAttempted": 3,
-        "editsSucceeded": 3
+        "editsAttempted": 2,
+        "editsSucceeded": 1
       },
       "speed": {
-        "wallClockSeconds": 259,
-        "journalSeconds": 257,
+        "wallClockSeconds": 323,
+        "journalSeconds": 321,
         "budgetSeconds": 1200,
-        "turns": 19,
-        "modelCalls": 19,
-        "flowCalls": 36,
-        "flowCallsRefused": 0,
-        "meanCallLatencyMs": 11854,
+        "turns": 14,
+        "modelCalls": 14,
+        "flowCalls": 21,
+        "flowCallsRefused": 1,
+        "meanCallLatencyMs": 20953,
         "perCallLatency": "journaled"
       },
       "cost": {
         "model": "openai:gpt-5.6-sol",
-        "inputTokens": 176594,
-        "cachedInputTokens": 43678,
-        "outputTokens": 11081,
-        "usd": 1.0188,
+        "inputTokens": 104242,
+        "cachedInputTokens": 27383,
+        "outputTokens": 18480,
+        "usd": 0.9524,
         "priceSource": "OpenAI API list price, verified 2026-08-19"
       },
       "baseline": {
@@ -522,7 +522,7 @@
         "usd": 0.322,
         "priceSource": "OpenAI API list price, verified 2026-08-19"
       },
-      "subject": "sha256:801f12a56280a772dbf398a6de77e6ec031fb8d44e9e6e452ebeb1ced6661768",
+      "subject": "sha256:b970dd40d1c65aff549c2357a36197500d55a29f0f04a48a1ff42c1304500d71",
       "callout": "codex win",
       "runIds": [
         "plan:plan-1",
@@ -539,22 +539,22 @@
         "editsSucceeded": 1
       },
       "speed": {
-        "wallClockSeconds": 87,
-        "journalSeconds": 86,
+        "wallClockSeconds": 141,
+        "journalSeconds": 139,
         "budgetSeconds": 1200,
-        "turns": 4,
-        "modelCalls": 4,
-        "flowCalls": 10,
+        "turns": 5,
+        "modelCalls": 5,
+        "flowCalls": 17,
         "flowCallsRefused": 0,
-        "meanCallLatencyMs": 17381,
+        "meanCallLatencyMs": 23874,
         "perCallLatency": "journaled"
       },
       "cost": {
         "model": "openai:gpt-5.6-sol",
-        "inputTokens": 30197,
-        "cachedInputTokens": 5142,
-        "outputTokens": 4541,
-        "usd": 0.2641,
+        "inputTokens": 40292,
+        "cachedInputTokens": 0,
+        "outputTokens": 7447,
+        "usd": 0.4249,
         "priceSource": "OpenAI API list price, verified 2026-08-19"
       },
       "baseline": {
@@ -565,7 +565,7 @@
         "usd": 0.1399,
         "priceSource": "OpenAI API list price, verified 2026-08-19"
       },
-      "subject": "sha256:801f12a56280a772dbf398a6de77e6ec031fb8d44e9e6e452ebeb1ced6661768",
+      "subject": "sha256:b970dd40d1c65aff549c2357a36197500d55a29f0f04a48a1ff42c1304500d71",
       "callout": "both pass",
       "runIds": [
         "plan:plan-1",

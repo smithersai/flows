@@ -1,15 +1,15 @@
 # SWE-bench Verified scorecard
 
-Instances: 5 · flows resolved **4/5** · codex resolved **5/5** · flows wins **0** · codex wins 1 · both pass 4 · both fail 0
+Instances: 5 · flows resolved **3/5** · codex resolved **5/5** · flows wins **0** · codex wins 2 · both pass 3 · both fail 0
 
 ## Preconditions: the subject this wave measured
 
 | | |
 | --- | --- |
-| subject | `sha256:801f12a56280a772dbf398a6de77e6ec031fb8d44e9e6e452ebeb1ced6661768` |
+| subject | `sha256:b970dd40d1c65aff549c2357a36197500d55a29f0f04a48a1ff42c1304500d71` |
 | agreement | one subject, pinned and stamped by every instance |
-| git HEAD | fa78b9bd28f1533e5a468ee786864bc1429b3fd0 🐛 fix(agent,harness): bound the overrun re-issue, count a rejected cell, and let a host arm the repeat cap |
-| `packages/harness/src/CellTurn.ts` | `sha256:2c9c7d0e825eba3932236b010c69b06575fe16d166047a65c655af316e554106` |
+| git HEAD | 662716da9774c1e086f60f5d344bbfcbd5998127 🐛 fix(harness): give a bounced completion back rather than lose it to the budget |
+| `packages/harness/src/CellTurn.ts` | `sha256:1409018179f19fffb17472e90eef2bc7067faf20632e81919a0b9d0b9e6f49fe` |
 | loaded from | packages/harness/src/CellTurn.ts |
 | `packages/cli/dist/esm` | `sha256:1d53b7de47aab2ec5b66d57e0210f4afe723936e60f5d31b44531892781a0e40` (11 modules) |
 | `packages/cli/src` | `sha256:f6745ec4af0efc5f13a5ae3e9c6c21aa1f36fa469d45a59920f3adaa3e7a8e8f` (11 files, built above) |
@@ -21,35 +21,35 @@ Every `@smthrs/*` package except `@smthrs/cli` is loaded from its `src` director
 
 | Instance | flows | codex | Bucket | Patch bytes | Edits ok/tried |
 | --- | --- | --- | --- | --- | --- |
-| astropy__astropy-8707 | resolved | resolved | both pass | 811 | 0/0 |
-| django__django-16612 | resolved | resolved | both pass | 635 | 1/1 |
-| pydata__xarray-7393 | resolved | resolved | both pass | 623 | 1/3 |
-| pytest-dev__pytest-6197 | unresolved | resolved | codex win | 551 | 3/3 |
+| astropy__astropy-8707 | resolved | resolved | both pass | 837 | 1/1 |
+| django__django-16612 | empty patch | resolved | codex win | 0 | 0/0 |
+| pydata__xarray-7393 | resolved | resolved | both pass | 623 | 1/5 |
+| pytest-dev__pytest-6197 | unresolved | resolved | codex win | 551 | 1/2 |
 | sphinx-doc__sphinx-11445 | resolved | resolved | both pass | 414 | 1/1 |
 
 ## Speed
 
 | Instance | flows wall clock | codex wall clock | Turns | Model calls | Mean call latency |
 | --- | --- | --- | --- | --- | --- |
-| astropy__astropy-8707 | 337s | 101s | 11 | 11 | 28388 ms |
-| django__django-16612 | 89s | 82s | 5 | 5 | 13552 ms |
-| pydata__xarray-7393 | 475s | 81s | 23 | 23 | 18268 ms |
-| pytest-dev__pytest-6197 | 259s | 183s | 19 | 19 | 11854 ms |
-| sphinx-doc__sphinx-11445 | 87s | 82s | 4 | 4 | 17381 ms |
+| astropy__astropy-8707 | 126s | 101s | 7 | 7 | 14870 ms |
+| django__django-16612 | 160s | 82s | 7 | 7 | 20023 ms |
+| pydata__xarray-7393 | 559s | 81s | 18 | 18 | 28590 ms |
+| pytest-dev__pytest-6197 | 323s | 183s | 14 | 14 | 20953 ms |
+| sphinx-doc__sphinx-11445 | 141s | 82s | 5 | 5 | 23874 ms |
 
-Totals: flows 1247s · codex 529s.
+Totals: flows 1309s · codex 529s.
 Per-call latency is journaled for this wave.
 
 ## Cost
 
 | Instance | Input | Cached | Output | flows USD | codex tokens | codex USD (floor) |
 | --- | --- | --- | --- | --- | --- | --- |
-| astropy__astropy-8707 | 74,165 | 9,648 | 15,525 | $0.7932 | 37,867 | $0.1893 |
-| django__django-16612 | 27,988 | 4,812 | 4,560 | $0.2551 | 30,840 | $0.1542 |
-| pydata__xarray-7393 | 181,923 | 48,576 | 28,747 | $1.5534 | 34,894 | $0.1745 |
-| pytest-dev__pytest-6197 | 176,594 | 43,678 | 11,081 | $1.0188 | 64,398 | $0.3220 |
-| sphinx-doc__sphinx-11445 | 30,197 | 5,142 | 4,541 | $0.2641 | 27,988 | $0.1399 |
+| astropy__astropy-8707 | 46,263 | 14,449 | 6,624 | $0.3650 | 37,867 | $0.1893 |
+| django__django-16612 | 40,516 | 9,622 | 9,036 | $0.4304 | 30,840 | $0.1542 |
+| pydata__xarray-7393 | 130,017 | 57,056 | 31,473 | $1.3375 | 34,894 | $0.1745 |
+| pytest-dev__pytest-6197 | 104,242 | 27,383 | 18,480 | $0.9524 | 64,398 | $0.3220 |
+| sphinx-doc__sphinx-11445 | 40,292 | 0 | 7,447 | $0.4249 | 27,988 | $0.1399 |
 
-Totals: flows $3.8846 · codex $0.9799 (floor).
+Totals: flows $3.5102 · codex $0.9799 (floor).
 
 Prices come from the committed table in `prices.ts`. The codex figure is a floor: the committed baseline records one total token count per instance, with no input/output split, so it is priced entirely at the input rate.
