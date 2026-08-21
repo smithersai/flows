@@ -14,7 +14,7 @@
  * real wave without a database and without the 12 MB of journals that produced
  * it.
  *
- * Two fixtures are committed, and neither is regenerable:
+ * Three fixtures are committed, and none of them is regenerable:
  *
  * - `packages/harness/test/fixtures/narrowingJournals.json` — wave 8, the
  *   evidence `NarrowedCheck` was designed against. Wave 9 replaced wave 8's
@@ -22,6 +22,11 @@
  *   exit-status and mutation fields and is not to be rewritten.
  * - `packages/harness/test/fixtures/completionJournals.json` — wave 9, the
  *   evidence `UnmovedTree` and `UnresolvedFailure` were designed against.
+ * - `packages/harness/test/fixtures/wave10Journals.json` — wave 10, the first
+ *   wave run with all three demands armed, and the evidence
+ *   `NarrowedCheck.findOnly` was designed against: its pytest instance ran a
+ *   filtered reading of the right file, ran nothing else, and completed, which
+ *   is the shape broad-then-narrow cannot see.
  *
  * A change to any of the three detectors that starts demanding something of a
  * run those waves resolved has to explain itself against these files rather than

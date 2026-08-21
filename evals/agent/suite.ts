@@ -1,5 +1,5 @@
 /**
- * The fixed suite: ten scenarios that put the flows agent through the
+ * The fixed suite: eleven scenarios that put the flows agent through the
  * behaviours a host depends on, and the two scorers that grade them.
  *
  * Each scenario is a whole agent run against a scripted provider, so a case is
@@ -236,6 +236,37 @@ const scenarios: Readonly<Record<string, Scenario>> = {
     // tally lists the distinct calls the run made — one before the demand and
     // one after it.
     expected: failed("/harness/HarnessError", 4, ["probe:reading", "probe:demanded"])
+  },
+
+  "sufficiency-signal-reaches-the-next-frame": {
+    summary:
+      "A run that watched a check fail, changed the workspace, and watched a broader check pass is told its evidence is complete, and completes on it.",
+    run: () => {
+      const recorder = Subject.makeRecorder()
+      return Subject.runAgent({
+        recorder,
+        // The cell that completes is keyed on the observation itself, so the
+        // case proves the sentence reached the model rather than that a run
+        // ended: without it the fourth frame would check again and the run
+        // would spend its budget instead of answering.
+        respond: (prompt, index) =>
+          prompt.includes("Evidence held")
+            ? `return { intent: "complete", state: {}, output: "completed on the pair I was shown" }`
+            : index === 0
+            ? `await ctx.call("check", { command: "verify a/b.py", only: "one" })
+               return { intent: "continue", state: {}, context: [{ role: "user", text: "the probe fails" }] }`
+            : index === 1
+            ? `await ctx.call("apply", { path: "a/b.py" })
+               return { intent: "continue", state: {}, context: [{ role: "user", text: "edited" }] }`
+            : `await ctx.call("check", { command: "verify a/b.py" })
+               return { intent: "continue", state: {}, context: [{ role: "user", text: "the probe passes" }] }`,
+        maxFrames: 8,
+        flows: [Subject.checkSource(recorder)]
+      })
+    },
+    // Four frames: fail, write, pass, complete. The third frame is where the
+    // pair closes, and the fourth is the one that reads about it.
+    expected: answered("completed on the pair I was shown", 4, ["check:one", "apply", "check"])
   },
 
   "park-without-a-human-is-answered": {

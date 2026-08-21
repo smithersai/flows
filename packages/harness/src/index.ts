@@ -130,3 +130,9 @@ export * as UnmovedTree from "./UnmovedTree.ts"
  * @since 0.1.0
  */
 export * as UnresolvedFailure from "./UnresolvedFailure.ts"
+
+/**
+ * @category models
+ * @since 0.1.0
+ */
+export * as Sufficiency from "./Sufficiency.ts"

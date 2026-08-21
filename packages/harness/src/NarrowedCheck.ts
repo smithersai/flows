@@ -28,6 +28,13 @@
  * comes back, because a harness that verified completions itself would be
  * grading the agent's work with its own, and that hack was removed on purpose.
  *
+ * The module names two shapes of the same failure, and the second is here
+ * because the first was escaped from the other side. {@link find} is
+ * broad-then-narrow, above. {@link findOnly} is narrow-only: the next wave of
+ * the same instance ran a filtered reading of the right file, ran nothing else,
+ * and completed — so there was no broader check in the ledger and nothing to
+ * narrow. Both readings deselected the one neighbour the patch broke.
+ *
  * @since 0.1.0
  */
 import * as CanonicalJson from "@smthrs/model/CanonicalJson"
@@ -117,6 +124,35 @@ const clip = (text: string, width: number): string => text.length > width ? `${t
 export const targeting = (term: string): boolean => term.includes("/") || term.includes(".")
 
 /**
+ * A separator with a real character on both sides of it.
+ *
+ * {@link targeting} accepts any term carrying a slash or a dot, which is the
+ * right rule for {@link narrows} — a term wrongly read as a target only
+ * suppresses a demand there. The predicate below needs the stricter one.
+ */
+const anchored = /[A-Za-z0-9_@+-][./][A-Za-z0-9_@+-]/
+
+/**
+ * Whether a term names a target a reader would recognise as one.
+ *
+ * {@link targeting} is the relation's own rule and is deliberately generous:
+ * `.py`, `/`, and a bare `tests/` all satisfy it, and each of them only ever
+ * costs a demand. Two callers need the answer to a different question — which
+ * of a call's terms is the thing it is *about* — and for that a term nobody can
+ * read is worse than no term at all. This is that stricter reading: the
+ * separator has a real character on both sides, so `tests/test_a.py` and
+ * `django.contrib.admin.sites` qualify while a glob's leftover `/` and a bare
+ * `.py` do not.
+ *
+ * One lexical rule, not two: `CallLedger` names a call's subject with it and
+ * {@link findOnly} reads a check's subjects with it.
+ *
+ * @category predicates
+ * @since 0.1.0
+ */
+export const names = (term: string): boolean => targeting(term) && anchored.test(term)
+
+/**
  * The terms of one call input in the order the canonical document states them.
  *
  * The whole canonical input is lexed, keys included, so the relation works for
@@ -199,6 +235,20 @@ export class Check extends Schema.Class<Check>("flows/harness/NarrowedCheck/Chec
     Schema.withDecodingDefaultKey(Effect.succeed(false))
   ),
   /**
+   * Whether the call's own result reported a passing exit status.
+   *
+   * Not the negation of {@link Check.failing}, and that is the whole reason it
+   * is a second field: a flow that reports no exit status at all — a read, a
+   * search — is neither failing nor passing, and reading its silence as a pass
+   * would let `Sufficiency` build a completion signal out of a file read. Both
+   * default false, so a result that says nothing about a subject says nothing
+   * here either. See `UnresolvedFailure` `passed`.
+   */
+  passing: Schema.Boolean.pipe(
+    Schema.withConstructorDefault(Effect.succeed(false)),
+    Schema.withDecodingDefaultKey(Effect.succeed(false))
+  ),
+  /**
    * Whether the frame that ran this check left the workspace as it found it.
    *
    * A frame's calls are not ordered against its edits in anything the harness
@@ -243,6 +293,8 @@ export const check = (options: {
   readonly digest: string
   /** Whether the call's result reported a failing exit status. */
   readonly failing?: boolean | undefined
+  /** Whether the call's result reported a passing exit status. */
+  readonly passing?: boolean | undefined
   /** Whether the frame that ran it left the workspace as it found it. */
   readonly stable?: boolean | undefined
 }): Check | undefined => {
@@ -255,6 +307,7 @@ export const check = (options: {
     digest: options.digest,
     label: clip(CanonicalJson.stringify(options.input), labelWidth),
     failing: options.failing ?? false,
+    passing: options.passing ?? false,
     stable: options.stable ?? false
   })
 }
@@ -360,6 +413,118 @@ export const demand = (found: Narrowing): string =>
 - the check this frame ran instead: ${found.later.flow} ${found.later.label}
 
 The second repeats every term of the first and adds conditions to it, so it reports on a part of what the first covered and says nothing about the rest — and the rest is exactly where a change breaks something that was passing. Re-run ${found.earlier.flow} with that earlier input, byte for byte, and complete once you have seen what it prints; or complete and state in your output why that check no longer applies to the change you made. Nothing re-runs it for you, and what you return next is the answer that stands.`
+
+/**
+ * The reading a completion stands on, when the run holds no other reading of
+ * what it names.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface Only {
+  /** The last check the completing frame ran. */
+  readonly later: Check
+  /** The subjects it names, as {@link names} reads them, sorted. */
+  readonly targets: ReadonlyArray<string>
+}
+
+/**
+ * Finds a completion standing on the run's only reading of its own subjects.
+ *
+ * {@link find} names the completion whose check *narrows* an earlier, broader
+ * one. This names the case that escapes it from the other side: a completion
+ * whose check narrows nothing because the run never took the broader reading at
+ * all. On a graded benchmark the same instance was lost both ways in two
+ * consecutive waves — one run took a broad reading of the wrong file, the next
+ * took a filtered reading of the right one and ran nothing else — and the
+ * second escaped {@link find} because there was nothing in the ledger to
+ * narrow. The filtered reading deselected the one neighbour the patch broke.
+ *
+ * The harness cannot see that a filter is a filter without learning one test
+ * runner's flags, so it does not try. It asks the question the record can
+ * answer: is this reading the only one this run has of what it names.
+ *
+ * Five conditions, each read off the run's own record:
+ *
+ * 1. the completing frame ran at least one check, and the subject is its
+ *    *last* one — the reading the completion stands closest to, as
+ *    `UnresolvedFailure` reads its own ledger;
+ * 2. that check names at least one subject ({@link names}) and carries at least
+ *    one term that is not a target, so there is something to remove;
+ * 3. the run never ran this exact call before this frame. A call replayed from
+ *    an earlier frame is the run's own baseline re-run byte for byte, which is
+ *    the discipline the contract asks for and the opposite of the failure here;
+ * 4. every subject it names is named by some other check of this run, so these
+ *    are subjects the run has been working on rather than a container path or a
+ *    scratch directory that one command creates and uses;
+ * 5. no other check of this run names all of them together, so nothing in the
+ *    record says what they report as one.
+ *
+ * ## What it deliberately cannot see
+ *
+ * Conditions 4 and 5 together mean a check naming exactly *one* subject is
+ * never named: if the run read that subject anywhere else, that reading covers
+ * this one, and if it did not, there is nothing to corroborate against. So the
+ * demand is about a *combination* the run has read only through one command,
+ * and a single filtered file with no other mention of the file in the run goes
+ * unremarked.
+ *
+ * That is a chosen floor rather than an oversight. Three benchmark waves
+ * produced fifteen completions between them, and the shapes are not separable
+ * above it: the losing run's `check <file> -k "<two cases>"` and a resolved
+ * run's `check <file-a> <file-b>` differ only in what the flag means, which is
+ * a fact about one test runner. Every weaker condition tried against those
+ * fifteen runs fired on one or both of the two best rounds the harness has ever
+ * scored — a demand costing a correct round a frame to ask about a check that
+ * carries no condition at all. This one speaks once, to the run that lost its
+ * instance to a filter, naming the command that carried it, and says nothing to
+ * the other fourteen.
+ *
+ * @category conversions
+ * @since 0.1.0
+ */
+export const findOnly = (options: {
+  /** Every check this run has run, this frame's included, oldest first. */
+  readonly ledger: ReadonlyArray<Check>
+  /** Signatures the run had already issued before this frame. */
+  readonly before: ReadonlyArray<string>
+  /** Checks this frame ran, in the order they settled. */
+  readonly frame: ReadonlyArray<Check>
+}): Only | undefined => {
+  const later = options.frame[options.frame.length - 1]
+  if (later === undefined) return undefined
+  const targets = later.terms.filter(names)
+  if (targets.length === 0) return undefined
+  if (!later.terms.some((term) => !targeting(term))) return undefined
+  if (options.before.includes(later.signature)) return undefined
+  const others = options.ledger.filter((entry) => entry.signature !== later.signature)
+  const covered = others.some((entry) => targets.every((target) => entry.terms.includes(target)))
+  if (covered) return undefined
+  const known = targets.every((target) => others.some((entry) => entry.terms.includes(target)))
+  if (!known) return undefined
+  return { later, targets }
+}
+
+/**
+ * States that the completion has one reading of its subjects, and asks for the
+ * other one.
+ *
+ * It quotes the check, names the subjects, and says exactly what the record
+ * establishes: no other call of this run covers them. It does not claim the
+ * reading is filtered — the harness cannot read a flag — so it names what a
+ * condition is and leaves the run to say whether it has one. The two ways out
+ * are equals, as they are in every demand here, and the second answer stands.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const demandOnly = (found: Only): string =>
+  `Only reading — the check you are completing on is the only reading this run has of what it names.
+
+- the check: ${found.later.flow} ${found.later.label}
+- what it names: ${found.targets.join(", ")}
+
+Every one of those this run has looked at somewhere else, but no other call it made covers them all, so nothing in this run says what they report on their own. Any term this check carries beyond them — a filter, a selector, a subset of cases, a flag that stops early — is a condition you have never taken off, and what a condition hides is exactly where a change breaks something that was passing. Run ${found.later.flow} over the same subjects with those conditions removed and complete once you have seen what it prints; or complete and state in your output that it carries no condition and the reading is already whole. Nothing re-runs it for you, and what you return next is the answer that stands.`
 
 /**
  * Folds this frame's checks into the run's ledger, newest last and bounded.

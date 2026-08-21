@@ -402,6 +402,71 @@ export class UnresolvedDemanded extends Schema.TaggedClass<UnresolvedDemanded>(
 }) {}
 
 /**
+ * The controller refusing one completion that holds a single reading.
+ *
+ * Written when a frame returns `complete` while the last check it ran names
+ * subjects no other check of the run covers together, and the run never issued
+ * that exact call before. The sibling of `narrowed-demanded`, from the other
+ * side: that one fires when a broader check exists in the ledger and was not
+ * re-run, this one when no broader check was ever taken.
+ *
+ * `check` quotes the input as the run wrote it and `targets` names the subjects
+ * the demand is about, so a grader can decide after the fact whether the demand
+ * was right without replaying anything.
+ *
+ * @category events
+ * @since 0.1.0
+ */
+export class NarrowOnlyDemanded extends Schema.TaggedClass<NarrowOnlyDemanded>(
+  "flows/harness/AgentEvent/NarrowOnlyDemanded"
+)("narrow-only-demanded", {
+  eventType: Schema.Literal("flows.harness.narrow-only-demanded.v1"),
+  /** The flow the check named. */
+  flow: Schema.String,
+  /** The check's input as the run wrote it, clipped. */
+  check: Schema.String,
+  /** The subjects it names, sorted. */
+  targets: Schema.Array(Schema.String),
+  /** Workspace digest the completing frame closed on; empty when unmeasured. */
+  currentDigest: Schema.String,
+  /** The frame the demand was attached to, which is the one that must answer it. */
+  nextFrame: Schema.Int
+}) {}
+
+/**
+ * The controller telling a run that its own evidence is complete.
+ *
+ * The one control that is not a brake, and the only one written for a frame
+ * that has done nothing wrong: the run watched a check fail before it changed
+ * anything and watched the same check, or a broader one, pass after. Written
+ * when the observation is *issued*, at most once per run, because what answers
+ * it is the next frame's transition and the journal already writes that.
+ *
+ * `failed` and `passed` quote the two inputs as the run wrote them, and `epoch`
+ * is the run's count of mutating frames when the failure was recorded, so the
+ * ordering the observation asserts is checkable after the fact. Nothing is
+ * refused and no cap is spent, so there is no cap field to record.
+ *
+ * @category events
+ * @since 0.1.0
+ */
+export class SufficiencyObserved extends Schema.TaggedClass<SufficiencyObserved>(
+  "flows/harness/AgentEvent/SufficiencyObserved"
+)("sufficiency-observed", {
+  eventType: Schema.Literal("flows.harness.sufficiency-observed.v1"),
+  /** The flow that ran the failing check. */
+  flow: Schema.String,
+  /** The failing check's input as the run wrote it, clipped. */
+  failed: Schema.String,
+  /** The input of the passing check that answered it, clipped. */
+  passed: Schema.String,
+  /** Mutating frames the run had spent when the failure was recorded. */
+  epoch: Schema.Int,
+  /** The frame the observation was attached to. */
+  nextFrame: Schema.Int
+}) {}
+
+/**
  * What one frame did to the workspace, and how the controller knows.
  *
  * Emitted once per frame that ran a cell. It is the frame's own answer to the
@@ -581,8 +646,10 @@ export const AgentEvent = Schema.Union([
   ReadOnlyDemanded,
   RepeatDemanded,
   NarrowedDemanded,
+  NarrowOnlyDemanded,
   UnmovedDemanded,
   UnresolvedDemanded,
+  SufficiencyObserved,
   Suspended,
   CompactionSettled,
   SteeringDrained,

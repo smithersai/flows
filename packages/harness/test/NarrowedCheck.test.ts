@@ -178,6 +178,113 @@ describe("NarrowedCheck.demand", () => {
   })
 })
 
+describe("NarrowedCheck.names", () => {
+  it("accepts a term a reader can recognize and rejects what a glob leaves behind", () => {
+    // The stricter reading of `targeting`. Both callers ask which term a call
+    // is *about*, and for that question a term nobody can read is worse than
+    // no term: `**/*.py` lexes to `/` and `.py`, and neither names anything.
+    expect(NarrowedCheck.names("tests/test_a.py")).toBe(true)
+    expect(NarrowedCheck.names("django.contrib.admin.sites")).toBe(true)
+    expect(NarrowedCheck.names(".py")).toBe(false)
+    expect(NarrowedCheck.names("/")).toBe(false)
+    expect(NarrowedCheck.names("/testbed")).toBe(false)
+    expect(NarrowedCheck.names("-rA")).toBe(false)
+  })
+})
+
+describe("NarrowedCheck.findOnly", () => {
+  const target = "testing/test_collection.py"
+  // The shape the wave lost on: one filtered reading of one file, and a
+  // container path that every other command in the run also names.
+  const filtered = ran("bash", command(`/bin/python -m check ${target} -k "one or two"`), "tree-2")
+  const searched = ran("grep", { pattern: "one", globs: [target] }, "tree-1")
+  const compiled = ran("bash", command("/bin/python -m compile src/a.py"), "tree-2")
+
+  const found = (frame: ReadonlyArray<NarrowedCheck.Check>, ledger: ReadonlyArray<NarrowedCheck.Check>) =>
+    NarrowedCheck.findOnly({ ledger, before: [], frame })
+
+  it("names the frame's last check when the run holds no other reading of its subjects", () => {
+    const only = found([compiled, filtered], [searched, compiled, filtered])
+
+    expect(only?.later.label).toBe(filtered.label)
+    expect(only?.targets).toEqual(["/bin/python", target])
+  })
+
+  it("says nothing when the frame ran no check at all", () => {
+    expect(found([], [searched])).toBeUndefined()
+  })
+
+  it("says nothing when the last check names no subject", () => {
+    const anonymous = ran("bash", command("check everything"), "tree-2")
+
+    expect(found([anonymous], [searched, anonymous])).toBeUndefined()
+  })
+
+  it("says nothing when the check is nothing but its subjects", () => {
+    // Nothing to remove is nothing to demand: a call whose every term is a
+    // target carries no condition that could be hiding anything.
+    const bare = ran("bash", [target], "tree-2")
+    const elsewhere = ran("grep", { globs: [target], pattern: "x" }, "tree-1")
+
+    expect(found([bare], [elsewhere, bare])).toBeUndefined()
+  })
+
+  it("says nothing when the run had already issued this exact call", () => {
+    // A replayed call is the run's own baseline re-run byte for byte, which is
+    // the discipline the contract asks for rather than the failure this names.
+    expect(
+      NarrowedCheck.findOnly({
+        ledger: [searched, compiled, filtered],
+        before: [filtered.signature],
+        frame: [filtered]
+      })
+    ).toBeUndefined()
+  })
+
+  it("says nothing when another check covers every subject it names", () => {
+    const covering = ran("bash", command(`/bin/python -m check ${target}`), "tree-1")
+
+    expect(found([filtered], [covering, filtered])).toBeUndefined()
+  })
+
+  it("says nothing when a subject appears nowhere else in the run", () => {
+    // A scratch path a single command creates and uses is not a subject the
+    // run is working on, and demanding an unconditioned reading of one would
+    // be the harness asking about its own scaffolding.
+    expect(found([filtered], [filtered])).toBeUndefined()
+  })
+
+  it("says nothing about a check that names one subject, whatever the run did with it", () => {
+    // The floor the two conditions leave, stated as a case because it is the
+    // shape a reader will ask about. One subject read elsewhere is one subject
+    // covered; one subject read nowhere else has nothing to corroborate it. A
+    // single filtered file therefore goes unremarked, and the alternative —
+    // demanding it — fired on the two best rounds this harness has scored.
+    const single = ran("bash", command("check a/b.py -k one"), "tree-2")
+    const read = ran("read", { path: "a/b.py" }, "tree-1")
+
+    expect(found([single], [read, single])).toBeUndefined()
+    expect(found([single], [single])).toBeUndefined()
+  })
+})
+
+describe("NarrowedCheck.demandOnly", () => {
+  it("quotes the check, names its subjects, and claims nothing about a filter", () => {
+    const text = NarrowedCheck.demandOnly({
+      later: ran("bash", command("check a/b.py -k one"), "tree-2"),
+      targets: ["a/b.py"]
+    })
+
+    expect(text).toContain("check a/b.py -k one")
+    expect(text).toContain("a/b.py")
+    // It cannot read a flag, so it says what a condition is and lets the run
+    // answer whether it has one — including by saying it has none.
+    expect(text).toContain("a filter, a selector, a subset of cases")
+    expect(text).toContain("it carries no condition")
+    expect(text).toContain("Nothing re-runs it for you")
+  })
+})
+
 describe("NarrowedCheck.remember", () => {
   it("moves a repeated check to the newest position and restamps its tree", () => {
     const first = ran("bash", command("check suite"), "tree-1")

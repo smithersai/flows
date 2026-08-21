@@ -4,6 +4,7 @@ import { Option, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Cell from "../src/Cell.ts"
 import * as CellPrompt from "../src/internal/cellPrompt.ts"
+import * as Tokens from "../src/Tokens.ts"
 
 const projection = (
   name: string,
@@ -196,5 +197,38 @@ describe("cellPrompt", () => {
     const contract = CellPrompt.make({})[0]?.text ?? ""
     expect(contract).toContain("ONE cell may run the baseline check")
     expect(contract).toContain("a cell can make many calls")
+  })
+
+  it("shows the fused round rather than describing it", () => {
+    // Rule 8 has described the fused cell in prose since the contract existed,
+    // and the only worked example was a three-line listing that returned
+    // `continue`. Models imitate the example: five graded waves split search,
+    // read, edit and check across four frames each. The example is now the
+    // round itself, and every step of it is here.
+    const contract = CellPrompt.make({})[0]?.text ?? ""
+    // Search, then a read whose window is arithmetic on the search's own hit.
+    expect(contract).toContain(`await ctx.call("grep"`)
+    expect(contract).toContain("offset: Math.max(1, hit.line - 10)")
+    // The check stored once and replayed byte-identically after the edit.
+    expect(contract).toContain("const before = await ctx.call(check.flow, check.input)")
+    expect(contract).toContain("const after = await ctx.call(check.flow, check.input)")
+    // The anchor sliced out of the bytes `read` returned, prefix stripped.
+    expect(contract).toContain("line.slice(line.indexOf(")
+    expect(contract).toContain(`await ctx.call("edit"`)
+    // Both exits: complete on the identical command passing, or continue
+    // carrying what failed.
+    expect(contract).toContain(`intent: "complete", state: { verification: check }`)
+    expect(contract).toContain("One frame: search, read, reproduce, edit, re-check, answer.")
+  })
+
+  it("keeps the contract inside its measured token budget", () => {
+    // The contract is a prefix segment, so a run pays it once at full price and
+    // then at cache rates — but it is rendered into every frame's request, and
+    // an example that grows without anyone looking is how a teaching section
+    // becomes the largest thing in the window. The worked round above cost
+    // 1,788 bytes and 471 estimated tokens against the previous 6,409 and
+    // 1,634. This is the ceiling that makes the next such addition deliberate.
+    const contract = CellPrompt.make({})[0]?.text ?? ""
+    expect(Tokens.estimate(contract)).toBeLessThanOrEqual(2200)
   })
 })

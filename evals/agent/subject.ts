@@ -260,6 +260,63 @@ export const probeSource = (recorder: Recorder): FlowBinding.Source =>
     })
   ])
 
+const check = CoreFlow.make({
+  name: "check",
+  description: "Run a check over a path and report its exit status.",
+  input: Schema.Struct({ command: Schema.String, only: Schema.optional(Schema.String) }),
+  output: Schema.Struct({ exitCode: Schema.Number }),
+  effects: { reads: ["/**"], writes: [], mode: "hermetic", onConflict: "serialize", tier: "sealed" }
+})
+
+const apply = CoreFlow.make({
+  name: "apply",
+  description: "Write a change to a path.",
+  input: Schema.Struct({ path: Schema.String }),
+  output: Schema.Struct({ written: Schema.Boolean }),
+  effects: { reads: [], writes: ["/**"], mode: "hermetic", onConflict: "serialize", tier: "irreversible" }
+})
+
+/**
+ * A check that reports an exit status, and a write that moves the workspace.
+ *
+ * The pair is what the sufficiency signal is built out of: `exitCode` is the
+ * one wire key the controller reads off an otherwise opaque result, and a
+ * declared write is what makes a frame a mutating one on a host that measures
+ * nothing — which this one does not, so the declaration is the whole basis.
+ * The check answers by what the run has already done rather than by how it was
+ * called, so the scenario's sequence is what decides the statuses: failing
+ * while nothing has been written, passing once something has.
+ *
+ * `irreversible` is the honest tier for the write. It is what a shell command
+ * that edits a file gets, it keeps two invocations of one declaration distinct
+ * under the engine's own keying, and unlike `compensable` it needs no
+ * compensation seam — this composition has none, and a run that asked for one
+ * suspends instead of finishing.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const checkSource = (recorder: Recorder): FlowBinding.Source =>
+  FlowBinding.source("evals/agent/check", [
+    FlowBinding.make({
+      flow: check,
+      handler: (input) =>
+        Effect.sync(() => {
+          const written = recorder.flowCalls.includes("apply")
+          recorder.flowCalls.push(input.only === undefined ? "check" : `check:${input.only}`)
+          return { exitCode: written ? 0 : 1 }
+        })
+    }),
+    FlowBinding.make({
+      flow: apply,
+      handler: () =>
+        Effect.sync(() => {
+          recorder.flowCalls.push("apply")
+          return { written: true }
+        })
+    })
+  ])
+
 const Review = Schema.Struct({
   approved: Schema.Boolean,
   issues: Schema.Array(Schema.String)

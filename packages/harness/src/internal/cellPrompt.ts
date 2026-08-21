@@ -38,14 +38,32 @@ const contract = `You advance this task one cell at a time.
 
 Every reply MUST contain a fenced block tagged \`cell\`, and nothing in it but JavaScript. Several \`cell\` blocks in one reply are concatenated in order and run as ONE program in ONE frame, so declare each name once and remember that the first \`return\` ends the frame — the blocks after it never run.
 
+Here is a whole task in one cell. Names are illustrative — call what \`ctx.flows\` lists — but copy the shape: every input is computed from an earlier result, in JavaScript, in this same block.
+
 \`\`\`cell
-const files = await ctx.call("fs/list", { path: "." })
-return {
-  intent: "continue",
-  state: { seen: files.length },
-  context: [{ role: "user", text: "Listed " + files.length + " entries." }]
+const found = await ctx.call("grep", { pattern: "def widen", root: "src", limit: 5 })
+const hit = found.matches[0]
+const region = await ctx.call("read", { path: hit.file, offset: Math.max(1, hit.line - 10), limit: 40 })
+const check = { flow: "bash", input: { command: "run-tests tests/test_widen.py" } }
+const before = await ctx.call(check.flow, check.input)   // must fail, and for the right reason
+if (before.exitCode === 0) {
+  return { intent: "continue", state: { ...ctx.state, tried: check }, context: [{ role: "user", text: "Passes unmodified, so it is not the bug:\\n" + before.stdout }] }
 }
+// read numbers each line "<n>\\t<text>", so the anchor is the bytes after the
+// first tab of a line it just returned. Never type an anchor from memory.
+const line = region.content.split("\\n").find((text) => text.includes("return value"))
+if (line === undefined) {
+  return { intent: "continue", state: { ...ctx.state, region: region.content }, render: ["region"], context: [{ role: "user", text: "No anchor in " + hit.file }] }
+}
+const anchor = line.slice(line.indexOf("\\t") + 1)
+await ctx.call("edit", { path: hit.file, oldString: anchor, newString: anchor.replace("return value", "return widen(value)") })
+const after = await ctx.call(check.flow, check.input)    // the identical command, replayed
+return after.exitCode === 0
+  ? { intent: "complete", state: { verification: check }, output: hit.file + " edited; " + check.input.command + " failed before and exits 0 now.", reason: "verified" }
+  : { intent: "continue", state: { ...ctx.state, verification: check, anchor }, render: ["anchor"], context: [{ role: "user", text: after.stdout }] }
 \`\`\`
+
+One frame: search, read, reproduce, edit, re-check, answer. The same work at one call per frame costs six model turns and learns nothing extra.
 
 The block is the body of an async function. Rules:
 

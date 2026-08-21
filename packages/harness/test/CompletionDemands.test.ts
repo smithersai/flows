@@ -1,8 +1,8 @@
 /**
- * The three completion demands, replayed over the wave they were designed
+ * The four completion demands, replayed over the two waves they were designed
  * against.
  *
- * The fixture is the five journals of SWE-bench wave 9, distilled by
+ * The first fixture is the five journals of SWE-bench wave 9, distilled by
  * `evals/swebench/lib/narrowing-journals.mjs` to exactly what the detectors
  * read: every settled call's flow, input and outcome, what its result said
  * about its subject's exit status and about whether it ran a check at all, the
@@ -27,6 +27,12 @@
  * failed, 72 passed", ran four named cases out of that same file, was told "4
  * passed", and completed on the second reading.
  *
+ * The second fixture is wave 10, distilled the same way, and the fourth demand
+ * — `NarrowedCheck.findOnly` — was read off it. Together the two files are
+ * every completion two graded waves produced, and the whole set is replayed
+ * through one driver so a detector that starts asking something new of a run
+ * that resolved has to explain itself against ten real journals.
+ *
  * The replay drives the detectors directly rather than the loop, for the same
  * reason `NarrowedCheck.test.ts` does: the loop needs a model, a sandbox and an
  * engine, and none of those decide anything here.
@@ -37,6 +43,7 @@ import * as NarrowedCheck from "../src/NarrowedCheck.ts"
 import * as UnmovedTree from "../src/UnmovedTree.ts"
 import * as UnresolvedFailure from "../src/UnresolvedFailure.ts"
 import journals from "./fixtures/completionJournals.json" with { type: "json" }
+import waveTen from "./fixtures/wave10Journals.json" with { type: "json" }
 
 type Journal = typeof journals.journals[number]
 
@@ -47,6 +54,8 @@ interface Fired {
   readonly seq: number
   /** Seqs of the calls the demand names, where it names any. */
   readonly names: ReadonlyArray<number>
+  /** The subjects the demand is about, where it is about subjects. */
+  readonly targets?: ReadonlyArray<string> | undefined
 }
 
 /**
@@ -90,6 +99,12 @@ const replay = (journal: Journal): ReadonlyArray<Fired> => {
       const narrowing = unmoved === undefined && unresolved === undefined
         ? NarrowedCheck.find({ ledger, frame: checks, digest })
         : undefined
+      // The fourth arm, and the last: it asks what the run holds rather than
+      // what it skipped, so it is only consulted once the other three have
+      // found nothing to name. It shares the narrowing cap with the third.
+      const narrowOnly = unmoved === undefined && unresolved === undefined && narrowing === undefined
+        ? NarrowedCheck.findOnly({ ledger: whole, before: ledger.map((entry) => entry.signature), frame: checks })
+        : undefined
       if (unmoved !== undefined) fired.push({ demand: "unmoved-tree", seq, names: [] })
       else if (unresolved !== undefined) {
         fired.push({
@@ -102,6 +117,13 @@ const replay = (journal: Journal): ReadonlyArray<Fired> => {
           demand: "narrowed-check",
           seq,
           names: [seqOf.get(narrowing.earlier.signature) ?? 0, seqOf.get(narrowing.later.signature) ?? 0]
+        })
+      } else if (narrowOnly !== undefined) {
+        fired.push({
+          demand: "narrow-only",
+          seq,
+          names: [seqOf.get(narrowOnly.later.signature) ?? 0],
+          targets: narrowOnly.targets
         })
       }
     }
@@ -175,5 +197,72 @@ describe("the completion demands over the recorded wave", () => {
 
     expect(failing("pytest-dev__pytest-6197")).toEqual([58, 394])
     expect(failing("astropy__astropy-8707")).toEqual([57, 120, 191])
+  })
+})
+
+/**
+ * The same four detectors, replayed over the next wave.
+ *
+ * Wave 10 is the first wave run with all three completion demands armed, and it
+ * is where the fourth came from. Its record: astropy and sphinx resolved,
+ * django completed twice over a tree it never moved and shipped an empty patch,
+ * xarray never completed at all, and pytest lost the same instance for a fourth
+ * consecutive wave — this time by editing correctly, running
+ * `pytest -rA testing/test_collection.py -k "collect_init_tests or
+ * collect_pkg_init_only"`, and completing on it. That command names the file
+ * holding the one test the patch broke, the filter deselects it, and the run
+ * never ran that file any other way. `NarrowedCheck.find` compares a completion
+ * against the broader checks the run already took and there were none, which is
+ * the hole `findOnly` closes.
+ *
+ * Two instances of the fixture matter beyond the one that fires. Sphinx's
+ * completing frame is the shape a par round has — chmod, edit, compile, replay
+ * the probe byte for byte, run two whole test files, diff — and it must be left
+ * alone. Astropy's completing frame made no call at all, which is the other way
+ * a run reaches `complete` with nothing for this detector to read.
+ */
+describe("the completion demands over the wave that armed them", () => {
+  const wave10 = (instance: string): Journal => {
+    const found = waveTen.journals.find((entry) => entry.instance === instance)
+    if (found === undefined) throw new Error(`the wave-10 fixture is missing ${instance}`)
+    return found as Journal
+  }
+
+  it.each(
+    waveTen.journals.filter((journal) =>
+      journal.instance !== "django__django-16612" && journal.instance !== "pytest-dev__pytest-6197"
+    )
+  )("demands nothing of $instance", (journal) => {
+    expect(replay(journal as Journal)).toEqual([])
+  })
+
+  it("demands the missing change of django__django-16612, which shipped an empty patch", () => {
+    const journal = wave10("django__django-16612")
+
+    // Two frames and one call. The first frame completed on a seven-block reply
+    // whose last block the harness of the day executed alone, against a tree
+    // where the six before it had never run.
+    expect(journal.frames).toHaveLength(2)
+    expect(replay(journal)).toEqual([{ demand: "unmoved-tree", seq: 25, names: [] }])
+  })
+
+  it("demands the unconditioned reading exactly once of pytest-dev__pytest-6197", () => {
+    const journal = wave10("pytest-dev__pytest-6197")
+    const fired = replay(journal)
+
+    expect(fired).toEqual([{
+      // `transition-applied` on the twelfth frame, the one that edited,
+      // compiled, re-ran the reproduction, and ran the filtered check.
+      demand: "narrow-only",
+      seq: 416,
+      // Seq 413: `pytest -rA testing/test_collection.py -k "collect_init_tests
+      // or collect_pkg_init_only"`, exit 0, the last check the run ever ran.
+      names: [413],
+      // What the demand is about. The container root and the scratch directory
+      // a single command creates are not in it: `names` does not read
+      // `/testbed` as a subject, and a path no other check of the run mentions
+      // is not one either.
+      targets: ["/opt/miniconda3/envs/testbed/bin/python", "testing/test_collection.py"]
+    }])
   })
 })

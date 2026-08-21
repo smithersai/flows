@@ -48,9 +48,23 @@ describe("UnmovedTree.demand", () => {
     // The two ways out, stated as equals: a task whose right answer is "nothing
     // needs changing" exists, and a demand that only accepted an edit would be
     // pushing a correct run into making one.
-    expect(text).toContain("make the change")
+    expect(text).toContain("Make the change")
     expect(text).toContain("no change is needed")
     // The harness changes nothing for the run, and says so.
     expect(text).toContain("Nothing makes the change for you")
+  })
+
+  it("asks the second answer for its working without gating on it", () => {
+    const text = UnmovedTree.demand({ opened: "tree-1", closed: "tree-1" })
+
+    // The re-tuning the armed wave paid for: a completion bounced off a
+    // fabricated edit answered "No change is needed" from a run that had made
+    // one call in its life, and the old sentence had offered that exit with
+    // nothing attached. The claim is still accepted exactly as written — the
+    // harness cannot know whether it is true and does not try — but the run is
+    // asked what it ran to reach it.
+    expect(text).toContain("naming what you ran to conclude it")
+    expect(text).toContain("Both answers are accepted exactly as you write them")
+    expect(text).toContain("nothing re-checks either one")
   })
 })

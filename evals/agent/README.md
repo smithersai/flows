@@ -36,7 +36,7 @@ Two flags:
 
 ## What it measures
 
-Ten cases. Each one is a whole agent run: the real cell loop, the real QuickJS
+Eleven cases. Each one is a whole agent run: the real cell loop, the real QuickJS
 sandbox, the real registry-backed call bridge, and the real structured-output
 boundary, executing over `FlowEngine.layerMemory` — the engine's in-process
 volatile runtime, not the durable SQLite one a deployed host uses. Three things
@@ -54,6 +54,7 @@ loop and its seams, not durability and not a real catalog.
 | `correction-budget-exhausted`          | A model that never produces the declared shape fails `/harness/StructuredOutputFailure`, not silently.                 |
 | `cell-calls-a-flow`                    | A cell reaches a host capability through `ctx.call`, and the flow's typed result reaches the answer.                   |
 | `read-only-cap-stops-a-reading-run`    | A task run that only reads is told to write or justify at its cap, and stops as `/harness/HarnessError` at twice it.   |
+| `sufficiency-signal-reaches-the-next-frame` | A run holding a check that failed before its change and a broader one that passed after is told so, and completes on it. |
 | `park-without-a-human-is-answered`     | A park in a run with no approval channel is refused, answered in-frame, and the run spends the budget it still held.  |
 | `park-every-frame-still-hits-the-read-only-cap` | A run that answers every refusal with another park stops at twice its read-only cap instead of spending the frame budget. |
 | `max-frames-stops-the-run`             | A run that never completes stops at its frame budget and reports `/harness/HarnessError`.                              |
@@ -92,9 +93,9 @@ loop that suspended quietly cannot pass by ending some other way.
 | File            | What it is                                                                                                           |
 | --------------- | -------------------------------------------------------------------------------------------------------------------- |
 | `subject.ts`    | The composition under evaluation: the scripted provider, the seat seam, the host, and the two ways to run the agent. |
-| `suite.ts`      | The ten scenarios, their declared expectations, the two scorers, and the case executor.                            |
+| `suite.ts`      | The eleven scenarios, their declared expectations, the two scorers, and the case executor.                            |
 | `run.ts`        | The entry point: runs the suite, compares it to the baseline, applies the gate, sets the exit code.                  |
-| `baseline.json` | The committed baseline, in `@smthrs/evals` `Baseline` v1 form. Twenty records: ten cases times two scorers.          |
+| `baseline.json` | The committed baseline, in `@smthrs/evals` `Baseline` v1 form. Twenty-two records: eleven cases times two scorers.          |
 | `tsconfig.json` | Typechecks the suite: `npx tsc -p evals/agent`. Nothing else references it.                                          |
 
 `baseline.json` is written by `Baseline.write`, which emits canonical

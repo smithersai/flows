@@ -32,6 +32,7 @@ import * as cellPrompt from "./internal/cellPrompt.ts"
 import * as NarrowedCheck from "./NarrowedCheck.ts"
 import * as Sandbox from "./Sandbox.ts"
 import * as Steering from "./Steering.ts"
+import * as Sufficiency from "./Sufficiency.ts"
 import * as TruncatedOutput from "./TruncatedOutput.ts"
 import * as UnmovedTree from "./UnmovedTree.ts"
 import * as UnresolvedFailure from "./UnresolvedFailure.ts"
@@ -206,8 +207,10 @@ const eventType = {
   readOnlyDemanded: "flows.harness.read-only-demanded.v1",
   repeatDemanded: "flows.harness.repeat-demanded.v1",
   narrowedDemanded: "flows.harness.narrowed-demanded.v1",
+  narrowOnlyDemanded: "flows.harness.narrow-only-demanded.v1",
   unmovedDemanded: "flows.harness.unmoved-demanded.v1",
   unresolvedDemanded: "flows.harness.unresolved-demanded.v1",
+  sufficiencyObserved: "flows.harness.sufficiency-observed.v1",
   modelDelta: "flows.harness.model-delta.v1",
   modelSettled: "flows.harness.model-settled.v1",
   mutationObserved: "flows.harness.mutation-observed.v1",
@@ -441,6 +444,39 @@ export class State extends Schema.Class<State>("flows/harness/CellTurn/State")({
    */
   callLedger: CallLedger.Ledger,
   /**
+   * Checks this run has watched fail, each stamped with the epoch it failed in.
+   *
+   * Separate from {@link State.checks} because that ledger holds one entry per
+   * signature carrying its *latest* run: the moment a failing check is re-run
+   * and passes, the failure it reported is gone from it, and the failure is
+   * exactly half of what `Sufficiency` needs. See `Sufficiency`.
+   */
+  failures: Sufficiency.Ledger,
+  /**
+   * Frames of this run that changed the workspace.
+   *
+   * The clock `Sufficiency` orders its two halves by. A count rather than a
+   * digest, because the fact being established is that something changed
+   * between two readings, and a count says that on a host that measures nothing
+   * and knows only what its calls declared.
+   */
+  mutations: NonNegativeSafeInt.pipe(
+    Schema.withConstructorDefault(Effect.succeed(0)),
+    Schema.withDecodingDefaultKey(Effect.succeed(0))
+  ),
+  /**
+   * Whether the sufficiency observation has already been written this run.
+   *
+   * Once, and only once: it is a statement about the record, the record only
+   * grows, and repeating it every frame would turn the one control that is not
+   * a demand into nagging. A run that is shown it and keeps working is a run
+   * that has decided the evidence is not enough, which is its decision to make.
+   */
+  sufficiencyStated: Schema.Boolean.pipe(
+    Schema.withConstructorDefault(Effect.succeed(false)),
+    Schema.withDecodingDefaultKey(Effect.succeed(false))
+  ),
+  /**
    * Durable-state keys the next frame is shown in full instead of by roster.
    *
    * Named by the transition that closed the previous frame and replaced by
@@ -638,6 +674,9 @@ export const make = (options: {
     openingDigest: "",
     checks: [],
     callLedger: [],
+    failures: [],
+    mutations: 0,
+    sufficiencyStated: false,
     renderKeys: [],
     approvalChannel: options.approvalChannel ?? false,
     workspace: undefined,
@@ -976,9 +1015,19 @@ const invalidProbeNotice = (
  * had already landed. So the two ways out are stated as equals, the evidence a
  * real edit carries is named, and the writes that are worse than another quiet
  * frame are named too.
+ *
+ * The justification is asked to say what the *next* frames will do differently,
+ * and that clause is priced in evidence. The wave that armed this recorded one
+ * instance that volunteered twelve justifications across 24 frames, never
+ * wrote, and died on the hard stop; every one of them named what it was about
+ * to look at, and none of them named a difference from the frame before. A
+ * justification is a plan, and a plan that is the same plan the last quiet
+ * frame had is the stall itself rather than a reason for it. The harness does
+ * not grade the answer — it is accepted as written, as every way out here is —
+ * but it asks the question that a run repeating itself cannot answer twice.
  */
 const readOnlyDemand = (cap: number, frames: number): string =>
-  `Read-only discipline — ${frames} consecutive frames have made no call that declares a write, and this run's read-only budget is ${cap}. The next cell must do one of two things, and they are equally acceptable: land an edit you can already name the evidence for — the file, the change, and the check you have watched fail that will now pass — or return { intent: "continue", state, context, justification: "<the evidence you are still missing, and the exact call that will get it>" }. Do not write something merely to answer this notice. A restore, a revert, an overwrite from captured output, or any edit whose evidence you cannot name is worse than another read-only frame, because it destroys work this run has already done. A justification is recorded and buys ${cap} quiet frames; it does not reset this counter. At ${
+  `Read-only discipline — ${frames} consecutive frames have made no call that declares a write, and this run's read-only budget is ${cap}. The next cell must do one of two things, and they are equally acceptable: land an edit you can already name the evidence for — the file, the change, and the check you have watched fail that will now pass — or return { intent: "continue", state, context, justification: "<the evidence you are still missing, the exact call that will get it, and what that makes the next frames do differently from these ${frames}>" }. Do not write something merely to answer this notice. A restore, a revert, an overwrite from captured output, or any edit whose evidence you cannot name is worse than another read-only frame, because it destroys work this run has already done. A justification is recorded and buys ${cap} quiet frames; it does not reset this counter, and one that names the same next step the last quiet frame named has bought a repeat of that frame. At ${
     cap * 2
   } consecutive read-only frames the run stops as a failure, so ${
     cap * 2 - frames
@@ -1569,6 +1618,16 @@ const frame = (
        * at all. See `UnresolvedFailure` `failed`.
        */
       readonly failing: boolean
+      /**
+       * Whether the result reported a passing exit status about its subject.
+       *
+       * Not the negation of `failing`: a flow that reports no exit status is
+       * neither, and `Sufficiency` needs the difference between a check that
+       * passed and a call that never checked anything. An invalid probe is
+       * neither either, for the same reason it is never failing — the flow
+       * itself said the result is not a statement about the tree.
+       */
+      readonly passing: boolean
     }> = []
     /** Ordinals of the invocations that reached the engine this frame. */
     const performed = new Set<number>()
@@ -1596,7 +1655,9 @@ const frame = (
               message: result.message,
               invalidProbe: probe,
               failing: result.outcome === "success" && probe === undefined &&
-                UnresolvedFailure.failed(result.value)
+                UnresolvedFailure.failed(result.value),
+              passing: result.outcome === "success" && probe === undefined &&
+                UnresolvedFailure.passed(result.value)
             })
           })
         )
@@ -1699,6 +1760,7 @@ const frame = (
         input: call.input,
         digest: workspaceDigest,
         failing: call.failing,
+        passing: call.passing,
         // A frame that also edited cannot say whether its checks ran before or
         // after the edit, so the tree stamped on them is a guess in one
         // direction. `UnresolvedFailure` refuses to carry a failure on such a
@@ -1708,6 +1770,13 @@ const frame = (
       return recorded === undefined ? [] : [recorded]
     })
     const checks = NarrowedCheck.remember(state.checks, frameChecks)
+
+    // How many frames of this run have changed the workspace, and which of
+    // this frame's checks failed before any of them did. Both carried out
+    // through every exit: a failure watched in a frame that then raised is
+    // still a failure this run watched.
+    const mutations = state.mutations + (mutated ? 1 : 0)
+    const failures = Sufficiency.remember(state.failures, { frame: frameChecks, epoch: state.mutations })
 
     // The tree the run was handed, fixed the first time a frame measured one
     // and never restamped. See `State.openingDigest`.
@@ -1776,6 +1845,8 @@ const frame = (
         callSignatures,
         checks,
         callLedger,
+        failures,
+        mutations,
         openingDigest,
         ...(mutated ? { readOnlyGrace: 0, pendingReadOnlyDemand: undefined } : {})
       })
@@ -1847,6 +1918,8 @@ const frame = (
             callSignatures,
             checks,
             callLedger,
+            failures,
+            mutations,
             openingDigest,
             ...(mutated ? { readOnlyGrace: 0 } : {})
           }
@@ -1920,9 +1993,17 @@ const frame = (
       // 2. `UnresolvedFailure`: a check over this exact tree reported a failing
       //    exit status and the run answered it with a different reading of the
       //    same subject rather than with the check itself;
-      // 3. `NarrowedCheck`: this frame's check repeats an earlier, broader one
-      //    and adds conditions to it, run after a change the broader one never
-      //    saw.
+      // 3. `NarrowedCheck.find`: this frame's check repeats an earlier, broader
+      //    one and adds conditions to it, run after a change the broader one
+      //    never saw;
+      // 4. `NarrowedCheck.findOnly`: the check this frame ended on is the run's
+      //    only reading of what it names — nothing broader was ever taken, so
+      //    there was no broader check for (3) to find.
+      //
+      // The last two share one cap. They are two readings of one question —
+      // whether the evidence covers what it looks like it covers — and a run
+      // that answers either has answered the question; a second bounce would be
+      // the loop asking it twice in different words.
       //
       // At most one is named, in that order, because they are in descending
       // order of how fundamental the missing thing is: there is nothing to
@@ -1959,9 +2040,17 @@ const frame = (
       const unresolved = unmoved === undefined && room && state.unresolvedDemands < state.unresolvedCap
         ? UnresolvedFailure.find({ ledger: checks, digest: workspaceDigest })
         : undefined
-      const narrowing = unmoved === undefined && unresolved === undefined && room &&
-          state.narrowingDemands < state.narrowingCap
+      const narrowable = unmoved === undefined && unresolved === undefined && room &&
+        state.narrowingDemands < state.narrowingCap
+      const narrowing = narrowable
         ? NarrowedCheck.find({ ledger: state.checks, frame: frameChecks, digest: workspaceDigest })
+        : undefined
+      const narrowOnly = narrowable && narrowing === undefined
+        ? NarrowedCheck.findOnly({
+          ledger: checks,
+          before: state.checks.map((entry) => entry.signature),
+          frame: frameChecks
+        })
         : undefined
       if (unmoved !== undefined) {
         yield* emit(
@@ -1998,6 +2087,18 @@ const frame = (
           })
         )
       }
+      if (narrowOnly !== undefined) {
+        yield* emit(
+          new AgentEvent.NarrowOnlyDemanded({
+            eventType: eventType.narrowOnlyDemanded,
+            flow: narrowOnly.later.flow,
+            check: narrowOnly.later.label,
+            targets: narrowOnly.targets,
+            currentDigest: workspaceDigest,
+            nextFrame: state.frame + 1
+          })
+        )
+      }
       const demanded = unmoved !== undefined
         ? { note: UnmovedTree.demand(unmoved), spent: { unmovedDemands: state.unmovedDemands + 1 } }
         : unresolved !== undefined
@@ -2007,6 +2108,8 @@ const frame = (
         }
         : narrowing !== undefined
         ? { note: NarrowedCheck.demand(narrowing), spent: { narrowingDemands: state.narrowingDemands + 1 } }
+        : narrowOnly !== undefined
+        ? { note: NarrowedCheck.demandOnly(narrowOnly), spent: { narrowingDemands: state.narrowingDemands + 1 } }
         : undefined
       if (demanded !== undefined) {
         yield* emit(
@@ -2034,6 +2137,8 @@ const frame = (
             callSignatures,
             checks,
             callLedger,
+            failures,
+            mutations,
             openingDigest,
             ...demanded.spent,
             // The answer the demand is taking away, kept so it cannot be lost.
@@ -2156,11 +2261,33 @@ const frame = (
       ? [ModelRequest.Message.user(repeatDemand(repeatFrames, state.repeatCap))]
       : []
     const alerts = probeNotice === undefined ? [] : [ModelRequest.Message.user(probeNotice)]
+    // The counterweight, and the only notice here that asks for nothing. It is
+    // written on the frame that completes the pair rather than at a completion,
+    // because its whole purpose is to reach a run that is still deciding
+    // whether to keep working — a run at its `complete` transition has already
+    // decided. See `Sufficiency`.
+    const sufficient = state.sufficiencyStated
+      ? undefined
+      : Sufficiency.find({ ledger: failures, frame: frameChecks, epoch: mutations })
+    if (sufficient !== undefined) {
+      yield* emit(
+        new AgentEvent.SufficiencyObserved({
+          eventType: eventType.sufficiencyObserved,
+          flow: sufficient.failed.flow,
+          failed: sufficient.failed.label,
+          passed: sufficient.passed.label,
+          epoch: sufficient.failed.epoch,
+          nextFrame: state.frame + 1
+        })
+      )
+    }
+    const held = sufficient === undefined ? [] : [ModelRequest.Message.user(Sufficiency.observation(sufficient))]
     const context = projected(state, transition.context, [
       ...drained.inserts,
       ...alerts,
       ...demand,
-      ...repeated
+      ...repeated,
+      ...held
     ])
     return {
       _tag: "Continue",
@@ -2188,6 +2315,9 @@ const frame = (
         callSignatures,
         checks,
         callLedger,
+        failures,
+        mutations,
+        ...(sufficient === undefined ? {} : { sufficiencyStated: true }),
         openingDigest,
         pendingReadOnlyDemand: demanded && !justified ? { streak: readOnlyFrames, cap } : undefined
       })

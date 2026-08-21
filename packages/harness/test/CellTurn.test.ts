@@ -2015,6 +2015,294 @@ describe("CellTurn narrowed verification", () => {
   })
 })
 
+describe("CellTurn narrow-only verification", () => {
+  const shell = descriptor("bash", { capabilities: ["proc:spawn:*"], tier: "irreversible" })
+  const editor = descriptor("edit", { capabilities: ["fs:write:**"], writes: ["**"], tier: "compensable" })
+
+  const running = (command: string) =>
+    `await ctx.call("bash", { mode: "unhermetic", command: ${JSON.stringify(command)} })
+     return { intent: "continue", state: {}, context: [{ role: "user", text: "checked" }] }`
+
+  const fixing = (command: string, output: string) =>
+    `await ctx.call("edit", { path: "a.py", text: "fix" })
+     await ctx.call("bash", { mode: "unhermetic", command: ${JSON.stringify(command)} })
+     return { intent: "complete", state: {}, output: ${JSON.stringify(output)} }`
+
+  const ok = (tree?: string): ScriptedEngine.CallStep =>
+    tree === undefined ? { _tag: "Success", value: null } : { _tag: "Success", value: null, tree }
+
+  const completing = (
+    cells: ReadonlyArray<string>,
+    calls: ReadonlyArray<ScriptedEngine.CallStep>,
+    overrides: { readonly narrowingCap?: number } = {}
+  ) =>
+    run({
+      state: CellTurn.make({
+        session: "session-1",
+        seat: "anthropic:test-model",
+        modelParams: ModelRequest.GenerationParams.make(),
+        layers: ["layer-a"],
+        capabilityEnvelope: ["fs:write:**", "proc:spawn:*"].map((declared) => {
+          const parsed = declared.split(":")
+          return new Capability.CapabilityPattern({
+            action: `${parsed[0]}:${parsed[1]}` as Capability.PatternAction,
+            resource: parsed.slice(2).join(":")
+          })
+        }),
+        placement: Option.none(),
+        contextWindow: window,
+        maxFrames: cells.length,
+        repeatCap: 0,
+        ...(overrides.narrowingCap === undefined ? {} : { narrowingCap: overrides.narrowingCap })
+      }),
+      flows: [shell, editor],
+      script: cells.map(emits),
+      calls,
+      tree: "a.py=base"
+    })
+
+  it("bounces a completion whose last check is the run's only reading of its subjects", async () => {
+    const { events, model } = await completing(
+      [
+        running("look at tests/a.py"),
+        running("look at src/b.py"),
+        fixing("check src/b.py tests/a.py -k one", "narrow only"),
+        `return { intent: "complete", state: {}, output: "answered" }`
+      ],
+      [ok(), ok(), ok("a.py=fixed"), ok()]
+    )
+
+    // Both files are subjects this run has looked at. Neither of the calls
+    // that looked at them covers the other, so the command the completion
+    // stands on is the only place the two appear together — and whatever else
+    // that command carries has never been taken off.
+    const demanded = of(events, "narrow-only-demanded")
+    expect(demanded).toHaveLength(1)
+    expect(demanded[0]).toMatchObject({
+      flow: "bash",
+      targets: ["src/b.py", "tests/a.py"],
+      currentDigest: "a.py=fixed",
+      nextFrame: 3
+    })
+    expect(demanded[0]?.check).toContain("-k one")
+
+    // Demand-then-continue, like the other three: the frame that answers is
+    // holding the cell it just wrote plus one sentence, and the next answer
+    // is the run's.
+    expect(JSON.stringify(model.recorder.requests[3]?.messages)).toContain("Only reading")
+    expect(of(events, "turn-closed").map((event) => event.outcome)).toEqual([
+      "continue",
+      "continue",
+      "continue",
+      "resolved"
+    ])
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      expect.objectContaining({ text: "answered" })
+    ])
+  })
+
+  it("leaves a completion alone when another check already covers its subjects", async () => {
+    const { events, model } = await completing(
+      [
+        running("look at src/b.py tests/a.py"),
+        fixing("check src/b.py tests/a.py -k one", "covered"),
+        `return { intent: "complete", state: {}, output: "unreached" }`
+      ],
+      [ok(), ok("a.py=fixed"), ok()]
+    )
+
+    // The par shape: the run read both subjects together before it changed
+    // anything, so the completion is standing on a reading it can compare.
+    expect(of(events, "narrow-only-demanded")).toEqual([])
+    expect(JSON.stringify(model.recorder.requests)).not.toContain("Only reading")
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      expect.objectContaining({ text: "covered" })
+    ])
+  })
+
+  it("says nothing about a check the run had already issued in an earlier frame", async () => {
+    const { events } = await completing(
+      [
+        running("look at tests/a.py"),
+        running("check src/b.py tests/a.py -k one"),
+        fixing("check src/b.py tests/a.py -k one", "replayed"),
+        `return { intent: "complete", state: {}, output: "unreached" }`
+      ],
+      [ok(), ok(), ok("a.py=fixed"), ok()]
+    )
+
+    // A check replayed byte for byte across a change is the discipline the
+    // contract asks for. The run holds both readings of it, which is the
+    // opposite of the failure this demand names.
+    expect(of(events, "narrow-only-demanded")).toEqual([])
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      expect.objectContaining({ text: "replayed" })
+    ])
+  })
+
+  it("spends the narrowing cap, so one run is never asked about its evidence twice", async () => {
+    const { events } = await completing(
+      [
+        running("look at tests/a.py"),
+        running("look at src/b.py"),
+        fixing("check src/b.py tests/a.py -k one", "first"),
+        `await ctx.call("bash", { mode: "unhermetic", command: "check src/b.py tests/a.py -k two" })
+         return { intent: "complete", state: {}, output: "second" }`
+      ],
+      [ok(), ok(), ok("a.py=fixed"), ok()]
+    )
+
+    // The second completion is the same shape as the first and is taken as it
+    // comes: the loop asks once and accepts what comes back.
+    expect(of(events, "narrow-only-demanded")).toHaveLength(1)
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      expect.objectContaining({ text: "second" })
+    ])
+  })
+
+  it("is disarmed by the same cap that disarms the narrowing demand", async () => {
+    const { events } = await completing(
+      [
+        running("look at tests/a.py"),
+        running("look at src/b.py"),
+        fixing("check src/b.py tests/a.py -k one", "unbounced")
+      ],
+      [ok(), ok(), ok("a.py=fixed")],
+      { narrowingCap: 0 }
+    )
+
+    expect(of(events, "narrow-only-demanded")).toEqual([])
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      expect.objectContaining({ text: "unbounced" })
+    ])
+  })
+})
+
+describe("CellTurn sufficiency", () => {
+  const shell = descriptor("bash", { capabilities: ["proc:spawn:*"], tier: "irreversible" })
+  const editor = descriptor("edit", { capabilities: ["fs:write:**"], writes: ["**"], tier: "compensable" })
+
+  /** A frame that runs one command and asks for another. */
+  const checking = (command: string) =>
+    `await ctx.call("bash", { mode: "unhermetic", command: ${JSON.stringify(command)} })
+     return { intent: "continue", state: {}, context: [{ role: "user", text: "checked" }] }`
+
+  /** A frame that edits and re-runs the same command. */
+  const fixing = (command: string) =>
+    `await ctx.call("edit", { path: "a.py", text: "fix" })
+     await ctx.call("bash", { mode: "unhermetic", command: ${JSON.stringify(command)} })
+     return { intent: "continue", state: {}, context: [{ role: "user", text: "fixed" }] }`
+
+  const exits = (exitCode: number, tree?: string): ScriptedEngine.CallStep =>
+    tree === undefined
+      ? { _tag: "Success", value: { exitCode } }
+      : { _tag: "Success", value: { exitCode }, tree }
+
+  const watching = (
+    cells: ReadonlyArray<string>,
+    calls: ReadonlyArray<ScriptedEngine.CallStep>
+  ) =>
+    run({
+      state: CellTurn.make({
+        session: "session-1",
+        seat: "anthropic:test-model",
+        modelParams: ModelRequest.GenerationParams.make(),
+        layers: ["layer-a"],
+        capabilityEnvelope: ["fs:write:**", "proc:spawn:*"].map((declared) => {
+          const parsed = declared.split(":")
+          return new Capability.CapabilityPattern({
+            action: `${parsed[0]}:${parsed[1]}` as Capability.PatternAction,
+            resource: parsed.slice(2).join(":")
+          })
+        }),
+        placement: Option.none(),
+        contextWindow: window,
+        maxFrames: cells.length,
+        repeatCap: 0,
+        narrowingCap: 0
+      }),
+      flows: [shell, editor],
+      script: cells.map(emits),
+      calls,
+      tree: "a.py=base"
+    })
+
+  it("tells the next frame it holds failing-before and passing-after evidence", async () => {
+    const { events, model } = await watching(
+      [checking("check a.py"), fixing("check a.py"), `return { intent: "complete", state: {}, output: "done" }`],
+      [exits(1), { _tag: "Success", value: null, tree: "a.py=fixed" }, exits(0)]
+    )
+
+    const observed = of(events, "sufficiency-observed")
+    expect(observed).toHaveLength(1)
+    expect(observed[0]).toMatchObject({ flow: "bash", epoch: 0, nextFrame: 2 })
+    expect(observed[0]?.failed).toContain("check a.py")
+    expect(observed[0]?.passed).toContain("check a.py")
+
+    // The whole point is that the model reads it, so the frame after the pair
+    // is the frame that carries it.
+    const answering = JSON.stringify(model.recorder.requests[2]?.messages)
+    expect(answering).toContain("Evidence held")
+    expect(answering).toContain("Nothing is being asked of you")
+    expect(JSON.stringify(model.recorder.requests[1]?.messages)).not.toContain("Evidence held")
+
+    // Nothing is bounced and no cap is spent: the frame that produced the pair
+    // continued exactly as its transition asked.
+    expect(of(events, "turn-closed").map((event) => event.outcome)).toEqual([
+      "continue",
+      "continue",
+      "resolved"
+    ])
+  })
+
+  it("writes the observation once, however many frames the run spends after it", async () => {
+    const { events, model } = await watching(
+      [
+        checking("check a.py"),
+        fixing("check a.py"),
+        checking("check a.py"),
+        `return { intent: "complete", state: {}, output: "done" }`
+      ],
+      [exits(1), { _tag: "Success", value: null, tree: "a.py=fixed" }, exits(0), exits(0)]
+    )
+
+    expect(of(events, "sufficiency-observed")).toHaveLength(1)
+    expect(JSON.stringify(model.recorder.requests[3]?.messages)).not.toContain("Evidence held")
+  })
+
+  it("says nothing when the check passed over the tree it had already failed on", async () => {
+    const { events, model } = await watching(
+      [checking("check a.py"), checking("check a.py"), `return { intent: "complete", state: {}, output: "done" }`],
+      [exits(1), exits(0), exits(0)]
+    )
+
+    // A check that flips without the workspace moving says something about the
+    // check, not about a change, and there is no change here to be evidence of.
+    expect(of(events, "sufficiency-observed")).toEqual([])
+    expect(JSON.stringify(model.recorder.requests)).not.toContain("Evidence held")
+  })
+
+  it("says nothing when the run has watched nothing fail", async () => {
+    const { events } = await watching(
+      [checking("check a.py"), fixing("check a.py"), `return { intent: "complete", state: {}, output: "done" }`],
+      [exits(0), { _tag: "Success", value: null, tree: "a.py=fixed" }, exits(0)]
+    )
+
+    expect(of(events, "sufficiency-observed")).toEqual([])
+  })
+
+  it("says nothing when the answering call reports no exit status at all", async () => {
+    const { events } = await watching(
+      [checking("check a.py"), fixing("check a.py"), `return { intent: "complete", state: {}, output: "done" }`],
+      [exits(1), { _tag: "Success", value: null, tree: "a.py=fixed" }, { _tag: "Success", value: null }]
+    )
+
+    // Silence is not a pass. Without this a file read would be half of a
+    // completion signal.
+    expect(of(events, "sufficiency-observed")).toEqual([])
+  })
+})
+
 describe("CellTurn call latency", () => {
   it("journals the wall-clock duration of each sealed model call from the injected clock", async () => {
     const { events } = await run({

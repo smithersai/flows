@@ -82,6 +82,23 @@ export const failed = (value: Schema.Json): boolean => {
 }
 
 /**
+ * Whether a settled call's result reports a passing exit status.
+ *
+ * The mirror of {@link failed}, and not its negation. A result that declares no
+ * exit status is neither: `false` from both predicates is a call whose flow
+ * does not report one, which is what a read and a search are. `Sufficiency`
+ * builds a completion signal out of this answer, so silence has to read as
+ * silence — a file read that "did not fail" is not a check that passed.
+ *
+ * @category predicates
+ * @since 0.1.0
+ */
+export const passed = (value: Schema.Json): boolean => {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false
+  return (value as Record<string, unknown>)[exitStatusKey] === 0
+}
+
+/**
  * A failing check, paired with the reading the run took in its place.
  *
  * @category models

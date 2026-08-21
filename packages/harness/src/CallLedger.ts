@@ -109,34 +109,22 @@ export const Ledger = Schema.Array(Entry).pipe(
 export type Ledger = typeof Ledger.Type
 
 /**
- * A term whose separator has a real character on both sides of it.
- *
- * `NarrowedCheck.targeting` reads any term carrying a slash or a dot as a
- * target, which is the right rule for the question that module asks — a term
- * wrongly read as a target only suppresses a demand there. This module needs
- * the stricter rule, because a subject a reader cannot recognize is worse than
- * no subject at all: a glob's leftover `/` and a bare `.py` both satisfy
- * `targeting` and name nothing, while `tests/test_a.py` and
- * `django.contrib.admin.sites` satisfy this.
- */
-const anchored = /[A-Za-z0-9_@+-][./][A-Za-z0-9_@+-]/
-
-/**
  * What one call was about: the first term of its input that names a target.
  *
  * `NarrowedCheck` already owns the lexer and the target/condition split, so a
  * path, a test id, a dotted module name, or the file inside a shell command is
- * picked out without this module knowing what any of those are. An input with
- * no such term is quoted whole instead, clipped — a grep that targets only a
- * glob is named by its own pattern and root, which is what makes the line
- * recognizable at all.
+ * picked out without this module knowing what any of those are. `names` is its
+ * stricter reading of a target, because a subject nobody can recognize is worse
+ * than no subject at all. An input with no such term is quoted whole instead,
+ * clipped — a grep that targets only a glob is named by its own pattern and
+ * root, which is what makes the line recognizable at all.
  *
  * @category conversions
  * @since 0.1.0
  * @slop
  */
 export const subject = (input: Schema.Json): string => {
-  const found = NarrowedCheck.lex(input).find((term) => NarrowedCheck.targeting(term) && anchored.test(term))
+  const found = NarrowedCheck.lex(input).find(NarrowedCheck.names)
   return clip(found ?? CanonicalJson.stringify(input), width)
 }
 
