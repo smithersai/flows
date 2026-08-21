@@ -1235,6 +1235,54 @@ describe("CellTurn read-only cap", () => {
     expect(failure).toMatchObject({ code: "read_only_cap" })
   })
 
+  it("issues the demand before the hard stop to a run that justifies every single frame", async () => {
+    // The strongest form of the volunteering attack: not ten frames in
+    // twenty-four but every frame, so a rule that lets a volunteered
+    // justification buy anything at all lets this run reach the hard stop
+    // without the demand ever being issued. The demand is bought with an
+    // answer, and this run has answered nothing, so the streak reaching the
+    // cap on frame three hands frame four the demand — three frames before the
+    // hard stop, which is the ordering the whole control depends on.
+    const { events, failure, model } = await run({
+      state: capped(4, 20),
+      flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] })],
+      script: justifiedCells(8, "still narrowing the failure down"),
+      calls: successes(8)
+    })
+
+    expect(JSON.stringify(model.recorder.requests[3]?.messages)).not.toContain("Read-only discipline")
+    expect(JSON.stringify(model.recorder.requests[4]?.messages)).toContain("Read-only discipline")
+    expect(of(events, "read-only-demanded")).toEqual([
+      expect.objectContaining({ streak: 4, cap: 4, nextFrame: 4, nextAction: "justification" })
+    ])
+    // Frame four answers the demand, which buys the four quiet frames it is
+    // worth; the counter keeps running underneath and the run stops at eight.
+    expect(model.recorder.requests).toHaveLength(8)
+    expect(failure).toMatchObject({ code: "read_only_cap" })
+  })
+
+  it("reaches the hard stop unasked when no frame after the cap settles a transition", async () => {
+    // The boundary of the ordering above, pinned so nobody reads it as
+    // universal. The demand is issued on the exit that settles a `continue`
+    // transition, because that is the exit where a frame ran a cell, changed
+    // nothing, and could have. A frame that raised settled no transition and is
+    // told what threw instead; a run made only of those frames still counts
+    // toward the streak — that is what stops it — and still reaches twice the
+    // cap without a `read-only-demanded` event, because the read-only demand
+    // was never the notice that frame was owed.
+    const { events, failure, model } = await run({
+      state: capped(3, 10),
+      flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] })],
+      script: Array.from({ length: 6 }, (_, frame) => emits(`throw new Error("diagnostic ${frame} failed")`))
+    })
+
+    expect(model.recorder.requests).toHaveLength(6)
+    expect(of(events, "read-only-demanded")).toEqual([])
+    expect(failure).toMatchObject({ code: "read_only_cap" })
+    // Every one of those frames was told something: the raise it settled on.
+    expect(observationsOf(model, 5)).toContain("diagnostic 4 failed")
+  })
+
   it("stops the run at twice the cap instead of letting it read to the budget wall", async () => {
     const { failure, model } = await run({
       state: capped(1, 20),
