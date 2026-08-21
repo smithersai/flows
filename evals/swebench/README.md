@@ -286,7 +286,21 @@ then `complete`.
 When one completing frame trips more than one of the three, only the first is
 issued, in the order `unmoved`, `unresolved`, `narrowed`: descending order of
 how fundamental the missing thing is. A journal therefore never carries two
-completion demands at one `transition-applied`.
+completion demands at one `transition-applied`, and never carries one at the
+frame a demand was handed to: every demand ends by promising that what comes
+back next is the answer that stands, so the frame written to answer one is not
+judged again. A run bounced once and then bounced again for a different reason
+would spend two frames and two model calls arguing about one decision, and the
+second demand is dropped rather than issued.
+
+A demand is also not issued when the read-only cap holds the frame it would
+reserve. The two controls meet on the same runs — a run whose tree never moved
+has a read-only streak as long as its life — and a completion one frame short of
+twice `readOnlyCap` would be bounced, spend that frame reading, and end as a
+`read_only_cap` failure carrying nothing. So a wave that arms a low
+`readOnlyCap` will see fewer `unmoved-demanded` events than its runs' digests
+suggest, and none of them are missing: the demand is a frame the run has to
+have.
 
 For the wave report, read `control.agent.read-only-demanded` directly. Each
 event records the streak and configured cap that triggered the intervention,

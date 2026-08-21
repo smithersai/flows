@@ -446,6 +446,19 @@ export class State extends Schema.Class<State>("flows/harness/CellTurn/State")({
    */
   bouncedCompletion: Schema.optional(Schema.String),
   /**
+   * The frame a completion demand was handed to, if one is outstanding.
+   *
+   * Every demand ends with the same promise: what you return next is the answer
+   * that stands. Three of them can fire on one `complete` transition and each
+   * carries its own cap, so without this the frame written to answer one demand
+   * is judged by the next — and a run that changed nothing and displaced a
+   * failing check is told "no" twice about one decision, spending two frames
+   * and two model calls on the argument. Recorded as the frame number rather
+   * than as a flag because it is then self-clearing: it names one frame, and
+   * every frame after that one is a frame the run chose to spend.
+   */
+  demandedFrame: Schema.optional(NonNegativeSafeInt),
+  /**
    * Whether a human can answer this run, which is what makes a park honorable.
    *
    * A park is durable waiting, and waiting only ends when somebody answers. A
@@ -1059,18 +1072,23 @@ const invalidProbeOf = (
  * What a run says when its frame budget, rather than the run, ended it.
  *
  * A run that never completed has only the budget to report. A run whose
- * completion was handed back for a narrowed verification has something else:
- * an answer it already gave, which the controller took away on the promise of
- * another frame. If that frame goes elsewhere — a cell that raises, a refused
- * park, more work than the budget has room for — the promise is the only thing
- * left, and dropping the answer would make the demand cost the run exactly the
- * thing it was meant to protect. Both facts are reported: the budget ended the
- * run, and this is what the run last said its answer was.
+ * completion was handed back for one of the completion demands has something
+ * else: an answer it already gave, which the controller took away on the
+ * promise of another frame. If that frame goes elsewhere — a cell that raises,
+ * a refused park, more work than the budget has room for — the promise is the
+ * only thing left, and dropping the answer would make the demand cost the run
+ * exactly the thing it was meant to protect. Both facts are reported: the
+ * budget ended the run, and this is what the run last said its answer was.
+ *
+ * Which demand took it is not named here. Three of them can, each writes its
+ * own control event when it fires, and a sentence naming one of the three
+ * would be wrong for the other two — as this one was, when the narrowing
+ * demand was the only demand there was.
  */
 const budgetMessage = (state: State): string =>
   state.bouncedCompletion === undefined
     ? `The frame budget of ${state.maxFrames} is exhausted. The run stops here; the last transition was a request to continue.`
-    : `The frame budget of ${state.maxFrames} is exhausted. This run completed once and had that completion handed back for a narrowed verification, so what it reported then stands here rather than being lost:\n\n${state.bouncedCompletion}`
+    : `The frame budget of ${state.maxFrames} is exhausted. This run completed once and had that completion handed back for another frame, so what it reported then stands here rather than being lost:\n\n${state.bouncedCompletion}`
 
 /**
  * Resolves one cell call into a durable engine boundary.
@@ -1765,11 +1783,28 @@ const frame = (
       // question it has not been given a frame for.
       //
       // The loop names what is missing and hands the frame back; it does not
-      // re-run anything, and it does not judge the answer that comes back. A
-      // budget with no frame left to spend cannot ask, so it does not: turning
-      // a completion into an exhausted budget would lose the run's answer to
-      // make a point about it.
-      const room = state.frame + 1 < state.maxFrames
+      // re-run anything, and it does not judge the answer that comes back.
+      //
+      // Asking costs the run a frame it can answer in, so a demand is issued
+      // only where that frame exists, and three separate things take it away:
+      //
+      // - the frame budget, which has no frame left to spend, and turning a
+      //   completion into an exhausted budget would lose the run's answer to
+      //   make a point about it;
+      // - the read-only cap, which is the other budget that ends a run and
+      //   ends it as a typed failure carrying nothing. A run that changed
+      //   nothing is exactly the run `UnmovedTree` fires on, so a completion
+      //   one frame short of twice the cap would be bounced, spend that frame
+      //   reading, and die as `read_only_cap` with the answer it had already
+      //   written discarded — a demand turning a finished run into a failure,
+      //   which is the one outcome none of these may produce;
+      // - a demand this run has already answered. Each demand ends by promising
+      //   that what comes back next is the answer that stands, and three of
+      //   them fire on one transition, so the frame written to answer one is
+      //   never judged by the next. See {@link State.demandedFrame}.
+      const room = state.frame + 1 < state.maxFrames &&
+        (cap === 0 || readOnlyFrames + 1 < cap * 2) &&
+        state.demandedFrame !== state.frame
       const unmoved = room && state.unmovedDemands < state.unmovedCap
         ? UnmovedTree.find({ opened: openingDigest, digest: workspaceDigest })
         : undefined
@@ -1858,6 +1893,10 @@ const frame = (
             // then runs out of budget would end on the budget notice with its
             // own answer discarded. See {@link budgetMessage}.
             bouncedCompletion: transition.output,
+            // The frame this demand was handed to, which is the frame that
+            // gets to answer it without being judged again. See
+            // {@link State.demandedFrame}.
+            demandedFrame: state.frame + 1,
             ...(mutated ? { readOnlyGrace: 0 } : {})
           })
         }

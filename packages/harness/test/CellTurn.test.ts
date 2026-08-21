@@ -2262,7 +2262,11 @@ describe("CellTurn unmoved workspace", () => {
   const completing = (
     cells: ReadonlyArray<string>,
     calls: ReadonlyArray<ScriptedEngine.CallStep>,
-    overrides: { readonly maxFrames?: number; readonly unmovedCap?: number } = {}
+    overrides: {
+      readonly maxFrames?: number
+      readonly unmovedCap?: number
+      readonly readOnlyCap?: number
+    } = {}
   ) =>
     run({
       state: CellTurn.make({
@@ -2281,6 +2285,7 @@ describe("CellTurn unmoved workspace", () => {
         contextWindow: window,
         maxFrames: overrides.maxFrames ?? cells.length,
         repeatCap: 0,
+        readOnlyCap: overrides.readOnlyCap ?? 0,
         ...(overrides.unmovedCap === undefined ? {} : { unmovedCap: overrides.unmovedCap })
       }),
       flows: [shell, editor],
@@ -2292,6 +2297,11 @@ describe("CellTurn unmoved workspace", () => {
   /** A frame that reads and asks for another. */
   const reading = `await ctx.call("bash", { mode: "unhermetic", command: "read a.py" })
      return { intent: "continue", state: {}, context: [{ role: "user", text: "read it" }] }`
+
+  /** A frame that runs one check and asks for another. */
+  const checking = (command: string) =>
+    `await ctx.call("bash", { mode: "unhermetic", command: ${JSON.stringify(command)} })
+     return { intent: "continue", state: {}, context: [{ role: "user", text: "checked" }] }`
 
   const done = (output: string) => `return { intent: "complete", state: {}, output: ${JSON.stringify(output)} }`
 
@@ -2331,6 +2341,107 @@ describe("CellTurn unmoved workspace", () => {
     expect(of(events, "unmoved-demanded")).toHaveLength(1)
     expect(of(events, "resolved")[0]?.message.content).toEqual([
       expect.objectContaining({ text: "still described a change" })
+    ])
+  })
+
+  it("judges the frame written to answer a demand once, whatever else that frame trips", async () => {
+    const failing: ScriptedEngine.CallStep = { _tag: "Success", value: { exitCode: 1, stdout: "2 failed" } }
+    const passing: ScriptedEngine.CallStep = { _tag: "Success", value: { exitCode: 0, stdout: "4 passed" } }
+    const displaced = [
+      checking("check a.py"),
+      checking("check a.py::one"),
+      done("the four cases pass"),
+      done("nothing needed changing after all")
+    ]
+
+    const { events } = await completing(displaced, [failing, passing], { maxFrames: 5 })
+
+    // This completion trips two demands at once: the run never moved the tree
+    // it was handed, and the check that failed over that tree was replaced by
+    // a narrower reading of the same subject. Only the first is named, and the
+    // frame written to answer it is taken as written — every demand ends by
+    // promising exactly that, and a run told "no" twice about one decision
+    // spends two frames and two model calls on the argument instead of one.
+    expect(of(events, "unmoved-demanded")).toHaveLength(1)
+    expect(of(events, "unresolved-demanded")).toEqual([])
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      expect.objectContaining({ text: "nothing needed changing after all" })
+    ])
+
+    // The same frames behind one edit, so the tree moved and the first demand
+    // has nothing to say. The second one fires, which is what makes the case
+    // above a demand suppressed rather than a demand that was never there.
+    const moved = await completing(
+      [
+        `await ctx.call("edit", { path: "a.py", text: "fix" })
+         return { intent: "continue", state: {}, context: [{ role: "user", text: "edited" }] }`,
+        ...displaced
+      ],
+      [{ _tag: "Success", value: null, tree: "a.py=fixed" }, failing, passing],
+      { maxFrames: 6 }
+    )
+    expect(of(moved.events, "unmoved-demanded")).toEqual([])
+    expect(of(moved.events, "unresolved-demanded")).toHaveLength(1)
+    expect(of(moved.events, "resolved")[0]?.message.content).toEqual([
+      expect.objectContaining({ text: "nothing needed changing after all" })
+    ])
+  })
+
+  it("takes the completion rather than the demand when the read-only cap holds the next frame", async () => {
+    const answering = [reading, reading, done("the answer to your question is 42")]
+    const idle: ScriptedEngine.CallStep = { _tag: "Success", value: null }
+
+    const { events, failure } = await completing(answering, [idle, idle], { maxFrames: 6, readOnlyCap: 2 })
+
+    // A run whose tree never moved is a run with a read-only streak as long as
+    // its life, so the two controls meet on exactly the same frames. Bouncing
+    // this completion would spend the last frame the cap allows, and the
+    // answering frame would die as `read_only_cap` carrying nothing — a demand
+    // turning a finished run into a typed failure, which is the outcome the
+    // whole demand-then-continue shape exists to avoid.
+    expect(failure).toBeUndefined()
+    expect(of(events, "unmoved-demanded")).toEqual([])
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      expect.objectContaining({ text: "the answer to your question is 42" })
+    ])
+
+    // The same run under a cap with one frame to spare: the demand is issued,
+    // and the frame it reserved is a frame the run still has.
+    const spare = await completing(
+      [...answering, done("re-read it: nothing to change")],
+      [idle, idle],
+      { maxFrames: 6, readOnlyCap: 3 }
+    )
+    expect(spare.failure).toBeUndefined()
+    expect(of(spare.events, "unmoved-demanded")).toHaveLength(1)
+    expect(of(spare.events, "resolved")[0]?.message.content).toEqual([
+      expect.objectContaining({ text: "re-read it: nothing to change" })
+    ])
+  })
+
+  it("gives the bounced completion back whichever demand took it", async () => {
+    const { events } = await completing(
+      [
+        done("the run's own answer"),
+        `throw new Error("the answering frame broke")`,
+        `throw new Error("and so did the next")`
+      ],
+      []
+    )
+
+    // The retention rule is the demand's, not the narrowing demand's: an
+    // answer taken by any of the three has to survive a reserved frame that
+    // ends somewhere else. The notice names no demand, because three can take
+    // an answer and each writes its own control event saying which did.
+    expect(of(events, "unmoved-demanded")).toHaveLength(1)
+    const resolved = of(events, "resolved")[0]?.message.content
+    expect(resolved).toEqual([
+      expect.objectContaining({ text: expect.stringContaining("the run's own answer") })
+    ])
+    expect(resolved).toEqual([
+      expect.objectContaining({
+        text: expect.stringContaining("handed back for another frame")
+      })
     ])
   })
 
