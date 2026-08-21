@@ -7,10 +7,13 @@
 # `ModelSettled.durationMillis` field — scores both, and asserts every reported
 # number against `fixtures/mirror-results.json` and the committed codex baseline.
 # Then replays the rig's instance guidance and its patch capture over throwaway
-# git repositories shaped like the official images.
+# git repositories shaped like the official images, and checks that the subject
+# fingerprint still names the bytes the CLI actually loads.
 #
 # Spends no tokens, needs no docker, needs no dataset. Run it after touching
-# scorecard.ts, prices.ts, the journal's event shapes, or patch capture.
+# scorecard.ts, prices.ts, the journal's event shapes, patch capture, or
+# lib/subject.mjs. The subject check needs a built CLI: run ./preflight.sh
+# first if `packages/cli/dist` is absent.
 set -eu
 S="$(cd "$(dirname "$0")" && pwd)"
 
@@ -20,6 +23,7 @@ score() {
     --patches "$S/fixtures/patches" \
     --timings "$S/fixtures/timings" \
     --report "$S/fixtures/flows-cell-harness.mirror.json" \
+    --subject "$S/fixtures/subject.json" \
     --out "$S/fixtures" \
     --instances "$(node -e '
       const rows=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));
@@ -45,3 +49,7 @@ node "$S/fixtures/check-rig.mjs"
 
 echo "== patch capture"
 node "$S/fixtures/check-capture.mjs"
+
+echo "== the subject under test"
+node "$S/fixtures/check-agreement.mjs"
+node "$S/fixtures/check-subject.mjs"

@@ -31,6 +31,14 @@ if [ ! -f "$S/sample.json" ]; then
   echo "no sample at $S/sample.json — run ./bootstrap.sh first"; exit 1
 fi
 
+# A flows wave measures the working tree — the CLI's dependencies are loaded
+# from `packages/*/src`, not from a build — so it must pin what it measures
+# before the first instance and stop if that moves. See README, "The subject
+# under test".
+if [ "$HARNESS" = "flows" ] && [ ! -f "$S/.subject.json" ]; then
+  echo "no subject pinned — run ./preflight.sh first"; exit 1
+fi
+
 IDS="$(node -e '
 const fs=require("fs");
 const s=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));

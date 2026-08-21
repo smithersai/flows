@@ -34,3 +34,8 @@
 /fixtures/scorecard.json
 /fixtures/scorecard.md
 /fixtures/flows-cell-harness.mirror.json
+
+# The pinned subject fingerprint (`./preflight.sh`) and the read-only
+# liveness probe workspace (`./readonly-liveness.sh`).
+/.subject.json
+/work-liveness/

@@ -58,6 +58,7 @@ const options = {
   model: flag("model", "flows-cell-harness"),
   baseline: resolve(here, flag("baseline", "baseline/codex-comparison.json")),
   sample: resolve(here, flag("sample", "sample.json")),
+  subject: resolve(here, flag("subject", ".subject.json")),
   out: resolve(here, flag("out", "."))
 }
 const instancesFlag = flag("instances", "")
@@ -307,7 +308,9 @@ const instances = instancesFlag.length > 0
 
 const rows = instances.map((id) => {
   const numbers = runNumbers(join(options.work, id))
-  const timing = readJson<{ wallClockSeconds?: number; seat?: string; budgetSeconds?: number }>(
+  const timing = readJson<
+    { wallClockSeconds?: number; seat?: string; budgetSeconds?: number; subject?: string }
+  >(
     join(options.timings, `${id}.json`),
     {}
   )
@@ -369,6 +372,7 @@ const rows = instances.map((id) => {
       usd: codexPriced.usd,
       priceSource: codexPriced.source
     },
+    subject: timing.subject,
     callout: codexRow === undefined ? "no baseline" : callout(verdict, codexRow.verdict),
     runIds: numbers?.runIds ?? []
   }
@@ -396,7 +400,55 @@ const aggregate = {
     : "unavailable: no run in this wave journaled a per-call duration"
 }
 
-writeFileSync(join(options.out, "scorecard.json"), `${JSON.stringify({ aggregate, instances: rows }, null, 2)}\n`)
+// ---------------------------------------------------------------------------
+// The subject: which bytes the wave measured
+// ---------------------------------------------------------------------------
+
+/**
+ * The preconditions block. A wave report names commits; this names the content
+ * that was loaded, which is not the same claim and is the one that can be
+ * checked. See `lib/subject.mjs` for how the fingerprint is derived, and
+ * `preflight.sh` for when it is pinned.
+ *
+ * `agreement` is the part that matters most. Every instance stamps the pinned
+ * subject into its timings record when it starts, so a wave in which a sibling
+ * lane edited `packages/harness/src` between the first instance and the last
+ * reports two stamps here instead of one, and cannot be written up as a single
+ * measurement.
+ */
+interface PinnedSubject {
+  readonly stamp?: string
+  readonly head?: string
+  readonly headSubject?: string
+  readonly node?: string
+  readonly platform?: string
+  readonly marker?: { readonly path: string; readonly hash: string; readonly resolvedBy?: string }
+  readonly cliDist?: { readonly hash: string; readonly files: number }
+  readonly refusals?: ReadonlyArray<{ readonly code: string; readonly message: string }>
+}
+
+const pinned = readJson<PinnedSubject>(options.subject, {})
+const stamped = rows.map((row) => row.subject)
+const distinct = [...new Set(stamped.filter((stamp): stamp is string => stamp !== undefined))]
+const unstamped = rows.filter((row) => row.subject === undefined).map((row) => row.instanceId)
+const subject = {
+  ...pinned,
+  instances: Object.fromEntries(rows.map((row) => [row.instanceId, row.subject ?? "unstamped"])),
+  agreement: distinct.length > 1
+    ? `MISMATCH: this wave ran ${distinct.length} different subjects (${distinct.join(", ")})`
+    : unstamped.length === rows.length
+    ? "unstamped: no instance recorded a subject, so this wave cannot say what it measured"
+    : unstamped.length > 0
+    ? `partial: ${unstamped.length} of ${rows.length} instance(s) recorded no subject (${unstamped.join(", ")})`
+    : pinned.stamp !== undefined && distinct[0] !== pinned.stamp
+    ? `MISMATCH: the instances ran ${distinct[0]}, the pin now reads ${pinned.stamp}`
+    : "one subject, pinned and stamped by every instance"
+}
+
+writeFileSync(
+  join(options.out, "scorecard.json"),
+  `${JSON.stringify({ subject, aggregate, instances: rows }, null, 2)}\n`
+)
 
 // ---------------------------------------------------------------------------
 // The markdown rendering
@@ -414,6 +466,29 @@ const markdown = [
   + `codex resolved **${aggregate.codexResolved}/${aggregate.instances}** · `
   + `flows wins **${aggregate.flowsWins}** · codex wins ${aggregate.codexWins} · `
   + `both pass ${aggregate.bothPass} · both fail ${aggregate.bothFail}`,
+  "",
+  "## Preconditions: the subject this wave measured",
+  "",
+  "| | |",
+  "| --- | --- |",
+  `| subject | \`${subject.stamp ?? "unpinned"}\` |`,
+  `| agreement | ${subject.agreement} |`,
+  `| git HEAD | ${subject.head ?? "—"} ${subject.headSubject ?? ""} |`,
+  `| \`packages/harness/src/CellTurn.ts\` | \`${subject.marker?.hash ?? "—"}\` |`,
+  `| loaded from | ${subject.marker?.resolvedBy ?? "—"} |`,
+  `| \`packages/cli/dist/esm\` | \`${subject.cliDist?.hash ?? "—"}\` (${subject.cliDist?.files ?? 0} modules) |`,
+  `| node | ${subject.node ?? "—"} ${subject.platform ?? ""} |`,
+  "",
+  ...(subject.refusals === undefined || subject.refusals.length === 0 ? [] : [
+    "The preflight recorded these objections to the subject:",
+    "",
+    ...subject.refusals.map((refusal) => `- \`${refusal.code}\`: ${refusal.message}`),
+    ""
+  ]),
+  "Every `@smthrs/*` package except `@smthrs/cli` is loaded from its `src`"
+  + " directory, because that is where its workspace `exports` map points; the"
+  + " harness under test is the working tree, not a build. `packages/harness/dist`"
+  + " is not in the loaded graph and its state means nothing here.",
   "",
   "## Quality",
   "",

@@ -8,6 +8,10 @@
 # (wall clock, for the scorecard), and logs-agent/<instance_id>.run.log.
 #
 # This spends real API tokens and needs docker. See README.md.
+#
+# `./preflight.sh` must have pinned the subject first: every flows.sh call in
+# here re-checks the pin, and the stamp is copied into the timings record so a
+# scorecard can never attribute an instance to a subject it did not run.
 set -euo pipefail
 S="$(cd "$(dirname "$0")" && pwd)"
 INSTANCE="${1:-}"
@@ -23,6 +27,16 @@ case "$BUDGET" in
   ''|*[!0-9]*) echo "[$INSTANCE] timeout must be a positive integer"; exit 2 ;;
   0) echo "[$INSTANCE] timeout must be a positive integer"; exit 2 ;;
 esac
+
+# The subject the wave measures, pinned by ./preflight.sh. It is stamped into
+# this instance's timings record so the scorecard can state which bytes each
+# instance ran, and refuse to average two subjects into one wave.
+if [ ! -f "$S/.subject.json" ]; then
+  echo "[$INSTANCE] no subject pinned — run ./preflight.sh first"; exit 1
+fi
+SUBJECT="$(node -e '
+  process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).stamp);
+' "$S/.subject.json")"
 
 IMAGE_ID="$(echo "$INSTANCE" | sed 's/__/_1776_/')"
 IMAGE="swebench/sweb.eval.x86_64.${IMAGE_ID}:latest"
@@ -116,8 +130,8 @@ else
   # The wall clock the scorecard grades speed on. The journal's own span stops at
   # the last journaled event, which is not the same as how long the operator
   # waited for the process, so the process time is recorded here.
-  printf '{\n  "instance_id": "%s",\n  "seat": "%s",\n  "budgetSeconds": %s,\n  "startedAt": %s,\n  "endedAt": %s,\n  "wallClockSeconds": %s,\n  "exitStatus": %s,\n  "timedOut": %s\n}\n' \
-    "$INSTANCE" "$SEAT" "$BUDGET" "$((START*1000))" "$((END*1000))" "$((END-START))" \
+  printf '{\n  "instance_id": "%s",\n  "seat": "%s",\n  "subject": "%s",\n  "budgetSeconds": %s,\n  "startedAt": %s,\n  "endedAt": %s,\n  "wallClockSeconds": %s,\n  "exitStatus": %s,\n  "timedOut": %s\n}\n' \
+    "$INSTANCE" "$SEAT" "$SUBJECT" "$BUDGET" "$((START*1000))" "$((END*1000))" "$((END-START))" \
     "$RUN_STATUS" "$([ "$RUN_STATUS" -eq 124 ] && printf true || printf false)" \
     > "$S/timings/$INSTANCE.json"
 fi

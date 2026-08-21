@@ -31,6 +31,16 @@ const results = JSON.parse(readFileSync(join(here, "mirror-results.json"), "utf8
 /** A fixed epoch: the fixture must be byte-stable across builds. */
 const EPOCH = 1_755_500_000_000
 
+/**
+ * The subject stamp the fixture wave ran, matching `fixtures/subject.json`.
+ *
+ * A real stamp is a content hash of the tree; this one is fixed, because the
+ * fixture must report the same preconditions on every machine. What it
+ * exercises is the scorecard's agreement rule: one pin, stamped by every
+ * instance, is the only shape a wave may be written up as.
+ */
+const FIXTURE_SUBJECT = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+
 const ddl = `CREATE TABLE IF NOT EXISTS flows_journal_events (
   run_id TEXT NOT NULL,
   seq INTEGER NOT NULL,
@@ -131,6 +141,10 @@ const build = (row) => {
         {
           instance_id: row.id,
           seat: "openai:gpt-5.6-sol",
+          // The stamp `run-instance.sh` copies out of the pinned `.subject.json`.
+          // It matches `fixtures/subject.json`, so the fixture wave exercises
+          // the scorecard's "one subject" branch rather than its unstamped one.
+          subject: FIXTURE_SUBJECT,
           budgetSeconds: 1200,
           startedAt: EPOCH,
           endedAt: EPOCH + (row.seconds ?? 0) * 1000,

@@ -22,7 +22,9 @@ CLI wrapper, and the evaluator environment with it.
 | Path                       | What it is                                                          |
 | -------------------------- | ------------------------------------------------------------------- |
 | `bootstrap.sh`             | Provisions everything transient: venv, dataset, sample, docker check |
+| `preflight.sh`             | Builds the subject, fingerprints it, and pins it for the wave        |
 | `flows.sh`                 | Runs this checkout's flows CLI in an arbitrary workspace             |
+| `readonly-liveness.sh`     | Proves the read-only control fires through the real CLI (spends ~$0.30) |
 | `run-instance.sh`          | One instance through the flows harness                               |
 | `run-instance-codex.sh`    | One instance through the Codex CLI, same conditions                  |
 | `run-sample.sh`            | The sample, in draw order, one harness                               |
@@ -33,11 +35,71 @@ CLI wrapper, and the evaluator environment with it.
 | `verify.sh`                | Offline check that the scorecard still computes what it claims       |
 | `baseline/`                | The committed codex numbers and patches to compare against           |
 | `fixtures/`                | The recorded numbers `verify.sh` replays                             |
-| `lib/`                     | Sampler, prompt writers, prediction builder, patch capture           |
+| `lib/`                     | Sampler, prompt writers, prediction builder, patch capture, subject fingerprint |
 
 Everything else the rig writes — `swb-verified.json`, `sample.json`,
-`.venv-swb/`, `work/`, `patches/`, `timings/`, `logs-*/`, `preds-*.json`, the
-evaluator's reports, `scorecard.*` — is transient and gitignored.
+`.venv-swb/`, `.subject.json`, `work/`, `work-liveness/`, `patches/`,
+`timings/`, `logs-*/`, `preds-*.json`, the evaluator's reports, `scorecard.*` —
+is transient and gitignored.
+
+## The subject under test
+
+**A wave measures the working tree, not a commit.** Every `@smthrs/*` package's
+workspace `exports` map points at `./src/*.ts`, so
+`packages/cli/dist/esm/bin.js` resolves `@smthrs/harness/CellTurn` to
+`packages/harness/src/CellTurn.ts` and Node strips its types on load. The
+harness under test is therefore whatever is on disk at the instant each CLI
+process starts. `packages/harness/dist` is not in the loaded graph at all and
+its state means nothing. `packages/cli` is the one package whose build is
+loaded, through the `bin.js` entry point.
+
+Two consequences, both of which have already cost a wave:
+
+- A sibling lane editing `packages/harness/src` while a wave is in flight
+  changes the subject between instances, with nothing in the artifacts saying
+  so.
+- Building a filter closure — `pnpm --filter "@smthrs/cli..." build --no-bail` —
+  builds packages nothing loads and, with `--no-bail`, reports success while a
+  package in the middle failed.
+
+So the wave pins its subject first:
+
+```sh
+./preflight.sh
+```
+
+It builds exactly one package (`@smthrs/cli`, no closure, no `--no-bail`, a
+non-zero exit is fatal), derives a content fingerprint with `lib/subject.mjs`,
+and writes `.subject.json`. The fingerprint records, for every package in the
+CLI's `@smthrs/*` dependency closure, where its entry point resolves and a
+content hash of the directory that answer selects — plus the hash of
+`packages/harness/src/CellTurn.ts` as the marker a report cites, the hash of
+`packages/cli/dist/esm`, the git HEAD, and the node version.
+
+`preflight.sh` refuses to pin a subject that cannot be reported honestly:
+
+| Refusal | What it catches |
+| --- | --- |
+| `no-cli-build` | `packages/cli/dist/esm/bin.js` does not exist |
+| `partial-cli-build` | a `src/X.ts` has no `dist/esm/X.js` — a build that stopped early |
+| `unresolvable` | a package cannot resolve a dependency the way the process will |
+| `foreign-subject` | a package resolves outside this checkout |
+| `unbuilt-dist` | a dependency resolves into a `dist/` this rig does not build |
+| `dirty-subject` | a package's `src` differs from `git HEAD`, so no report may name a commit |
+
+`SWB_ALLOW_DIRTY_SUBJECT=1` runs a wave on an uncommitted subject anyway. The
+fingerprint still records every differing path, and the scorecard prints them,
+so the report cannot claim a clean commit.
+
+After the pin, **every `flows.sh` invocation re-derives the fingerprint and
+refuses to run when it has moved** (exit 4). A wave that starts on one harness
+and finishes on another stops instead of being averaged into one number.
+`SWB_SUBJECT_UNPINNED=1` skips the check for one-off CLI calls by hand; never
+use it for a wave.
+
+`run-instance.sh` stamps the pinned fingerprint into `timings/<id>.json`, and
+`scorecard.ts` prints the wave's preconditions from those stamps — including an
+`agreement` line that says outright when two instances ran different subjects.
 
 ## Bootstrap
 
@@ -56,6 +118,7 @@ they need, on demand. Nothing in bootstrap spends model tokens.
 
 ```sh
 export OPENAI_API_KEY=sk-...
+./preflight.sh                                                   # once per wave
 ./run-instance.sh django__django-16612 openai:gpt-5.6-sol 1200
 ```
 
@@ -138,6 +201,11 @@ Decide it as a wave change, not as a side effect of a capture fix.
 
 ## Wave arming gate
 
+The gate has two halves: the subject the wave loads, and the discipline that
+subject arms. Pin the subject with `./preflight.sh` (above) before anything
+else; a wave that cannot say which harness it ran cannot report an arming
+either.
+
 Before spending tokens on the rest of a wave, run and grade its first flows
 instance, then inspect that workspace's journal for exactly one
 `control.agent.discipline-armed` event per run. Its payload is the positive
@@ -155,6 +223,37 @@ event records the streak and configured cap that triggered the intervention,
 the following frame number, and whether that frame wrote, justified continued
 diagnosis, stayed read-only, or parked. Count these events rather than
 reconstructing the intervention from transitions and call ordering.
+
+**Zero demand events is not evidence that the cap is dead.** Read them together
+with `control.agent.transition-applied`. A transition that carries a
+`justification` on the frame where the streak reaches the cap satisfies the
+demand before it is issued: `CellTurn` suppresses the pending demand, grants
+`readOnlyCap` quiet frames, and journals nothing. Wave 6's
+`pytest-dev__pytest-6197` is the recorded case — an earned twelve-frame streak,
+`readOnlyCap: 12` armed, no demand event, and frame 11's transition carrying an
+unsolicited justification. The cell contract asks for a justification only when
+the harness has asked for one; the model volunteers them anyway, on roughly a
+third of frames. So a wave report that finds no demand events must state which
+of the two it observed:
+
+- no run reached the cap (read the longest no-mutation streak from
+  `control.agent.mutation-observed`), or
+- a run reached it and a justification pre-empted the demand.
+
+To tell a live control apart from a dead one without waiting for a wave:
+
+```sh
+./readonly-liveness.sh                 # ~$0.30 in tokens, no docker, no dataset
+```
+
+It builds a throwaway workspace whose flow reads one file per frame, forbids
+`justification`, and stops on the demand text, then asserts the journal contains
+`control.agent.read-only-demanded` and prints the streak, the cap, the
+justification count and the run's own cost. Run it after any change to
+`CellTurn`, to the CLI composition, or to the seat resolver. Recorded result on
+`aefd3b39d`, `CellTurn.ts sha256:a834c2fd…`: **one demand event**, `streak=12
+cap=12 nextFrame=12 nextAction=read-only`, 13 frames, 0 justifications, 57,067
+input and 1,319 output tokens, $0.3249.
 
 ## Evaluate
 
@@ -185,8 +284,16 @@ journals under `work/`, the stamps under `timings/`, and the patches under
 `patches/`. Flags override each of those (`--work`, `--patches`, `--timings`,
 `--reports`, `--model`, `--baseline`, `--instances`, `--out`).
 
-`scorecard.json` and `scorecard.md` grade every instance on all three
-dimensions and against the committed codex baseline:
+`scorecard.json` and `scorecard.md` open with the wave's **preconditions** —
+the subject stamp, the git HEAD, the `CellTurn.ts` hash, the path it was loaded
+from, the `packages/cli/dist/esm` hash, the node version, any refusal the
+preflight recorded, and an `agreement` line stating whether every instance ran
+the same pinned subject. Copy that block into the wave report; do not retype it.
+An `agreement` line reading `MISMATCH` means the wave is two measurements and
+must not be reported as one.
+
+They then grade every instance on all three dimensions and against the committed
+codex baseline:
 
 - **quality** — the verdict from the evaluator's report (`resolved`,
   `unresolved`, `empty patch`, `eval error`), patch size, and whether the run
@@ -251,6 +358,11 @@ different sample and do not edit the pinned list to match a new draw.
 - **Any flows win gets called out explicitly.** The scorecard labels each
   instance `FLOWS WIN`, `codex win`, `both pass`, or `both fail`, and counts
   wins in the aggregate line. Say so in the write-up when the count moves.
+- **One wave, one subject.** Pin with `./preflight.sh` before the first
+  instance, and do not edit any package the CLI loads until the last one
+  finishes. `flows.sh` enforces this and stops the wave when the subject moves;
+  a wave that has to be restarted is cheaper than a wave whose report names a
+  commit half of it did not run.
 - **Grading is the official evaluator.** Never grade a patch by reading it.
 - **Never correct a patch by hand.** If a captured patch holds something the
   agent did not write, that is a capture defect: fix `lib/capture-patch.sh` or
@@ -306,8 +418,10 @@ a journal carrying exactly those numbers and asserts the scorecard reports them:
 ```
 
 That is an offline check of the tooling — no tokens, no docker, no dataset. It
-also replays the repository-specific verification guidance and the patch capture
-(`fixtures/check-capture.mjs`). Run it after touching `scorecard.ts`,
+also replays the repository-specific verification guidance, the patch capture
+(`fixtures/check-capture.mjs`), and the subject fingerprint
+(`fixtures/check-subject.mjs`, which needs a built CLI: run `./preflight.sh`
+first if `packages/cli/dist` is absent). Run it after touching `scorecard.ts`,
 `prices.ts`, the journal's event shapes, or anything under `lib/`.
 
 ## `flows.sh`
@@ -316,9 +430,14 @@ The run scripts drive the CLI from an extracted testbed, which is an arbitrary
 directory outside this repository. `flows.sh` resolves
 `packages/cli/dist/esm/bin.js` out of the checkout and execs it in place, so the
 CLI reads its project flows from the workspace (`flows/fix/flow.mdx`) and keeps
-its control database in the workspace's `.flows/`. The entry point is a build
-artifact and gitignored, so the wrapper builds `@smthrs/cli` when it is missing;
-set `FLOWS_CLI_REBUILD=1` to rebuild it after editing CLI sources.
+its control database in the workspace's `.flows/`.
+
+The wrapper does not build. `./preflight.sh` builds and pins, once per wave, and
+`flows.sh` checks itself against that pin on every invocation (see [The subject
+under test](#the-subject-under-test)). The old rule was "build only when
+`bin.js` is missing", which after the first wave is never — and since the CLI's
+dependencies are loaded from the working tree, no rebuild rule could have
+pinned them anyway.
 
 Checked without spending tokens: `plan` renders the approval payload, `approve`
 accepts it, and `run` reaches the model boundary and refuses with

@@ -67,6 +67,15 @@ for (const expected of mirror) {
   }
 }
 
+// The preconditions block. A scorecard that cannot say which bytes a wave ran
+// is not a scorecard, so the agreement rule is checked here rather than left to
+// a reader noticing the line is missing.
+const pinned = read(join(here, "subject.json"))
+check("subject stamp", card.subject.stamp, pinned.stamp)
+check("subject marker", card.subject.marker.hash, pinned.marker.hash)
+check("subject agreement", card.subject.agreement, "one subject, pinned and stamped by every instance")
+for (const expected of mirror) check(`${expected.id} subject`, card.subject.instances[expected.id], pinned.stamp)
+
 check("flows resolved", card.aggregate.flowsResolved, mirror.filter((row) => row.graded === "resolved").length)
 check("codex resolved", card.aggregate.codexResolved, baseline.filter((row) => row.codex.verdict === "resolved").length)
 check("flows wall clock total", card.aggregate.flowsWallClockSeconds, mirror.reduce((total, row) => total + row.seconds, 0))
