@@ -44,7 +44,7 @@ CLI wrapper, and the evaluator environment with it.
 | `verify.sh`                | Offline check that the rig still computes what it claims             |
 | `baseline/`                | The committed codex numbers and patches to compare against           |
 | `fixtures/`                | The recorded numbers `verify.sh` replays                             |
-| `lib/`                     | Sampler, prompt writers, prediction builder, patch capture, subject fingerprint, per-run naming, journal reader, full-benchmark ledger and pipeline |
+| `lib/`                     | Sampler, prompt writers, prediction builder, patch capture, subject fingerprint, per-run naming, the lock every lane shares, journal reader, full-benchmark ledger and pipeline |
 
 Everything else the rig writes — `swb-verified.json`, `sample.json`,
 `.venv-swb/`, `.subject.json`, `work/`, `work-liveness/`, `patches/`,
@@ -719,6 +719,7 @@ either spelling.
 ./fullbench-status.sh          # one screen; safe to run against a live driver
 ./fullbench.sh --stop          # stop scheduling, let in-flight instances finish
 ./fullbench.sh --clear-pause   # after raising a budget or freeing disk
+./fullbench.sh --aggregate     # the evaluator's own report over everything graded
 ```
 
 ### Streaming, because the disk is the constraint
@@ -742,10 +743,36 @@ extraction takes `run-instance.sh`'s existing `.extract-lock`, so however many
 runs either driver has in flight, only one multi-gigabyte `docker cp` is ever
 copying.
 
-Grading is serialized as well, by `fullbench/.grade-lock`. `evaluate.sh` records
-why the evaluator runs one worker at a time — concurrent workers race in the
-post-run image cleanup and the crash loses the whole report — and two workers
-each running their own single-instance grading is that same race.
+Grading is serialized the same way, by `.grade-lock`, and rig-wide rather than
+per-driver: `evaluate.sh` takes it itself, so a `grade-matrix.sh` an operator
+starts beside the benchmark waits instead of racing it. `evaluate.sh` records
+why the evaluator runs one at a time — concurrent evaluators race in the
+post-run image cleanup and the crash loses the whole report — and two
+single-instance gradings are that same race.
+
+### The lock every lane shares
+
+Both locks go through `lib/lock.sh`, which is a directory holding the **owner's
+pid**. That is not decoration; a bare `mkdir` lock has two defects that a
+benchmark running unattended for days finds:
+
+- a `kill -9` while the lock is held leaves the directory behind and every later
+  extraction spins on `mkdir` for ever, so one crash wedges the whole rig;
+- release was not ownership-checked. `run-instance.sh` installed a cleanup trap
+  that `rmdir`ed the shared lock *before* it had taken it, so any run exiting for
+  any reason released whoever was extracting at that moment and a second
+  multi-gigabyte copy started — the thing the lock exists to prevent.
+
+So: a waiter takes a lock back the moment its owner pid is gone; a lock with no
+pid file (one an older copy of a run script is holding) is taken only once it is
+older than `SWB_LOCK_STALE`; `release` is a no-op unless the caller owns it; and
+every wait is bounded — `SWB_LOCK_TIMEOUT`, an hour, or `SWB_GRADE_LOCK_TIMEOUT`,
+two — so a wedged lane fails one run instead of hanging the benchmark.
+`fixtures/check-lock.sh`, inside `verify.sh`, proves all four.
+
+The driver reconciles both locks on the way in and again whenever a worker has
+gone an hour without finishing, and it only ever clears one whose owner is gone:
+the wave running beside it holds the same locks.
 
 **The five images the matrix pinned are never deleted.** They are the seeded
 sample's first `SWB_SAMPLE_COUNT` instances, read from `sample.json`, which is
@@ -788,11 +815,33 @@ died cannot survive into the attempt that replaced it.
 A line torn in half by a `kill -9` is read as no line at all; every complete row
 before it keeps its meaning, and the instance that line belonged to re-runs.
 
+A re-run also deletes the evaluator's own log directory for that instance. The
+official evaluator skips any instance that already has a `report.json` under the
+run id — which is exactly the layout 500 instances accumulating into one run id
+produce — so an attempt that was graded but killed before its `graded` row could
+be written would otherwise hand the dead attempt's verdict to the patch that
+replaced it.
+
 The instance's whole life is one process (`lib/fullbench-instance.sh`), which
-also takes a claim directory under `fullbench/claims/`, so two drivers started by
-accident cannot both run one instance. The driver is a singleton — the launcher
-refuses to start beside a live `fullbench/driver.pid` — and clears stale claims
-and locks on the way in.
+also takes a claim under `fullbench/claims/`, so two drivers started by accident
+cannot both run one instance. The claim holds the **worker's** pid and outlives
+the driver on purpose: killing the driver alone leaves its workers running
+(`pkill -f fullbench.sh` matches the driver and not `fullbench-instance.sh`), and
+the next driver must leave those instances to the workers that own them rather
+than start a second paid attempt beside one. A claim whose worker is gone is
+taken back on the spot; a claim whose worker is alive refuses the new attempt and
+is named in the driver log.
+
+Two things the ledger's boundary would otherwise leak, and what closes each:
+
+- **an instance that fails** — a pull that did not answer, a run that captured no
+  patch — deletes its image and workspace on the way out. Keeping them costs 2–3
+  GB each for the rest of the benchmark, and a handful of failures is a disk gate
+  that never opens again.
+- **an instance killed between `graded` and `docker rmi`** is past the resume
+  boundary, so nothing ever schedules it again and nothing would ever delete its
+  image. The next driver sweeps those on the way in, reading the image ref out of
+  the ledger, and records a `cleaned` row marked `reconciled`.
 
 ### One subject, for the whole benchmark
 
@@ -864,6 +913,17 @@ checkpoint and exits **7**. A paused benchmark will not restart until
 `./fullbench.sh --clear-pause`, so continuing past a budget is always a decision
 someone made.
 
+**Cost counts attempts, not instances.** A `pulled` row replaces an instance's
+earlier columns, which is right for a verdict and wrong for a bill: the tokens an
+attempt burned before it was killed were still spent, and a benchmark that
+crashed and resumed often could otherwise run past its cap while the gate only
+ever saw the last attempt of each instance. The report's `spent so far` and the
+gate's own figure are both the sum over every attempt the ledger records, and the
+report names how many of them were re-runs. Two things the gate cannot see are
+the instances in flight, which have not written their cost yet — an overshoot
+bounded by `SWB_FULLBENCH_JOBS` instances — and a ledger it cannot read at all,
+which pauses rather than being read as zero.
+
 Cost per instance is read from the archived journal by `lib/run-cost.mjs`, which
 sums the four token counters off `control.agent.model-settled` and prices them
 with the committed table in `prices.ts`. It deliberately does **not** go through
@@ -905,6 +965,16 @@ evaluator's own layout. A patch of zero bytes is not sent to the evaluator at
 all — it drops an empty prediction before it starts a container — and is recorded
 as `empty patch`, which is a fact about the patch rather than a grading.
 
+Those per-instance reports are what the driver reads, and they are the ones that
+accumulate. The two files `evaluate.sh` writes beside them — `preds-fullbench.json`
+and the evaluator's own `flows-cell-harness.fullbench.json` — are rewritten by
+each single-instance grading, so at the end they describe the last instance
+alone. `./fullbench.sh --aggregate` writes them over the whole run instead: every
+graded instance already has a report, so the evaluator skips all of them, starts
+no container and spends nothing, and the summary it writes is the official one
+for all 500. Run it when the benchmark finishes, or any time a number is being
+quoted from the evaluator's own file rather than from `fullbench/report.md`.
+
 ### Knobs
 
 | variable | default | what it changes |
@@ -919,6 +989,9 @@ as `empty patch`, which is a fact about the patch rather than a grading.
 | `SWB_FULLBENCH_INDEX` | `r90` | the run index every artifact carries |
 | `SWB_FULLBENCH_RUN_ID` | `fullbench` | the evaluator run id all 500 accumulate into |
 | `SWB_FULLBENCH_PINNED` | the sample's first five | instances whose images are never deleted |
+| `SWB_LOCK_TIMEOUT` | 3600 | how long a lane waits for `.extract-lock` before failing its run |
+| `SWB_LOCK_STALE` | 1800 | when a lock with no owner recorded may be taken |
+| `SWB_GRADE_LOCK_TIMEOUT` | 7200 | how long a grading waits for another evaluator |
 
 `SWB_FULLBENCH_LIMIT` is how an operator spends one night's worth and reads the
 checkpoint before committing the rest; it is also how the dry run holds a queue
@@ -939,11 +1012,21 @@ columns, and a line torn by a kill), the resume boundary, the seeded draw order
 and its refusal of a dataset that does not reproduce the pinned five, and the
 whole report — the scoreboard, the Wilson arithmetic, the per-repo breakdown, the
 extrapolation, the pinned-five comparison, and that two runs over one ledger
-produce the same bytes.
+produce the same bytes. It also pins the two arithmetic rules a resumed
+benchmark depends on: the bill counts every attempt while the fold counts
+instances, and the observed finish divides the whole ledger's span rather than
+the current session's.
 
-`fullbench-dryrun.sh` runs the real driver over four instances that are in no
+`fixtures/check-lock.sh`, also inside `verify.sh`, proves the lock both drivers
+share: one lane at a time, a holder killed with `-9` recovered by the next lane
+within a poll, a stray release that leaves a live lock alone, and a bounded wait
+that names who is holding it.
+
+`fullbench-dryrun.sh` runs the real driver over stub instances that are in no
 dataset, with the agent and the evaluator stubbed and everything between them
-real, in four phases:
+real. A–D are one four-instance benchmark; F–G are a second one, because every
+crash they stage is about an instance that must **not** run again and the first
+benchmark's ledger is pinned row by row:
 
 | phase | what it proves |
 | --- | --- |
@@ -951,6 +1034,10 @@ real, in four phases:
 | B | `--resume` skips both graded instances — their stubs are never invoked a second time — and re-runs the interrupted one from the top |
 | D | a disk gate that cannot be satisfied logs each wait and fails the instance rather than pulling |
 | C | cumulative cost over the cap writes `PAUSED`, records it in the ledger and `progress.md`, and exits 7 without scheduling anything |
+| F | the driver alone is killed, its worker outlives it, and the next driver leaves that instance to the worker holding the claim instead of paying for a second attempt |
+| H | a report left behind by an attempt that was never recorded is deleted rather than read: the re-run is graded on its own patch or not at all |
+| E | an instance that fails after its pull leaves no image behind |
+| G | an instance killed between `graded` and `docker rmi` has its image reconciled by the next driver, and its `cleaned` row says so |
 
 The first two instances meet at a rendezvous inside the stub, so "two in flight"
 is proved by construction rather than by two stubs happening to overlap: a serial
