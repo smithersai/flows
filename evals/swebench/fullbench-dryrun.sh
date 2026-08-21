@@ -14,7 +14,10 @@
 # (`SWB_RUN_CMD`) and so is the evaluator (`SWB_GRADE_CMD`); everything between
 # them is the code the benchmark runs.
 #
-# Four phases:
+# Eight phases. A–C are one four-instance benchmark; F–G are a second, separate
+# one, because the crashes they stage are about instances that must not run
+# again and the first benchmark's ledger is already pinned by its own
+# assertions.
 #
 #   A  three instances, two in flight, and a `kill -9` while the third is
 #      mid-run — the crash a laptop or a closed session produces
@@ -23,6 +26,19 @@
 #      than pulling into a full disk
 #   C  the budget: cumulative cost over the cap PAUSEs the driver instead of
 #      quietly spending the rest
+#   F  the driver alone is killed and its worker survives it — `pkill -f
+#      fullbench.sh` does not match `fullbench-instance.sh` — and the next
+#      driver must leave that instance to the worker that is still running it
+#      rather than start a second paid attempt beside it
+#   H  a verdict left behind by an attempt that died before it could be
+#      recorded: the official evaluator skips any instance that already has a
+#      report under the run id, so the re-run has to delete that report or it
+#      inherits the dead attempt's verdict for a patch it never saw
+#   E  an instance that fails after its pull leaves no image behind; the
+#      failure path used to keep 2–3 GB for the rest of the run
+#   G  an instance killed between `graded` and `docker rmi` is past the resume
+#      boundary and is never scheduled again, so the next driver reconciles its
+#      image on the way in
 #
 # Real docker, three tiny images. Which stub instance gets which is decided by
 # the seeded draw, the same order the benchmark itself runs in, so the phases
@@ -41,14 +57,24 @@ set -eu
 S="$(cd "$(dirname "$0")" && pwd)"
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/flows-fullbench-dryrun-XXXXXX")"
 FB="$TMP/fullbench"
+FB2="$TMP/fullbench2"
 LEDGER="$TMP/ledger.txt"
-ALL_IDS="stubfull__one stubfull__two stubfull__three stubfull__four"
+MAIN_IDS="stubfull__one stubfull__two stubfull__three stubfull__four"
+CRASH_IDS="stubcrash__one stubcrash__two stubcrash__three"
+ALL_IDS="$MAIN_IDS $CRASH_IDS"
 
 cleanup() {
   pkill -9 -f "fullbench-instance.sh stubfull__" >/dev/null 2>&1 || true
-  pkill -9 -f "dryrun-run.sh stubfull__" >/dev/null 2>&1 || true
-  if [ -f "$FB/driver.pid" ]; then kill -9 "$(cat "$FB/driver.pid")" >/dev/null 2>&1 || true; fi
-  rmdir "$S/.extract-lock" >/dev/null 2>&1 || true
+  pkill -9 -f "fullbench-instance.sh stubcrash__" >/dev/null 2>&1 || true
+  pkill -9 -f "dryrun-run.sh stub" >/dev/null 2>&1 || true
+  for PIDFILE in "$FB/driver.pid" "$FB2/driver.pid"; do
+    if [ -f "$PIDFILE" ]; then kill -9 "$(cat "$PIDFILE")" >/dev/null 2>&1 || true; fi
+  done
+  # Only a lock whose owner is gone — one of this dry run's killed stubs. The
+  # rig shares `.extract-lock` with whatever wave is running beside it, and the
+  # unconditional `rmdir` that used to be here would hand that wave's live
+  # extraction to a second one.
+  "$S/lib/lock.sh" reconcile "$S/.extract-lock" >/dev/null 2>&1 || true
   for ID in $ALL_IDS; do
     rm -rf "$S/work/${ID}-r90" "$S/journals/${ID}-r90"
     rm -f "$S/patches/${ID}-r90.patch" "$S/patches/${ID}-r90.patch.untracked" \
@@ -83,7 +109,7 @@ node -e '
     version: "1.0",
     problem_statement: "stub"
   })), null, 2))
-' "$ALL_IDS" "$TMP/dataset.json"
+' "$MAIN_IDS" "$TMP/dataset.json"
 
 # Roles follow the seeded draw, which is the order the driver will schedule in.
 ORDER="$(node "$S/lib/fullbench-queue.mjs" "$TMP/dataset.json" "$TMP/absent.jsonl" --all)"
@@ -154,16 +180,21 @@ if [ "\$ID" = "$FIRST" ] || [ "\$ID" = "$SECOND" ]; then
   done
 fi
 if [ "\$ID" = "$FIRST" ]; then
+  # The rig's real extraction lock, taken the way run-instance.sh takes it.
   LOCK="$S/.extract-lock"
-  until mkdir "\$LOCK" 2>/dev/null; do sleep 1; done
+  "$S/lib/lock.sh" acquire "\$LOCK" --owner \$\$ --label "dryrun \$ID" --timeout 600 || exit 1
   TMPC="\$(docker create busybox:latest)"
   docker cp "\$TMPC:/bin/." "\$WORK/" >/dev/null 2>&1
   docker rm -f "\$TMPC" >/dev/null 2>&1
-  rmdir "\$LOCK" 2>/dev/null || true
+  "$S/lib/lock.sh" release "\$LOCK" --owner \$\$ --quiet
   printf 'X %s %s\n' "\$ID" "\$(ls "\$WORK" | wc -l | tr -d ' ')" >> "$LEDGER"
 fi
 if [ "\$ID" = "$SECOND" ]; then
   : > "\$PATCH"
+elif [ -f "$TMP/no-patch-\$ID" ]; then
+  # The harness ran and captured nothing at all — a workspace that was never
+  # built. The driver has to call that a failure rather than a verdict.
+  rm -f "\$PATCH"
 else
   printf 'diff --git a/x.py b/x.py\n--- a/x.py\n+++ b/x.py\n@@\n-old\n+new\n' > "\$PATCH"
 fi
@@ -187,12 +218,17 @@ set -u
 RUN_ID="\$1"
 ID="\$2"
 DIR="$TMP/eval-logs/\$RUN_ID/flows-cell-harness/\$ID"
+printf 'G %s\n' "\$ID" >> "$LEDGER"
+# The official evaluator skips an instance that already has a report under this
+# run id and writes nothing for it. \`$TMP/skip-grade-<id>\` makes this stub do
+# the same, which is how the rig proves that a re-run deletes the dead attempt's
+# report instead of reading its verdict back.
+if [ -f "$TMP/skip-grade-\$ID" ]; then exit 0; fi
 mkdir -p "\$DIR"
 RESOLVED=false
 if [ "\$ID" = "$FIRST" ]; then RESOLVED=true; fi
 printf '{"%s": {"patch_exists": true, "patch_successfully_applied": true, "resolved": %s}}\n' \
   "\$ID" "\$RESOLVED" > "\$DIR/report.json"
-printf 'G %s\n' "\$ID" >> "$LEDGER"
 EOF
 chmod +x "$TMP/dryrun-grade.sh"
 
@@ -209,6 +245,10 @@ export SWB_FULLBENCH_CHECKPOINT_EVERY=2
 export SWB_FULLBENCH_POLL_SECONDS=1
 export SWB_FULLBENCH_DISK_INTERVAL=1
 
+# Which benchmark the helpers below watch. The crash phases run a second one in
+# fullbench2/, so that the ledger the first four phases pin stays pinned.
+ACTIVE_FB="$FB"
+
 wait_for() {
   WAITED=0
   until node -e '
@@ -216,11 +256,11 @@ wait_for() {
       const states = read(process.argv[1]).states
       process.exit(eval(process.argv[2]) ? 0 : 1)
     })
-  ' "$FB/manifest.jsonl" "$1" 2>/dev/null; do
+  ' "$ACTIVE_FB/manifest.jsonl" "$1" 2>/dev/null; do
     WAITED=$((WAITED + 1))
     if [ "$WAITED" -ge 180 ]; then
       echo "dryrun: timed out waiting for: $1"
-      cat "$FB/driver.log" 2>/dev/null || true
+      cat "$ACTIVE_FB/driver.log" 2>/dev/null || true
       exit 1
     fi
     sleep 1
@@ -229,7 +269,8 @@ wait_for() {
 
 drain_driver() {
   WAITED=0
-  while [ -f "$FB/driver.pid" ] && kill -0 "$(cat "$FB/driver.pid" 2>/dev/null)" 2>/dev/null; do
+  while [ -f "$ACTIVE_FB/driver.pid" ] \
+    && kill -0 "$(cat "$ACTIVE_FB/driver.pid" 2>/dev/null)" 2>/dev/null; do
     sleep 1
     WAITED=$((WAITED + 1))
     if [ "$WAITED" -ge 90 ]; then echo "dryrun: driver did not exit"; exit 1; fi
@@ -242,7 +283,7 @@ wait_for_ledger() {
     WAITED=$((WAITED + 1))
     if [ "$WAITED" -ge 180 ]; then
       echo "dryrun: timed out waiting for ledger line: $1"
-      cat "$FB/driver.log" 2>/dev/null || true
+      cat "$ACTIVE_FB/driver.log" 2>/dev/null || true
       exit 1
     fi
     sleep 1
@@ -293,6 +334,99 @@ set -e
 
 echo "== the status screen"
 "$S/fullbench-status.sh" > "$TMP/status.txt" 2>&1 || true
+
+# ---------------------------------------------------------------------------
+# A second benchmark, for the crashes the first one cannot stage: they are all
+# about an instance that must *not* be run again, and the first benchmark's
+# ledger is already pinned row by row by the assertions.
+# ---------------------------------------------------------------------------
+echo "== a second benchmark: the crash boundaries around a recorded verdict"
+node -e '
+  const fs = require("fs")
+  const ids = process.argv[1].split(" ")
+  fs.writeFileSync(process.argv[2], JSON.stringify(ids.map((id) => ({
+    instance_id: id,
+    repo: `stub/${id.replace("stubcrash__", "")}`,
+    base_commit: "aaa",
+    version: "1.0",
+    problem_statement: "stub"
+  })), null, 2))
+' "$CRASH_IDS" "$TMP/dataset2.json"
+
+ORDER2="$(node "$S/lib/fullbench-queue.mjs" "$TMP/dataset2.json" "$TMP/absent.jsonl" --all)"
+ORPHAN="$(printf '%s\n' "$ORDER2" | sed -n 1p)"
+STALE="$(printf '%s\n' "$ORDER2" | sed -n 2p)"
+NOPATCH="$(printf '%s\n' "$ORDER2" | sed -n 3p)"
+printf '%s\n%s\n%s\n' "$ORPHAN" "$STALE" "$NOPATCH" > "$TMP/roles2.txt"
+echo "dryrun: crash roles orphan=$ORPHAN stale=$STALE nopatch=$NOPATCH"
+
+# Nothing is pinned in this one: every image it touches must end up deleted.
+printf '{"seed":0,"size":1,"instances":["nothing__pinned"]}\n' > "$TMP/sample2.json"
+node -e '
+  const fs = require("fs")
+  const [, orphan, stale, nopatch, out] = process.argv
+  fs.writeFileSync(out, JSON.stringify({
+    [orphan]: "busybox:latest",
+    [stale]: "hello-world:latest",
+    [nopatch]: "busybox:latest"
+  }, null, 2))
+' "$ORPHAN" "$STALE" "$NOPATCH" "$TMP/images2.json"
+
+export FB_DIR="$FB2"
+export SWB_DATASET="$TMP/dataset2.json"
+export SWB_SAMPLE="$TMP/sample2.json"
+export SWB_IMAGE_MAP="$TMP/images2.json"
+ACTIVE_FB="$FB2"
+mkdir -p "$FB2"
+
+echo "== phase F: the driver alone is killed and its worker survives it"
+printf '40\n' > "$TMP/sleep-$ORPHAN"
+SWB_FULLBENCH_LIMIT=1 "$S/fullbench.sh"
+wait_for_ledger "S $ORPHAN"
+ORPHAN_WORKER="$(cat "$FB2/claims/$ORPHAN/pid" 2>/dev/null || printf '')"
+kill -9 "$(cat "$FB2/driver.pid")" 2>/dev/null || true
+sleep 1
+if [ -z "$ORPHAN_WORKER" ] || ! kill -0 "$ORPHAN_WORKER" 2>/dev/null; then
+  echo "dryrun: the worker did not outlive the driver, so this phase proves nothing"; exit 1
+fi
+printf '%s\n' "$ORPHAN_WORKER" > "$TMP/orphan-worker.txt"
+# The next driver, started while that worker is still running its instance.
+SWB_FULLBENCH_LIMIT=1 "$S/fullbench.sh" --resume
+drain_driver
+wait_for "states.get('$ORPHAN')?.state === 'cleaned'"
+cp "$FB2/driver.log" "$TMP/phase-f.log"
+
+echo "== phase H: a verdict left behind by an attempt that was never recorded"
+mkdir -p "$TMP/eval-logs/fullbench/flows-cell-harness/$STALE"
+printf '{"%s": {"patch_exists": true, "patch_successfully_applied": true, "resolved": true}}\n' \
+  "$STALE" > "$TMP/eval-logs/fullbench/flows-cell-harness/$STALE/report.json"
+: > "$TMP/skip-grade-$STALE"
+SWB_FULLBENCH_LIMIT=1 "$S/fullbench.sh" --resume
+wait_for "states.get('$STALE')?.state === 'cleaned'"
+drain_driver
+
+echo "== phase E: an instance that fails after its pull leaves no image"
+: > "$TMP/no-patch-$NOPATCH"
+docker rmi -f busybox:latest >/dev/null 2>&1 || true
+SWB_FULLBENCH_LIMIT=1 "$S/fullbench.sh" --resume
+wait_for "states.get('$NOPATCH')?.state === 'failed'"
+drain_driver
+{
+  docker image inspect busybox:latest >/dev/null 2>&1 \
+    && echo "busybox present" || echo "busybox absent"
+} > "$TMP/images-after-failure.txt"
+
+echo "== phase G: an image left behind between the verdict and the delete"
+docker pull hello-world:latest >/dev/null 2>&1 || true
+node "$S/lib/manifest-append.mjs" "$FB2/manifest.jsonl" "$(node "$S/lib/fullbench-row.mjs" \
+  --kind instance --id "$ORPHAN" --state graded --at "$(node -e 'process.stdout.write(String(Date.now()))')" \
+  --image hello-world:latest --verdict resolved)"
+SWB_FULLBENCH_LIMIT=0 "$S/fullbench.sh" --resume
+drain_driver
+{
+  docker image inspect hello-world:latest >/dev/null 2>&1 \
+    && echo "hello-world present" || echo "hello-world absent"
+} > "$TMP/images-after-reconcile.txt"
 
 echo "== assertions"
 {

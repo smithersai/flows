@@ -188,7 +188,78 @@ assert.match(images, /busybox absent/, "an unpinned instance's image is deleted"
 assert.match(images, /hello-world absent/, "an unpinned instance's image is deleted")
 assert.match(images, /alpine present/, "a pinned instance's image survives the whole benchmark")
 
+// ---------------------------------------------------------------------------
+// The second benchmark: the three crash boundaries around a recorded verdict
+// ---------------------------------------------------------------------------
+const fb2 = join(temporary, "fullbench2")
+const [orphan, stale, nopatch] = lines(join(temporary, "roles2.txt"))
+const crash = read(join(fb2, "manifest.jsonl"))
+
+// Phase F. The driver was killed on its own and its worker kept running. The
+// driver that started next must leave that instance to the worker that owns it:
+// a second attempt would be two agents spending on one instance, writing one
+// patch path.
+assert.equal(
+  count(ledger, `S ${orphan}`),
+  1,
+  "an instance a live worker still owns is never started a second time"
+)
+assert.match(
+  text(join(temporary, "phase-f.log")),
+  /is claimed by a worker this driver did not start/,
+  "the driver says so rather than silently skipping it"
+)
+assert.match(
+  text(join(temporary, "phase-f.log")),
+  /an orphaned worker is still running/,
+  "and it recognises the orphan on the way in, before it schedules anything"
+)
+assert.equal(crash.states.get(orphan).verdict, "resolved", "the orphaned worker finished its own instance")
+
+// Phase H. The attempt that died had already written the evaluator's report for
+// this instance, and the official evaluator skips any instance that already has
+// one. Unless the re-run deletes it, the driver reads a verdict belonging to a
+// patch it never produced: here that stale report says `resolved`, the stub
+// evaluator writes nothing (which is what the real one does when it skips), and
+// the only honest answer is that this attempt was not graded.
+assert.equal(
+  crash.states.get(stale).verdict,
+  "eval error",
+  "a re-run re-grades from scratch instead of inheriting the dead attempt's verdict"
+)
+assert.ok(
+  !existsSync(join(fb2, "reports", `${stale}.json`)),
+  "and no report is archived for an attempt that was never graded"
+)
+
+// Phase E. A failure after the pull deletes the image. Keeping it costs 2–3 GB
+// for the rest of the benchmark, and a handful of those is a disk gate that
+// never opens again.
+assert.equal(crash.states.get(nopatch).state, "failed")
+assert.match(crash.states.get(nopatch).reason, /captured no patch/)
+assert.equal(crash.states.get(nopatch).imageState, "deleted")
+assert.match(
+  text(join(temporary, "images-after-failure.txt")),
+  /busybox absent/,
+  "an instance that failed after pulling leaves no image behind"
+)
+
+// Phase G. An instance killed between its verdict and its `docker rmi` is past
+// the resume boundary, so nothing schedules it again — and nothing would ever
+// delete its image either. The next driver reconciles it on the way in.
+const reconciled = crash.states.get(orphan)
+assert.equal(reconciled.state, "cleaned")
+assert.equal(reconciled.reconciled, 1)
+assert.equal(reconciled.imageState, "deleted")
+assert.match(
+  text(join(temporary, "images-after-reconcile.txt")),
+  /hello-world absent/,
+  "the image an interrupted cleanup left behind is deleted by the next driver"
+)
+
 console.log(
   "check-dryrun.mjs: two in flight, a kill mid-instance, a clean resume, a logged disk wait,"
-    + " a budget pause, and every image but the pinned one deleted."
+    + " a budget pause, an orphaned worker left alone, a stale verdict refused, a failed"
+    + " instance's image deleted, an interrupted cleanup reconciled, and every image but the"
+    + " pinned one gone."
 )

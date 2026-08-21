@@ -98,6 +98,82 @@ try {
   assert.deepEqual(read(join(temporary, "absent.jsonl")).states.size, 0)
 
   // -----------------------------------------------------------------------
+  // The bill counts attempts; the fold counts instances
+  // -----------------------------------------------------------------------
+  // The same replacement that keeps a dead attempt's verdict out of the ledger
+  // would keep its tokens out of the budget, and the tokens were still spent.
+  // A benchmark that crashes and resumes ten times must not be able to spend
+  // past its cap because the cap only ever saw the last attempt of each.
+  const billPath = join(temporary, "bill.jsonl")
+  const usage = { inputTokens: 100_000, cachedInputTokens: 0, outputTokens: 1_000, reasoningTokens: 0 }
+  writeFileSync(
+    billPath,
+    `${
+      [
+        JSON.stringify({ kind: "header", at: NOW, subject: "s1", jobs: 2, budgetUsd: 600 }),
+        JSON.stringify({ kind: "instance", id: "a__1", state: "pulled", at: NOW }),
+        JSON.stringify({ kind: "instance", id: "a__1", state: "ran", at: NOW + 1, wallSeconds: 900, cost: { usd: 1.5, usage } }),
+        // The crash, and the attempt that replaced it.
+        JSON.stringify({ kind: "instance", id: "a__1", state: "pulled", at: NOW + 2 }),
+        JSON.stringify({ kind: "instance", id: "a__1", state: "ran", at: NOW + 3, wallSeconds: 900, cost: { usd: 2, usage } }),
+        JSON.stringify({ kind: "instance", id: "a__1", state: "graded", at: NOW + 4, verdict: "resolved" }),
+        JSON.stringify({ kind: "instance", id: "a__1", state: "cleaned", at: NOW + 5 })
+      ].join("\n")
+    }\n`
+  )
+  const bill = summarise({ manifest: billPath, now: NOW + HOUR, total: 1 })
+  assert.equal(bill.graded, 1, "one instance was graded")
+  assert.equal(bill.attempts, 2, "two attempts were paid for")
+  assert.equal(bill.retried, 1)
+  assert.ok(Math.abs(bill.spentUsd - 3.5) < 1e-9, `spent ${bill.spentUsd}`)
+  assert.ok(Math.abs(bill.meanUsd - 1.75) < 1e-9, `mean ${bill.meanUsd}`)
+  assert.equal(bill.tokens.inputTokens, 200_000, "both attempts' tokens are on the bill")
+  assert.match(renderReport(bill), /\| paid attempts \| 2 \(1 re-run after a crash, and still on the bill\) \|/)
+
+  const billCents = spawnSync(
+    "node",
+    [join(root, "fullbench-report.mjs"), "--spend-cents", "--manifest", billPath],
+    { encoding: "utf8" }
+  )
+  assert.equal(billCents.status, 0, billCents.stderr)
+  assert.equal(
+    billCents.stdout.trim(),
+    "350",
+    "the gate the driver reads before every launch sees both attempts"
+  )
+
+  // -----------------------------------------------------------------------
+  // `--unclean`: the instances whose images nothing will ever revisit
+  // -----------------------------------------------------------------------
+  const uncleanDataset = join(temporary, "unclean-dataset.json")
+  writeFileSync(
+    uncleanDataset,
+    JSON.stringify([{ instance_id: "u__1" }, { instance_id: "u__2" }, { instance_id: "u__3" }])
+  )
+  const uncleanPath = join(temporary, "unclean.jsonl")
+  writeFileSync(
+    uncleanPath,
+    `${
+      [
+        // Killed between the verdict and the `docker rmi`: done as far as
+        // resume is concerned, so nothing ever looks at its image again.
+        JSON.stringify({ kind: "instance", id: "u__1", state: "graded", at: NOW, verdict: "resolved", image: "img/u1:latest" }),
+        JSON.stringify({ kind: "instance", id: "u__2", state: "cleaned", at: NOW, verdict: "unresolved", image: "img/u2:latest" }),
+        // Interrupted before its verdict: the queue re-runs it, so its own
+        // purge deals with the image and this sweep must leave it alone.
+        JSON.stringify({ kind: "instance", id: "u__3", state: "ran", at: NOW, image: "img/u3:latest" })
+      ].join("\n")
+    }\n`
+  )
+  const unclean = spawnSync(
+    "node",
+    [join(root, "lib", "fullbench-queue.mjs"), uncleanDataset, uncleanPath, "--unclean"],
+    { encoding: "utf8" }
+  )
+  assert.equal(unclean.status, 0, unclean.stderr)
+  assert.equal(unclean.stdout.trim(), "u__1 img/u1:latest")
+
+  // -----------------------------------------------------------------------
   // The queue: seeded draw order, and the resume boundary
   // -----------------------------------------------------------------------
   // A dataset that holds the pinned five but does not draw them first is a
@@ -173,6 +249,7 @@ try {
   )
   const twoSessions = summarise({ manifest: sessionsPath, now: NOW + 2 * HOUR, total: 4 })
   assert.equal(twoSessions.header.subject, "sha256:aaa")
+  assert.equal(twoSessions.elapsedSeconds, 2 * 3600, "the ledger spans from the first session, not the latest")
   assert.equal(twoSessions.header.head, "h1", "the subject of record is the first session's")
   assert.equal(twoSessions.header.jobs, 3, "the settings are the session in effect")
   assert.equal(twoSessions.header.budgetUsd, 900)

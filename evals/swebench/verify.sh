@@ -23,13 +23,19 @@
 # pull, extract, delete, kill, resume — is `./fullbench-dryrun.sh`, which needs
 # docker and is not run here.
 #
+# The lock every lane in the rig shares is checked here too — mutual exclusion,
+# recovery from a holder killed with -9, and the ownership rule that stops one
+# lane freeing another's lock — because a defect there is silent until two
+# multi-gigabyte extractions are already running on one disk.
+#
 # Spends no tokens, needs no docker, needs no dataset. Run it after touching
 # scorecard.ts, prices.ts, the journal's event shapes, patch capture,
 # lib/subject.mjs, lib/check-liveness.mjs, lib/write-flow.mjs,
-# lib/write-prompt-codex.mjs, lib/run-paths.sh, lib/journal-facts.mjs,
-# select-candidate.mjs, run-matrix.sh, matrix-report.mjs, fullbench.sh,
-# fullbench-report.mjs or anything under lib/fullbench-*. The subject check
-# needs a built CLI: run ./preflight.sh first if `packages/cli/dist` is absent.
+# lib/write-prompt-codex.mjs, lib/run-paths.sh, lib/lock.sh,
+# lib/journal-facts.mjs, select-candidate.mjs, run-matrix.sh, matrix-report.mjs,
+# fullbench.sh, fullbench-report.mjs or anything under lib/fullbench-*. The
+# subject check needs a built CLI: run ./preflight.sh first if
+# `packages/cli/dist` is absent.
 set -eu
 S="$(cd "$(dirname "$0")" && pwd)"
 
@@ -87,6 +93,9 @@ node "$S/fixtures/check-selector.mjs"
 
 echo "== the matrix report"
 node "$S/fixtures/check-matrix-report.mjs"
+
+echo "== the lock every lane shares"
+"$S/fixtures/check-lock.sh"
 
 echo "== the full benchmark's ledger, queue and report"
 node "$S/fixtures/check-fullbench.mjs"
