@@ -222,10 +222,10 @@ Before spending tokens on the rest of a wave, run and grade its first flows
 instance, then inspect that workspace's journal for exactly one
 `control.agent.discipline-armed` event per run. Its payload is the positive
 record of the discipline configured at run start: `readOnlyCap` must be nonzero,
-and `maxFrames`, `modelCallMs`, `repeatCap`, plus every armed sandbox limit
-(`calls`, `memoryBytes`, `steps`, `timeMs`, `callMs`, and `totalMs`) must match
-the wave's intended budgets. Stop the wave if the event is absent or the values
-are wrong.
+and `maxFrames`, `modelCallMs`, `repeatCap`, `narrowingCap`, plus every armed
+sandbox limit (`calls`, `memoryBytes`, `steps`, `timeMs`, `callMs`, and
+`totalMs`) must match the wave's intended budgets. Stop the wave if the event is
+absent or the values are wrong.
 
 Gate on this event rather than on `control.agent.read-only-demanded`. The demand
 event proves an armed cap was reached, not merely armed; a run that writes early
@@ -250,6 +250,15 @@ rather than when it is answered. Zero demand events with a nonzero `repeatCap`
 is a wave whose runs never spent four consecutive frames re-asking questions
 they had already answered, which is the intended reading; zero with `repeatCap:
 0` says the control was never armed at all.
+
+`narrowingCap` is armed the same way and read from
+`control.agent.narrowed-demanded`, also journaled when the demand is issued. It
+is the one control that acts on a completion rather than on a stall, so it fires
+at most once per run and usually not at all: a wave with zero demand events and
+a nonzero `narrowingCap` is a wave whose runs each re-ran their broad check over
+the tree they submitted, and zero with `narrowingCap: 0` says nothing was ever
+asked. Each event carries both inputs and both workspace digests, so a report
+can second-guess the demand from the journal without replaying the run.
 
 For the wave report, read `control.agent.read-only-demanded` directly. Each
 event records the streak and configured cap that triggered the intervention,

@@ -352,6 +352,20 @@ export class State extends Schema.Class<State>("flows/harness/CellTurn/State")({
    */
   checks: NarrowedCheck.Ledger,
   /**
+   * The output of the completion a narrowing demand handed back, if any.
+   *
+   * The demand takes a finished answer away and asks for one more frame. It is
+   * allowed to do that only because the run gets to answer again — so the one
+   * outcome it must never produce is a run that ends holding nothing. Between
+   * the bounce and the next completion the run can spend its last frame on a
+   * cell that raises, on a refused park, or on more work, and every one of
+   * those ends the run on {@link budgetMessage} rather than on a completion.
+   * Keeping the bounced output here is what makes the demand recoverable: the
+   * budget still ends the run, and the run's own words are still what it ends
+   * with. See `NarrowedCheck` for why the demand is issued at all.
+   */
+  bouncedCompletion: Schema.optional(Schema.String),
+  /**
    * Whether a human can answer this run, which is what makes a park honorable.
    *
    * A park is durable waiting, and waiting only ends when somebody answers. A
@@ -943,8 +957,22 @@ const invalidProbeOf = (
   return typeof reason === "string" && typeof message === "string" ? { reason, message } : undefined
 }
 
+/**
+ * What a run says when its frame budget, rather than the run, ended it.
+ *
+ * A run that never completed has only the budget to report. A run whose
+ * completion was handed back for a narrowed verification has something else:
+ * an answer it already gave, which the controller took away on the promise of
+ * another frame. If that frame goes elsewhere — a cell that raises, a refused
+ * park, more work than the budget has room for — the promise is the only thing
+ * left, and dropping the answer would make the demand cost the run exactly the
+ * thing it was meant to protect. Both facts are reported: the budget ended the
+ * run, and this is what the run last said its answer was.
+ */
 const budgetMessage = (state: State): string =>
-  `The frame budget of ${state.maxFrames} is exhausted. The run stops here; the last transition was a request to continue.`
+  state.bouncedCompletion === undefined
+    ? `The frame budget of ${state.maxFrames} is exhausted. The run stops here; the last transition was a request to continue.`
+    : `The frame budget of ${state.maxFrames} is exhausted. This run completed once and had that completion handed back for a narrowed verification, so what it reported then stands here rather than being lost:\n\n${state.bouncedCompletion}`
 
 /**
  * Resolves one cell call into a durable engine boundary.
@@ -1638,6 +1666,12 @@ const frame = (
             callSignatures,
             checks,
             narrowingDemands: state.narrowingDemands + 1,
+            // The answer the demand is taking away, kept so it cannot be lost.
+            // A frame was reserved for the run to answer in, but nothing makes
+            // that frame end in a completion, and a run that spends it and
+            // then runs out of budget would end on the budget notice with its
+            // own answer discarded. See {@link budgetMessage}.
+            bouncedCompletion: transition.output,
             ...(mutated ? { readOnlyGrace: 0 } : {})
           })
         }

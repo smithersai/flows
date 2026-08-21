@@ -1950,6 +1950,47 @@ describe("CellTurn narrowed verification", () => {
       expect.objectContaining({ text: "narrowed" })
     ])
   })
+
+  it("gives the bounced completion back when the answering frame ends on the budget", async () => {
+    const { events } = await verifying(
+      [
+        running("check suite"),
+        fixing("check suite -k one", "the run's own answer"),
+        `throw new Error("the answering frame broke")`
+      ],
+      [ok(), ok("a.py=fixed"), ok()]
+    )
+
+    // Reserving a frame is not the same as being answered in it. The demand
+    // is allowed to take a finished answer away only because the run gets to
+    // give one again, so the run must not be able to end holding nothing: the
+    // budget still reports that it ended the run, and the answer the
+    // controller took is what the run ends on.
+    expect(of(events, "narrowed-demanded")).toHaveLength(1)
+    const resolved = of(events, "resolved")[0]?.message.content
+    expect(resolved).toEqual([
+      expect.objectContaining({ text: expect.stringContaining("the run's own answer") })
+    ])
+    expect(resolved).toEqual([
+      expect.objectContaining({ text: expect.stringContaining("frame budget of 3 is exhausted") })
+    ])
+  })
+
+  it("reports only the budget when no completion was ever bounced", async () => {
+    const { events } = await verifying(
+      [running("check suite"), `throw new Error("nothing was ever completed")`],
+      [ok(), ok()]
+    )
+
+    // The other half of the same rule: a run that never completed has nothing
+    // to give back, and the notice says exactly that and nothing more.
+    expect(of(events, "narrowed-demanded")).toEqual([])
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      expect.objectContaining({
+        text: "The frame budget of 2 is exhausted. The run stops here; the last transition was a request to continue."
+      })
+    ])
+  })
 })
 
 describe("CellTurn call latency", () => {
