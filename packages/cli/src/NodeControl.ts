@@ -156,6 +156,76 @@ export const projectSources = (root: string): ReadonlyArray<Descriptor.Source> =
 ]
 
 /**
+ * The raw host platform: Node's own services plus the descriptor-relative,
+ * no-follow filesystem the kernel needs underneath it. `NodeServices` alone is
+ * not enough — the kernel's guarded `FileSystem` refuses every operation unless
+ * the host provides descriptor-relative, no-follow access, which is what
+ * `AtomicFileSystem` adds on Node.
+ *
+ * This is the *unguarded* half of the composition. It is what
+ * {@link layerGuardedPlatform} is built on, and it is what host equipment that
+ * carries its own confinement argument runs on — today only the workspace
+ * observer, whose module documents why (`@smthrs/agent/WorkspaceObservation`).
+ * Agent-reachable equipment never gets this layer: a flow, a tool, or anything
+ * a model can steer takes {@link layerGuardedPlatform} so the kernel decides
+ * what it may touch.
+ *
+ * One `const`, not a function, so every consumer in one composition shares a
+ * single memoized build.
+ *
+ * @category layers
+ * @since 0.1.0
+ * @slop
+ */
+export const layerHostPlatform = Layer.provideMerge(AtomicFileSystem.layer, NodeServices.layer)
+
+/**
+ * The kernel-guarded platform over one workspace root: every filesystem
+ * operation resolved, authorized, re-resolved, and executed relative to a
+ * pinned root descriptor.
+ *
+ * The grant store is the allow-all one because the local CLI is the operator's
+ * own process; a hosted composition supplies a real `GrantStore`. The
+ * confinement the kernel still enforces here is structural — canonical
+ * resolution, the hard-link refusal, and descriptor-relative execution from a
+ * pinned root — and that is what costs: on Node one authorized operation is one
+ * helper process, so a caller that performs one operation per file in a
+ * checkout pays for the whole checkout. That is a cost to spend on
+ * agent-reachable equipment and to refuse for a whole-tree walk; see
+ * {@link layerHostPlatform}.
+ *
+ * @category layers
+ * @since 0.1.0
+ * @slop
+ */
+export const layerGuardedPlatform = (root: string) =>
+  Layer.orDie(KernelFileSystem.layer).pipe(
+    Layer.provide([Workspace.layer(root), GrantStore.layerNoop]),
+    Layer.provideMerge(layerHostPlatform)
+  )
+
+/**
+ * Provides the workspace observer the run's mutation accounting is measured
+ * with: one pruned walk of the workspace root, taken at both ends of every
+ * frame.
+ *
+ * On {@link layerHostPlatform}, deliberately, and never on
+ * {@link layerGuardedPlatform}. The observer is host equipment — the root is
+ * this composition's, not a model's — and it carries its own confinement
+ * argument: it stats, it never opens, it follows no symlink, and every path it
+ * builds is an entry name under the root. `@smthrs/agent/WorkspaceObservation`
+ * states that argument in full. Guarding it decides nothing and costs one
+ * helper process per file: SWE-bench wave 6 spent 912 s of a 1,200 s budget on
+ * django's opening walk and never reached the agent's first tool call.
+ *
+ * @category layers
+ * @since 0.1.0
+ * @slop
+ */
+export const layerObserver = (root: string): Layer.Layer<WorkspaceObservation.Observer> =>
+  WorkspaceObservation.layer(root).pipe(Layer.provide(layerHostPlatform))
+
+/**
  * Provides the Node-backed flow registry the local CLI discovers flows with.
  *
  * `Registry.layerNoop()` was the previous local composition, so the CLI found
@@ -170,13 +240,7 @@ export const projectSources = (root: string): ReadonlyArray<Descriptor.Source> =
  * @slop
  */
 export const layerRegistry = (root: string = process.cwd()): Layer.Layer<Registry.Registry> => {
-  // `NodeServices` alone is not enough: the kernel's guarded `FileSystem`
-  // refuses every operation unless the host provides descriptor-relative,
-  // no-follow access, which is what `AtomicFileSystem` adds on Node.
-  const platform = Layer.orDie(KernelFileSystem.layer).pipe(
-    Layer.provide([Workspace.layer(root), GrantStore.layerNoop]),
-    Layer.provideMerge(Layer.provideMerge(AtomicFileSystem.layer, NodeServices.layer))
-  )
+  const platform = layerGuardedPlatform(root)
   const discovery = Discovery.layer.pipe(Layer.provide(platform))
   return Registry.layer({ sources: projectSources(root) }).pipe(
     Layer.provide([discovery, platform]),
@@ -447,11 +511,7 @@ export const layerExecutor = (
   // The same guarded platform the registry discovers under: kernel FileSystem
   // over descriptor-relative atomic access, with the Node service bundle
   // (Path, raw spawner, crypto) merged through.
-  const host = Layer.provideMerge(AtomicFileSystem.layer, NodeServices.layer)
-  const platform = Layer.orDie(KernelFileSystem.layer).pipe(
-    Layer.provide([Workspace.layer(root), grants]),
-    Layer.provideMerge(host)
-  )
+  const platform = layerGuardedPlatform(root)
   const guarded = KernelChildProcessSpawner.layer.pipe(
     Layer.provide(grants),
     Layer.provideMerge(platform)
@@ -486,8 +546,10 @@ export const layerExecutor = (
       // The run's mutation accounting is measured rather than declared, and
       // this is what measures it: without an observer in the composition the
       // controller falls back to what a frame's calls claimed about
-      // themselves, which is blind to every `bash` write.
-      WorkspaceObservation.layer(root).pipe(Layer.provide(platform)),
+      // themselves, which is blind to every `bash` write. It runs on the host
+      // platform rather than on `platform`, for the reasons `layerObserver`
+      // states.
+      layerObserver(root),
       layerSeatResolver(environment).pipe(Layer.provide(dispatcher))
     ])
   )

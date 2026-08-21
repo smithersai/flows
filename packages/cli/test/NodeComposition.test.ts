@@ -5,13 +5,14 @@
  * binds that must stay confined to loopback.
  */
 import { NodeServices } from "@effect/platform-node"
+import * as WorkspaceObservation from "@smthrs/agent/WorkspaceObservation"
 import { Control as ControlService } from "@smthrs/control"
 import * as TestControl from "@smthrs/control/test/TestControl"
 import { Registry } from "@smthrs/registry"
-import { Cause, Effect, Exit, Layer } from "effect"
+import { Cause, Effect, Exit, FileSystem, Layer } from "effect"
 import { HttpServer } from "effect/unstable/http"
 import { existsSync } from "node:fs"
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { link, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
@@ -175,6 +176,48 @@ describe("NodeControl.engineDurable with a registry", () => {
       expect(planned).toEqual({ discovered: "review", reserved: "system/test" })
     } finally {
       await rm(project, { recursive: true, force: true })
+    }
+  })
+})
+
+describe("NodeControl.layerObserver", () => {
+  it("measures the workspace on the host platform, not through the kernel's guard", async () => {
+    const observed = await mkdtemp(join(tmpdir(), "flows-cli-observer-"))
+    try {
+      await writeFile(join(observed, "a.py"), "one")
+      // A hard link is the discriminator: the kernel refuses a hard-linked
+      // regular file outright, so a guarded observer measures neither name.
+      // The measurement wants both — an edit through either moves the tree —
+      // and the walk that gets them is the one that never opens a file, never
+      // follows a link, and never leaves the root it was given.
+      await link(join(observed, "a.py"), join(observed, "b.py"))
+
+      const measurement = await Effect.runPromise(
+        Effect.flatMap(WorkspaceObservation.Observer, (observer) => observer.observe).pipe(
+          Effect.provide(NodeControl.layerObserver(observed)),
+          Effect.scoped,
+          Effect.orDie
+        )
+      )
+
+      expect(measurement.paths).toBe(2)
+      expect(measurement.complete).toBe(true)
+
+      // The discriminator is real rather than assumed: the same `stat` through
+      // the guarded platform is refused, and finding that out costs one helper
+      // process per path.
+      const refused = await Effect.runPromise(
+        Effect.exit(
+          Effect.flatMap(FileSystem.FileSystem, (fileSystem) => fileSystem.stat(join(observed, "a.py"))).pipe(
+            Effect.provide(NodeControl.layerGuardedPlatform(observed)),
+            Effect.scoped
+          )
+        )
+      )
+
+      expect(Exit.isFailure(refused)).toBe(true)
+    } finally {
+      await rm(observed, { recursive: true, force: true })
     }
   })
 })

@@ -11,7 +11,7 @@
 import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
 import * as EngineLike from "@smthrs/harness/EngineLike"
 import { Effect, FileSystem, Layer, Option } from "effect"
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
@@ -190,6 +190,65 @@ describe("WorkspaceObservation", () => {
 
     const observation = await Effect.runPromise(WorkspaceObservation.observe(fs, root))
     expect(observation.paths).toBe(1)
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it("never leaves the root through a symlink, and never measures one", async () => {
+    const root = workspace()
+    const outside = workspace()
+    write(root, "keep.py", "one")
+    write(outside, "secret.py", "not this run's tree")
+    symlinkSync(join(outside, "secret.py"), join(root, "linked.py"))
+    symlinkSync(outside, join(root, "linked"))
+    // A link back to the root is a cycle. The host `FileSystem` this observer
+    // runs on resolves symlinks in `stat`, so refusing them is what keeps the
+    // walk finite and inside the tree the host named.
+    symlinkSync(root, join(root, "loop"))
+
+    const before = await measured(root)
+    expect(before.paths).toBe(1)
+
+    write(outside, "secret.py", "changed, and none of the run's business")
+    expect((await measured(root)).digest).toBe(before.digest)
+
+    rmSync(root, { recursive: true, force: true })
+    rmSync(outside, { recursive: true, force: true })
+  })
+
+  it("reads metadata under the root and does nothing else to the tree", async () => {
+    const root = workspace()
+    write(root, "src/a.py", "one")
+    write(root, "src/nested/b.py", "two")
+
+    // The measurement runs on the host filesystem rather than the kernel's
+    // guarded one, and this is the argument for that: it lists, it reads
+    // metadata, and it touches nothing but paths under the root it was given.
+    // A walk that opened a file or resolved a path the tree did not hand it
+    // would need the kernel back.
+    const calls: Array<string> = []
+    const fs = await Effect.runPromise(
+      Effect.map(FileSystem.FileSystem, (found): FileSystem.FileSystem =>
+        new Proxy(found, {
+          get: (target, property, receiver) => {
+            const value = Reflect.get(target, property, receiver)
+            if (typeof value !== "function") return value
+            return (...args: Array<unknown>) => {
+              calls.push(`${String(property)} ${String(args[0])}`)
+              return value.apply(target, args)
+            }
+          }
+        })).pipe(Effect.provide(NodeFileSystem.layer))
+    )
+
+    const observation = await Effect.runPromise(WorkspaceObservation.observe(fs, root))
+
+    expect(observation.paths).toBe(2)
+    expect([...new Set(calls.map((call) => call.split(" ")[0]))].sort()).toEqual([
+      "readDirectory",
+      "readLink",
+      "stat"
+    ])
+    expect(calls.filter((call) => !call.endsWith(root) && !call.includes(`${root}/`))).toEqual([])
     rmSync(root, { recursive: true, force: true })
   })
 

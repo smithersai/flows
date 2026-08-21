@@ -10,7 +10,7 @@
  * tree", which is the question `bash` makes unanswerable from declarations —
  * a spawned process writes wherever it likes and tells nobody.
  *
- * Three properties are the design:
+ * These properties are the design:
  *
  * - **Identity, not content.** Each kept file contributes its path, its size,
  *   and its modification time. Reading every byte would be the stronger
@@ -35,6 +35,39 @@
  *   `complete: false`, and the controller then decides changed-ness from what
  *   the frame's calls declared rather than from a prefix that may never have
  *   looked at the files being edited.
+ * - **A symlink is not part of the tree.** Every symlink is skipped whole:
+ *   never measured, never descended into. That is what keeps the walk inside
+ *   the root on any filesystem, including one whose `stat` follows links.
+ *
+ * ## The filesystem to hand this
+ *
+ * The host's own `FileSystem`, not the kernel-guarded one — and the difference
+ * is not a detail. A guarded operation is resolved, authorized, re-resolved and
+ * then executed relative to a pinned root descriptor, which on Node is one
+ * helper process per call. This walk performs one call per file, so guarding it
+ * bills a process for every file in the checkout, twice per frame. SWE-bench
+ * wave 6 measured 88–123 ms per path that way: django's opening walk ran 912 s
+ * of a 1,200 s budget and the run never reached its first tool call. Running the
+ * calls concurrently does not repair it — sixteen helper processes in flight
+ * still bill a process per file, because the cost is the call and not the wait.
+ *
+ * Nothing is given up, because the guard has nothing to decide here:
+ *
+ * - **Stat only.** The walk lists directories and reads metadata. It never
+ *   opens a file, never reads a byte, never writes, and never creates a
+ *   descriptor — so the confinement a descriptor-bound authorization exists to
+ *   protect has nothing to bind to.
+ * - **Root-confined.** Every path is a listed entry name appended to a
+ *   directory the walk already reached from the root it was constructed with.
+ *   No path comes from a model, a tool call, or a file's contents, and no
+ *   symlink is followed, so no name the walk builds can leave the root.
+ * - **Host equipment.** The root is chosen by whoever composed the workspace.
+ *   This service is not reachable from a cell: it answers one question the
+ *   controller asks about the tree, and returns a digest and a count.
+ *
+ * The one behaviour that does change is that the kernel refuses a hard-linked
+ * regular file and this walk measures one, which is the answer a measurement
+ * wants: an edit through either name moves the tree.
  *
  * @since 0.1.0
  */
@@ -201,6 +234,15 @@ export const observe = (
           }
           if (prune.has(name) || ignored(name, suffixes)) continue
           const path = `${directory}/${name}`
+          // Symlinks are skipped before anything else looks at them. `readLink`
+          // succeeding is the definition of "this entry is a symlink", and it
+          // is the only question Effect's `FileSystem` can ask about a path
+          // without resolving it: `stat` follows, so on a host filesystem a
+          // linked directory would otherwise be descended into — out of the
+          // root, or around a cycle — and a linked file would contribute the
+          // size and mtime of whatever it points at.
+          const link = yield* fs.readLink(path).pipe(Effect.asSome, Effect.orElseSucceed(() => Option.none()))
+          if (Option.isSome(link)) continue
           const info = yield* fs.stat(path).pipe(Effect.asSome, Effect.orElseSucceed(() => Option.none()))
           if (Option.isNone(info)) continue
           if (info.value.type === "Directory") {
@@ -237,8 +279,12 @@ export const make = (
 ): Observer => Observer.of({ observe: observe(fs, root, options) })
 
 /**
- * Provides an {@link Observer} over the workspace root, from the host's
- * `FileSystem`.
+ * Provides an {@link Observer} over the workspace root, from the `FileSystem`
+ * in context.
+ *
+ * That must be the **host's** `FileSystem` and not a kernel-guarded one. The
+ * module documentation above states why it is safe and what guarding it costs;
+ * `NodeControl.layerHostPlatform` is the layer the CLI provides it under.
  *
  * @category layers
  * @since 0.1.0
