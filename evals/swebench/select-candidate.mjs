@@ -49,8 +49,9 @@
  * order above, then by the tie-breaks, in this order: a **broader final check**
  * beats a narrower one (fewer terms is less constrained), a **non-empty patch**
  * beats an empty one, **lower cost** beats higher, and a **lower run index**
- * beats a higher one. The last key makes the order total, so the same journals
- * always produce the same choice.
+ * beats a higher one — by number, and by spelling where two indexes name one
+ * number, because `r1` and `r01` are both legal. The last key makes the order
+ * total, so the same journals always produce the same choice.
  *
  * Writes `<out>/<id>.patch` — the chosen run's patch, byte for byte — and
  * `<out>/<id>.rationale.json`, which names the evidence sequence numbers behind
@@ -139,10 +140,25 @@ const indexOf = (name) => {
   return /^r[0-9]+$/u.test(suffix) ? suffix : undefined
 }
 
+/**
+ * The run index order: by number, then by spelling.
+ *
+ * `r1` and `r01` are both legal indexes and both name the number one, so
+ * comparing the numbers alone leaves two real candidates unordered and the
+ * choice among them to `readdirSync`, which is the filesystem's business and not
+ * a decision anyone recorded. The name is unique within a directory, so falling
+ * back to it makes the order total — which is the only property the last
+ * tie-break exists to provide.
+ */
+const byIndex = (left, right) => {
+  const difference = Number(left.slice(1)) - Number(right.slice(1))
+  return difference !== 0 ? difference : left < right ? -1 : left > right ? 1 : 0
+}
+
 const runIndexes = readdirSync(journalsDir)
   .map((name) => indexOf(name))
   .filter((index) => index !== undefined && existsSync(join(journalsDir, `${instance}-${index}`, "engine.db")))
-  .sort((left, right) => Number(left.slice(1)) - Number(right.slice(1)))
+  .sort(byIndex)
 
 if (runIndexes.length === 0) {
   console.error(`select-candidate.mjs: no archived journal for ${instance} under ${journalsDir}`)
@@ -300,7 +316,7 @@ const rank = (left, right) => {
   const leftCost = left.usd ?? Number.MAX_SAFE_INTEGER
   const rightCost = right.usd ?? Number.MAX_SAFE_INTEGER
   if (leftCost !== rightCost) return leftCost - rightCost
-  return Number(left.index.slice(1)) - Number(right.index.slice(1))
+  return byIndex(left.index, right.index)
 }
 
 const ranked = [...candidates].sort(rank)
