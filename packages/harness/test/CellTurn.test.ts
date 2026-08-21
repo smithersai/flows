@@ -1702,6 +1702,256 @@ describe("CellTurn repeated observation", () => {
   })
 })
 
+describe("CellTurn narrowed verification", () => {
+  const shell = descriptor("bash", { capabilities: ["proc:spawn:*"], tier: "irreversible" })
+
+  /** A frame that runs one command and asks for another. */
+  const running = (command: string) =>
+    `await ctx.call("bash", { mode: "unhermetic", command: ${JSON.stringify(command)} })
+     return { intent: "continue", state: {}, context: [{ role: "user", text: "checked" }] }`
+
+  /** A frame that runs one command and declares the task finished. */
+  const finishing = (command: string, output: string) =>
+    `await ctx.call("bash", { mode: "unhermetic", command: ${JSON.stringify(command)} })
+     return { intent: "complete", state: {}, output: ${JSON.stringify(output)} }`
+
+  /** The shape this control exists for: edit, narrow the check, and finish. */
+  const fixing = (command: string, output: string) =>
+    `await ctx.call("edit", { path: "a.py", text: "fix" })
+     await ctx.call("bash", { mode: "unhermetic", command: ${JSON.stringify(command)} })
+     return { intent: "complete", state: {}, output: ${JSON.stringify(output)} }`
+
+  const ok = (tree?: string): ScriptedEngine.CallStep =>
+    tree === undefined ? { _tag: "Success", value: null } : { _tag: "Success", value: null, tree }
+
+  const verifying = (
+    cells: ReadonlyArray<string>,
+    calls: ReadonlyArray<ScriptedEngine.CallStep>,
+    overrides: { readonly maxFrames?: number; readonly narrowingCap?: number } = {}
+  ) =>
+    run({
+      state: CellTurn.make({
+        session: "session-1",
+        seat: "anthropic:test-model",
+        modelParams: ModelRequest.GenerationParams.make(),
+        layers: ["layer-a"],
+        capabilityEnvelope: ["fs:write:**", "proc:spawn:*"].map((declared) => {
+          const parsed = declared.split(":")
+          return new Capability.CapabilityPattern({
+            action: `${parsed[0]}:${parsed[1]}` as Capability.PatternAction,
+            resource: parsed.slice(2).join(":")
+          })
+        }),
+        placement: Option.none(),
+        contextWindow: window,
+        maxFrames: overrides.maxFrames ?? cells.length,
+        // The repeat demand is disarmed so the only intervention under test is
+        // this one; a run that re-runs a check it already ran is repeating
+        // itself by construction, and the two notices must be legible apart.
+        repeatCap: 0,
+        ...(overrides.narrowingCap === undefined ? {} : { narrowingCap: overrides.narrowingCap })
+      }),
+      flows: [shell, editor],
+      script: cells.map(emits),
+      calls,
+      tree: "a.py=base"
+    })
+
+  it("bounces one completion whose check narrows a check the tree has moved under", async () => {
+    const { events, model } = await verifying(
+      [
+        running("check suite"),
+        fixing("check suite -k one", "narrowed"),
+        finishing("check suite", "re-run in full")
+      ],
+      [ok(), ok("a.py=fixed"), ok(), ok()]
+    )
+
+    // The run ran the full surface once, changed the tree, and then completed
+    // on a filtered version of that same command. Everything the filter
+    // dropped is unmeasured on the tree the run is submitting.
+    const demanded = of(events, "narrowed-demanded")
+    expect(demanded).toHaveLength(1)
+    expect(demanded[0]).toMatchObject({
+      flow: "bash",
+      broaderDigest: "a.py=base",
+      currentDigest: "a.py=fixed",
+      nextFrame: 2
+    })
+    expect(demanded[0]?.broader).toContain("check suite")
+    expect(demanded[0]?.narrower).toContain("-k")
+
+    // The demand is an in-frame observation, so the frame that answers it is
+    // holding the cell it just wrote plus one sentence naming what is missing.
+    const answering = JSON.stringify(model.recorder.requests[2]?.messages)
+    expect(answering).toContain("Narrowed verification")
+    expect(answering).toContain("byte for byte")
+    expect(JSON.stringify(model.recorder.requests[1]?.messages)).not.toContain("Narrowed verification")
+
+    // The bounced frame continues the run rather than failing it, and the
+    // completion that follows the re-run is the run's answer.
+    expect(of(events, "turn-closed").map((event) => event.outcome)).toEqual([
+      "continue",
+      "continue",
+      "resolved"
+    ])
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      expect.objectContaining({ text: "re-run in full" })
+    ])
+  })
+
+  it("accepts the next completion whatever it re-ran, and never asks twice", async () => {
+    const { events } = await verifying(
+      [
+        running("check suite"),
+        fixing("check suite -k one", "narrowed"),
+        finishing("check suite -k two", "still narrowed")
+      ],
+      [ok(), ok("a.py=fixed"), ok(), ok()]
+    )
+
+    // The third frame narrows the same stale check again and is taken as it
+    // stands. The loop names what is missing once; deciding whether the answer
+    // is good enough would be the loop grading the run's evidence with its
+    // own, and nothing here re-runs a command.
+    expect(of(events, "narrowed-demanded")).toHaveLength(1)
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      expect.objectContaining({ text: "still narrowed" })
+    ])
+  })
+
+  it("accepts a completion that states why the broader check no longer applies", async () => {
+    const { events, model } = await verifying(
+      [
+        running("check suite"),
+        fixing("check suite -k one", "narrowed"),
+        `return { intent: "complete", state: {}, output: "the dropped cases were deleted by this change", reason: "superseded" }`
+      ],
+      [ok(), ok("a.py=fixed"), ok()]
+    )
+
+    // Re-running the check and saying why it no longer applies are the two
+    // ways out the demand names, and they are equals: the second runs no
+    // command at all and is accepted the same way.
+    expect(JSON.stringify(model.recorder.requests[2]?.messages)).toContain(
+      "why that check no longer applies"
+    )
+    expect(of(events, "narrowed-demanded")).toHaveLength(1)
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      expect.objectContaining({ text: "the dropped cases were deleted by this change" })
+    ])
+  })
+
+  it("bounces a completion whose own frame changed nothing, when an earlier frame did", async () => {
+    const { events } = await verifying(
+      [
+        running("check suite"),
+        `await ctx.call("edit", { path: "a.py", text: "fix" })
+         return { intent: "continue", state: {}, context: [{ role: "user", text: "edited" }] }`,
+        finishing("check suite -k one", "narrowed"),
+        finishing("check suite", "re-run in full")
+      ],
+      [ok(), ok("a.py=fixed"), ok(), ok()]
+    )
+
+    // The change is the run's, not the frame's. What makes the narrowed result
+    // insufficient is that the broad check has not been seen on this tree, and
+    // which frame moved the tree is beside the point.
+    expect(of(events, "narrowed-demanded")).toEqual([
+      expect.objectContaining({ nextFrame: 3, broaderDigest: "a.py=base", currentDigest: "a.py=fixed" })
+    ])
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      expect.objectContaining({ text: "re-run in full" })
+    ])
+  })
+
+  it("says nothing when the broader check was run over the tree being submitted", async () => {
+    const { events, model } = await verifying(
+      [
+        `await ctx.call("edit", { path: "a.py", text: "fix" })
+         return { intent: "continue", state: {}, context: [{ role: "user", text: "edited" }] }`,
+        running("check suite"),
+        finishing("check suite -k one", "narrowed")
+      ],
+      [ok("a.py=fixed"), ok(), ok()]
+    )
+
+    // This is the shape of every run in the wave that resolved its instance:
+    // the broad check is current, so the narrow one after it is a detail and
+    // not a substitution. A demand here would cost a correct run a frame and a
+    // model call for nothing.
+    expect(of(events, "narrowed-demanded")).toEqual([])
+    expect(model.recorder.requests).toHaveLength(3)
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      expect.objectContaining({ text: "narrowed" })
+    ])
+  })
+
+  it("says nothing when the frame's calls broaden the earlier check instead", async () => {
+    const { events } = await verifying(
+      [
+        running("check a.py"),
+        fixing("check a.py b.py", "widened"),
+        finishing("check a.py", "unreached")
+      ],
+      [ok(), ok("a.py=fixed"), ok(), ok()]
+    )
+
+    // Adding a target asks about ground the earlier check never covered, which
+    // is a broader question. Demanding the earlier one back would send a run
+    // that widened its net to re-run the smaller one.
+    expect(of(events, "narrowed-demanded")).toEqual([])
+  })
+
+  it("never carries a call that is content rather than a question into the ledger", async () => {
+    const payload = Array.from({ length: CellTurn.defaultMaxFrames * 3 }, (_, index) => `term${index}`).join(" ")
+    const { events } = await verifying(
+      [
+        running(payload),
+        fixing(`${payload} -k one`, "narrowed"),
+        finishing("check suite", "unreached")
+      ],
+      [ok(), ok("a.py=fixed"), ok(), ok()]
+    )
+
+    // An input carrying a payload is not a check anybody re-runs with a filter
+    // on it, and storing its terms would put the payload in controller state
+    // twice. It is never recorded, so it can never be demanded back.
+    expect(payload.split(" ")).toHaveLength(CellTurn.defaultMaxFrames * 3)
+    expect(of(events, "narrowed-demanded")).toEqual([])
+  })
+
+  it("takes the completion rather than the demand when no frame is left to spend", async () => {
+    const { events } = await verifying(
+      [running("check suite"), fixing("check suite -k one", "narrowed")],
+      [ok(), ok("a.py=fixed"), ok()],
+      { maxFrames: 2 }
+    )
+
+    // A demand needs a frame to be answered in. Spending the run's last frame
+    // on a notice nobody can act on would lose the answer to make a point
+    // about it, so the completion stands and the record shows no demand.
+    expect(of(events, "narrowed-demanded")).toEqual([])
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      expect.objectContaining({ text: "narrowed" })
+    ])
+  })
+
+  it("leaves a run whose narrowing demand is disarmed alone", async () => {
+    const { events } = await verifying(
+      [running("check suite"), fixing("check suite -k one", "narrowed")],
+      [ok(), ok("a.py=fixed"), ok()],
+      { narrowingCap: 0 }
+    )
+
+    expect(of(events, "narrowed-demanded")).toEqual([])
+    expect(of(events, "discipline-armed")[0]?.narrowingCap).toBe(0)
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      expect.objectContaining({ text: "narrowed" })
+    ])
+  })
+})
+
 describe("CellTurn call latency", () => {
   it("journals the wall-clock duration of each sealed model call from the injected clock", async () => {
     const { events } = await run({

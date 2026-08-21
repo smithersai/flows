@@ -57,6 +57,15 @@ export class DisciplineArmed extends Schema.TaggedClass<DisciplineArmed>(
    * a grader must be able to tell "armed and never needed" from "never armed".
    */
   repeatCap: Schema.Number,
+  /**
+   * Completions this run may have bounced for narrowed evidence; zero disarms.
+   *
+   * Journaled with the rest because the demand it governs fires at most once
+   * in a run and often not at all, so its absence from a wave says nothing on
+   * its own. One is the armed default: the loop names the missing check once,
+   * and the answer that comes back is the answer that stands.
+   */
+  narrowingCap: Schema.Number,
   /** Maximum calls per cell, when this binding can enforce one. */
   calls: Schema.optional(Schema.Number),
   /** Maximum sandbox heap, when this binding can enforce one. */
@@ -275,6 +284,42 @@ export class RepeatDemanded extends Schema.TaggedClass<RepeatDemanded>(
 }) {}
 
 /**
+ * The controller refusing one completion whose evidence was narrowed.
+ *
+ * Written when a frame returns `complete` while the check it ran is a strict
+ * narrowing of one the run had already run in full, over a tree that has since
+ * changed and never re-run since. Written when the demand is *issued*, like the
+ * repeat demand and unlike the read-cap one, because what answers it is the
+ * shape of the next frame's calls and its output — both of which the journal
+ * already writes.
+ *
+ * The event is the whole audit trail for the bounce. `broader` and `narrower`
+ * quote the two inputs as the run wrote them, and the two digests say which
+ * trees they were measured over, so a grader can decide after the fact whether
+ * the demand was right without replaying anything.
+ *
+ * @category events
+ * @since 0.1.0
+ */
+export class NarrowedDemanded extends Schema.TaggedClass<NarrowedDemanded>(
+  "flows/harness/AgentEvent/NarrowedDemanded"
+)("narrowed-demanded", {
+  eventType: Schema.Literal("flows.harness.narrowed-demanded.v1"),
+  /** The flow both checks named. */
+  flow: Schema.String,
+  /** The broader check's input as the run wrote it, clipped. */
+  broader: Schema.String,
+  /** The narrowing check's input as the run wrote it, clipped. */
+  narrower: Schema.String,
+  /** Workspace digest the broader check was last run over. */
+  broaderDigest: Schema.String,
+  /** Workspace digest the completing frame closed on. */
+  currentDigest: Schema.String,
+  /** The frame the demand was attached to, which is the one that must answer it. */
+  nextFrame: Schema.Int
+}) {}
+
+/**
  * What one frame did to the workspace, and how the controller knows.
  *
  * Emitted once per frame that ran a cell. It is the frame's own answer to the
@@ -453,6 +498,7 @@ export const AgentEvent = Schema.Union([
   MutationObserved,
   ReadOnlyDemanded,
   RepeatDemanded,
+  NarrowedDemanded,
   Suspended,
   CompactionSettled,
   SteeringDrained,

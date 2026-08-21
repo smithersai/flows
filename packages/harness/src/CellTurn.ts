@@ -28,6 +28,7 @@ import * as ContextWindow from "./ContextWindow.ts"
 import * as EngineLike from "./EngineLike.ts"
 import { HarnessError } from "./HarnessError.ts"
 import * as cellPrompt from "./internal/cellPrompt.ts"
+import * as NarrowedCheck from "./NarrowedCheck.ts"
 import * as Sandbox from "./Sandbox.ts"
 import * as Steering from "./Steering.ts"
 import * as TruncatedOutput from "./TruncatedOutput.ts"
@@ -117,6 +118,30 @@ export const defaultModelCallMs = 300_000
  */
 export const defaultRepeatFrames = 4
 
+/**
+ * Default number of completions a run may have bounced for narrowed evidence.
+ *
+ * The demand is answered by acting, not by a counter, so the number is not a
+ * budget to spend: it is how many times the loop will name a missing check
+ * before it stops naming it. One is the whole design. The sanctioned shape for
+ * this class of control is demand-then-continue — bounce once with an in-frame
+ * observation, let the agent act, and take the next answer as it comes — which
+ * is what the read-only cap and the repeat demand already do, and it is what
+ * remains after the completion audit that re-ran commands from the harness was
+ * removed on purpose. A second bounce would be the loop arguing with the run
+ * about evidence it is not allowed to gather.
+ *
+ * The failure it answers is the tenth named failure mode of the SWE-bench cell
+ * harness and the only one to decide the same instance in two consecutive waves
+ * identically; see `NarrowedCheck` for the journal it was read off.
+ *
+ * Zero disarms the demand.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const defaultNarrowingDemands = 1
+
 const MaxFrames = NonNegativeSafeInt.pipe(
   Schema.withConstructorDefault(Effect.succeed(defaultMaxFrames)),
   Schema.withDecodingDefaultKey(Effect.succeed(defaultMaxFrames))
@@ -142,6 +167,7 @@ const eventType = {
   modelRetried: "flows.harness.model-retried.v1",
   readOnlyDemanded: "flows.harness.read-only-demanded.v1",
   repeatDemanded: "flows.harness.repeat-demanded.v1",
+  narrowedDemanded: "flows.harness.narrowed-demanded.v1",
   modelDelta: "flows.harness.model-delta.v1",
   modelSettled: "flows.harness.model-settled.v1",
   mutationObserved: "flows.harness.mutation-observed.v1",
@@ -290,6 +316,42 @@ export class State extends Schema.Class<State>("flows/harness/CellTurn/State")({
     Schema.withDecodingDefaultKey(Effect.succeed<ReadonlyArray<string>>([]))
   ),
   /**
+   * Completions this run may have bounced for narrowed evidence. Zero disarms
+   * the demand.
+   *
+   * Armed separately from every other cap because it watches a different
+   * moment. The read-only cap and the repeat demand watch a run that is still
+   * working and has stopped making progress; this watches the one frame a run
+   * gets wrong for free — the last one, where a narrowed check is presented as
+   * evidence for a change it never covered. See {@link defaultNarrowingDemands}.
+   */
+  narrowingCap: NonNegativeSafeInt.pipe(
+    Schema.withConstructorDefault(Effect.succeed(defaultNarrowingDemands)),
+    Schema.withDecodingDefaultKey(Effect.succeed(defaultNarrowingDemands))
+  ),
+  /**
+   * Completions this run has already had bounced for narrowed evidence.
+   *
+   * Counted rather than flagged so the cap reads like the others, and carried
+   * in state so a bounce survives the frame that answers it: the run stays
+   * responsible for the answer, and the loop stops asking once it has asked.
+   */
+  narrowingDemands: NonNegativeSafeInt.pipe(
+    Schema.withConstructorDefault(Effect.succeed(0)),
+    Schema.withDecodingDefaultKey(Effect.succeed(0))
+  ),
+  /**
+   * Checks this run has run, oldest first, each stamped with the tree it ran
+   * over.
+   *
+   * State rather than a per-frame detail for the same reason
+   * {@link State.callSignatures} is: the frame that narrows a check is nowhere
+   * near the frame that first ran it. It carries the terms of each input rather
+   * than the input, and only for calls that declared no write — a call that
+   * changes the workspace is not an observation of it. See `NarrowedCheck`.
+   */
+  checks: NarrowedCheck.Ledger,
+  /**
    * Whether a human can answer this run, which is what makes a park honorable.
    *
    * A park is durable waiting, and waiting only ends when somebody answers. A
@@ -391,6 +453,13 @@ export const make = (options: {
    */
   readonly repeatCap?: number | undefined
   /**
+   * Caps how many completions may be bounced for narrowed evidence: at the
+   * first such completion the controller names the broader check the run has
+   * not re-run since its latest change and asks for another frame. Omitted
+   * takes {@link defaultNarrowingDemands}; zero disarms it.
+   */
+  readonly narrowingCap?: number | undefined
+  /**
    * Whether a human can answer this run. Omitted or false refuses a `park`
    * transition and answers it in-frame; only a host that has wired somewhere
    * for an answer to come from may claim true.
@@ -417,6 +486,9 @@ export const make = (options: {
     repeatCap: options.repeatCap ?? defaultRepeatFrames,
     repeatFrames: 0,
     callSignatures: [],
+    narrowingCap: options.narrowingCap ?? defaultNarrowingDemands,
+    narrowingDemands: 0,
+    checks: [],
     approvalChannel: options.approvalChannel ?? false,
     workspace: undefined,
     truncatedOutputs: []
@@ -1210,6 +1282,8 @@ const frame = (
       readonly mutates: boolean
       /** What this invocation asked for, as {@link signatureOf} names it. */
       readonly signature: string
+      /** What this invocation asked for, verbatim, for the narrowing ledger. */
+      readonly input: Schema.Json
       /** What the flow said about its own failure, when it said it ran nothing. */
       readonly invalidProbe: { readonly reason: string; readonly message: string } | undefined
     }> = []
@@ -1233,6 +1307,7 @@ const frame = (
               // refusal is still a question the run has already asked, and
               // asking it again learns nothing either.
               signature: signatureOf(invocation.flow, invocation.input),
+              input: invocation.input,
               invalidProbe: result.outcome === "success" ? invalidProbeOf(result.value) : undefined
             })
           })
@@ -1281,12 +1356,13 @@ const frame = (
     const covered = measured && opened.value.complete && closed.value.complete
     const standingWrites = observedCalls.filter((call) => call.mutates && (call.ok || !covered)).length
     const mutated = standingWrites > 0 || (covered && opened.value.digest !== closed.value.digest)
+    const closingDigest = Option.match(closed, { onNone: () => "", onSome: (value) => value.digest })
     yield* emit(
       new AgentEvent.MutationObserved({
         eventType: eventType.mutationObserved,
         basis: covered ? "observed" : measured ? "partial" : "declared",
         mutated,
-        digest: Option.match(closed, { onNone: () => "", onSome: (value) => value.digest }),
+        digest: closingDigest,
         paths: Option.match(closed, { onNone: () => 0, onSome: (value) => value.paths }),
         declaredWrites
       })
@@ -1310,6 +1386,28 @@ const frame = (
       : novel || mutated
       ? 0
       : state.repeatFrames + 1
+
+    // The frame's own checks, and the tree they were taken over.
+    //
+    // Only a call that succeeded and declared no write is a check: a failed
+    // call observed nothing, and a call that changes the workspace is not an
+    // observation of it. The digest is the frame's own closing measurement, and
+    // only when that measurement covered the tree — under a partial or absent
+    // one a moved digest is as likely to be a bound moving as work, and this
+    // ledger's entire purpose is to say that the tree changed since a check
+    // ran. An empty digest makes an entry inert rather than wrong.
+    const workspaceDigest = covered ? closingDigest : ""
+    const frameChecks = observedCalls.flatMap((call) => {
+      if (!call.ok || call.mutates) return []
+      const recorded = NarrowedCheck.check({
+        flow: call.flow,
+        signature: call.signature,
+        input: call.input,
+        digest: workspaceDigest
+      })
+      return recorded === undefined ? [] : [recorded]
+    })
+    const checks = NarrowedCheck.remember(state.checks, frameChecks)
 
     // Read-only discipline is armed for the whole frame, not for one exit: a
     // raise, a refused park and a settled transition all continue the run, and
@@ -1359,6 +1457,7 @@ const frame = (
         readOnlyFrames: raisedFrames,
         repeatFrames,
         callSignatures,
+        checks,
         ...(mutated ? { readOnlyGrace: 0, pendingReadOnlyDemand: undefined } : {})
       })
       yield* emit(
@@ -1427,6 +1526,7 @@ const frame = (
             readOnlyFrames: parkFrames,
             repeatFrames,
             callSignatures,
+            checks,
             ...(mutated ? { readOnlyGrace: 0 } : {})
           }
         )
@@ -1489,6 +1589,59 @@ const frame = (
     }
 
     if (transition._tag === "complete") {
+      // The completion's own evidence, judged once. A run gets exactly one
+      // frame wrong for free — the last one — and this is the shape it takes:
+      // a check that repeats an earlier, broader one and adds conditions to
+      // it, run after a change the broader one never saw. The loop names the
+      // check that is missing and hands the frame back; it does not re-run
+      // anything, and it does not judge the answer that comes back. A budget
+      // with no frame left to spend cannot ask, so it does not: turning a
+      // completion into an exhausted budget would lose the run's answer to
+      // make a point about it.
+      const narrowing = state.narrowingDemands < state.narrowingCap && state.frame + 1 < state.maxFrames
+        ? NarrowedCheck.find({ ledger: state.checks, frame: frameChecks, digest: workspaceDigest })
+        : undefined
+      if (narrowing !== undefined) {
+        yield* emit(
+          new AgentEvent.NarrowedDemanded({
+            eventType: eventType.narrowedDemanded,
+            flow: narrowing.earlier.flow,
+            broader: narrowing.earlier.label,
+            narrower: narrowing.later.label,
+            broaderDigest: narrowing.earlier.digest,
+            currentDigest: workspaceDigest,
+            nextFrame: state.frame + 1
+          })
+        )
+        yield* emit(
+          new AgentEvent.TurnClosed({
+            eventType: eventType.turnClosed,
+            stopReason: settled.message.stopReason,
+            outcome: "continue"
+          })
+        )
+        return {
+          _tag: "Continue",
+          state: advance(state, {
+            frame: state.frame + 1,
+            // The demand is an in-frame observation appended to what the run
+            // was already holding, not a projected context: a completion names
+            // no context for a next frame, and a run answering this one needs
+            // the frame it just wrote.
+            contextWindow: observed(state, settled.message, NarrowedCheck.demand(narrowing)),
+            agentState: transition.state,
+            truncatedOutputs: TruncatedOutput.retain(ledger),
+            workspace: closed,
+            readOnlyFrames,
+            pendingReadOnlyDemand: undefined,
+            repeatFrames,
+            callSignatures,
+            checks,
+            narrowingDemands: state.narrowingDemands + 1,
+            ...(mutated ? { readOnlyGrace: 0 } : {})
+          })
+        }
+      }
       yield* emit(
         new AgentEvent.TurnClosed({
           eventType: eventType.turnClosed,
@@ -1620,6 +1773,7 @@ const frame = (
         readOnlyGrace,
         repeatFrames: repeatDemanded ? 0 : repeatFrames,
         callSignatures,
+        checks,
         pendingReadOnlyDemand: demanded && !justified ? { streak: readOnlyFrames, cap } : undefined
       })
     }
@@ -1668,6 +1822,7 @@ export const run = (
             approvalChannel: current.approvalChannel,
             modelCallMs: current.modelCallMs,
             repeatCap: current.repeatCap,
+            narrowingCap: current.narrowingCap,
             ...limits
           })
         )

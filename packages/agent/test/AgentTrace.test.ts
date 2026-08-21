@@ -85,6 +85,7 @@ describe("trace", () => {
           approvalChannel: false,
           modelCallMs: 300_000,
           repeatCap: 4,
+          narrowingCap: 1,
           calls: 64,
           memoryBytes: 134_217_728,
           steps: 1_000,
@@ -111,12 +112,42 @@ describe("trace", () => {
             // read cap is: a wave that records no repeat demand can then say
             // whether the control was armed and never needed, or never armed.
             repeatCap: 4,
+            // The completion control, journaled for the same reason: it fires
+            // at most once in a run and usually not at all, so its absence
+            // from a wave says nothing unless the arming is on the record.
+            narrowingCap: 1,
             calls: 64,
             memoryBytes: 134_217_728,
             steps: 1_000,
             timeMs: 30_000,
             callMs: 120_000,
             totalMs: 900_000
+          }
+        }
+      ],
+      [
+        "narrowed-demanded",
+        new AgentEvent.NarrowedDemanded({
+          eventType: "flows.harness.narrowed-demanded.v1",
+          flow: "bash",
+          broader: "{\"command\":\"run the whole check\"}",
+          narrower: "{\"command\":\"run the whole check -select one\"}",
+          broaderDigest: "tree-before",
+          currentDigest: "tree-after",
+          nextFrame: 19
+        }),
+        {
+          eventType: "control.agent.narrowed-demanded",
+          // Both inputs and both digests: the demand's whole justification is
+          // the pair, and a grader must be able to second-guess it from the
+          // journal without replaying the run.
+          payload: {
+            flow: "bash",
+            broader: "{\"command\":\"run the whole check\"}",
+            narrower: "{\"command\":\"run the whole check -select one\"}",
+            broaderDigest: "tree-before",
+            currentDigest: "tree-after",
+            nextFrame: 19
           }
         }
       ],

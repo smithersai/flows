@@ -63,6 +63,7 @@ describe("AgentEvent", () => {
         approvalChannel: true,
         modelCallMs: 300_000,
         repeatCap: 4,
+        narrowingCap: 1,
         calls: 8,
         memoryBytes: 1024,
         steps: 10_000,
@@ -163,6 +164,15 @@ describe("AgentEvent", () => {
         eventType: "flows.harness.aborted.v1",
         reason: "interrupted"
       }),
+      new AgentEvent.NarrowedDemanded({
+        eventType: "flows.harness.narrowed-demanded.v1",
+        flow: "bash",
+        broader: "{\"command\":\"check suite\"}",
+        narrower: "{\"command\":\"check suite -only one\"}",
+        broaderDigest: "digest-before",
+        currentDigest: "digest-after",
+        nextFrame: 7
+      }),
       new AgentEvent.Resolved({
         eventType: "flows.harness.resolved.v1",
         message: assistantMessage
@@ -186,7 +196,8 @@ describe("AgentEvent", () => {
         maxFrames: 1,
         approvalChannel: false,
         modelCallMs: 0,
-        repeatCap: 0
+        repeatCap: 0,
+        narrowingCap: 0
       }),
       new AgentEvent.Suspended({
         eventType: "flows.harness.suspended.v1",

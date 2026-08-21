@@ -118,6 +118,12 @@ export interface Options {
    */
   readonly repeatCap?: number | undefined
   /**
+   * Completions a run may have bounced for narrowed evidence before the
+   * controller stops naming the check it skipped. Defaults to
+   * `CellTurn.defaultNarrowingDemands`; zero disarms it.
+   */
+  readonly narrowingCap?: number | undefined
+  /**
    * Whether a human answers this executor's runs, which is what makes a cell's
    * `park` transition honorable.
    *
@@ -195,6 +201,10 @@ export const trace = (
           // records no repeat demand must be able to say whether the control
           // was armed and never needed, or never armed at all.
           repeatCap: event.repeatCap,
+          // The one control that acts on a completion rather than on a stall,
+          // so a wave's report can say whether the run that finished was ever
+          // asked about the evidence it finished on.
+          narrowingCap: event.narrowingCap,
           calls: event.calls,
           memoryBytes: event.memoryBytes,
           steps: event.steps,
@@ -276,6 +286,23 @@ export const trace = (
       return {
         eventType: "control.agent.repeat-demanded",
         payload: { frames: event.frames, cap: event.cap, nextFrame: event.nextFrame }
+      }
+    case "narrowed-demanded":
+      // The two inputs and the two digests travel together because the whole
+      // judgement is in the pair: without the digests a reader cannot tell a
+      // stale broad check from a current one, and without the inputs it cannot
+      // tell whether the narrowing was real. A grader reading this back can
+      // second-guess the demand without replaying the run.
+      return {
+        eventType: "control.agent.narrowed-demanded",
+        payload: {
+          flow: event.flow,
+          broader: event.broader,
+          narrower: event.narrower,
+          broaderDigest: event.broaderDigest,
+          currentDigest: event.currentDigest,
+          nextFrame: event.nextFrame
+        }
       }
     case "suspended":
       return { eventType: "control.agent.suspended", payload: { reason: event.reason } }
@@ -857,6 +884,7 @@ export const make = (
           // thing to keep true. The repeat cap is passed the same way.
           modelCallMs: options.modelCallMs,
           repeatCap: options.repeatCap,
+          narrowingCap: options.narrowingCap,
           approvalChannel: options.approvalChannel ?? false
         }).pipe(
           Stream.runForEach(record),

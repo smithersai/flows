@@ -166,6 +166,18 @@ export interface Options {
    */
   readonly repeatCap?: number | undefined
   /**
+   * Caps how many completions may be bounced for narrowed evidence; see
+   * `CellTurn.defaultNarrowingDemands` for the default and the run it was read
+   * off.
+   *
+   * Armed by default like `repeatCap`. The demand costs a run that verified
+   * properly nothing at all — it is computed from calls the run already made
+   * and fires only where the tree moved under a check that was never repeated
+   * — so the only caller with a reason to pass zero is one whose completions
+   * are not evidence claims at all.
+   */
+  readonly narrowingCap?: number | undefined
+  /**
    * Whether a human can answer this run; see `CellTurn.make`.
    *
    * The default is false, because the default run is unattended. Only a caller
@@ -368,6 +380,7 @@ const runProduction: Service["run"] = (options) =>
             readOnlyCap: options.readOnlyCap,
             modelCallMs: options.modelCallMs,
             repeatCap: options.repeatCap,
+            narrowingCap: options.narrowingCap,
             approvalChannel: options.approvalChannel
           })
           return CellTurn.run({ state, flows, limits: options.limits }).pipe(
