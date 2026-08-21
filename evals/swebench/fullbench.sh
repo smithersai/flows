@@ -136,7 +136,7 @@ for ARG in "$@"; do
       echo "fullbench.sh: aggregating $(printf '%s' "$AGGREGATE_IDS" | wc -w | tr -d ' ') graded instances into $MODEL_NAME.$RUN_ID.json"
       SWB_PATCHES="$REL_PATCHES" SWB_MODEL_NAME="$MODEL_NAME" SWB_CACHE_LEVEL=instance \
         exec "$S/evaluate.sh" "$RUN_ID" $AGGREGATE_IDS ;;
-    --help|-h) sed -n '2,40p' "$0"; exit 0 ;;
+    --help|-h) sed -n '2,41p' "$0"; exit 0 ;;
     *) echo "fullbench.sh: unknown argument '$ARG'"; exit 2 ;;
   esac
 done
@@ -452,6 +452,11 @@ spend_cents() {
   esac
 }
 BUDGET_CENTS="$(node -e 'process.stdout.write(String(Math.round(Number(process.argv[1]) * 100)))' "$BUDGET_USD")"
+# The cap the gate compares against, in the same units it reads. If this is not
+# a number the gate is not a gate, and a driver with no budget must not run.
+case "$BUDGET_CENTS" in
+  ''|*[!0-9]*) log "could not read \$$BUDGET_USD as a budget"; exit 2 ;;
+esac
 
 pause_now() {
   PAUSE_REASON="$1"

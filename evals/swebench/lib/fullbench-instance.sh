@@ -131,7 +131,9 @@ discard_image() {
   # An instance that failed before its pull never had one, and a ledger that
   # says `deleted` for it reads as if a pull had happened.
   if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then printf 'absent'; return 0; fi
-  docker rmi -f "$IMAGE" >/dev/null 2>&1 || log "could not delete $IMAGE"
+  # The diagnostic goes to stderr: this function's stdout is the image state its
+  # caller records, and a log line spliced into it would become the state.
+  docker rmi -f "$IMAGE" >/dev/null 2>&1 || log "could not delete $IMAGE" >&2
   if docker image inspect "$IMAGE" >/dev/null 2>&1; then printf 'present'; else printf 'deleted'; fi
 }
 
