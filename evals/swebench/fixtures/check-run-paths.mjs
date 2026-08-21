@@ -56,10 +56,20 @@ assert.equal(plain.LOG_PREFIX, join(root, "logs-agent", instance))
 assert.equal(plain.CONTAINER, "flowsbench-django--django-16612")
 assert.equal(plain.SUFFIX, "")
 // A run always has an index even when its paths do not carry one, because the
-// journal archive and the matrix manifest are keyed by it.
+// matrix manifest and the log lines are keyed by it.
 assert.equal(plain.RUN_INDEX, "r1")
 assert.equal(plain.RUN_ID, `${instance}-r1`)
-assert.equal(plain.JOURNAL, join(root, "journals", `${instance}-r1`))
+// The archive carries the patch's suffix, not the run index, so the journal and
+// the patch a selection reads always come from one run. An unindexed run whose
+// patch is `<id>.patch` must not overwrite the archive that belongs to
+// `<id>-r1.patch`.
+assert.equal(plain.JOURNAL, join(root, "journals", instance))
+
+assert.notEqual(
+  plain.JOURNAL,
+  paths("flows", instance, "r1").JOURNAL,
+  "a hand run and a matrix r1 archive their journals apart, because their patches are apart"
+)
 
 const plainCodex = paths("codex", instance)
 assert.equal(plainCodex.WORK, join(root, "work-codex", instance))

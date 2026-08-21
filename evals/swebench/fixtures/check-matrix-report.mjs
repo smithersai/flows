@@ -192,6 +192,61 @@ try {
   assert.match(markdown, /graded the selected patch differently from its own round/)
   assert.match(markdown, /the 1 it gives up is the selector's cost/)
   assert.equal(report.rows.length, instances.length)
+
+  // -----------------------------------------------------------------------
+  // The oracle column takes the best of the n, not the first of the n.
+  //
+  // No recorded wave has a codex side that graded every round and resolved
+  // none, so this one is synthesised. Reading r1 when nothing resolved would
+  // print `empty` for a side that produced a real patch in four rounds out of
+  // five, understating the baseline on the line that compares them — the one
+  // direction this report may never be wrong in.
+  // -----------------------------------------------------------------------
+  const oracleReports = join(temporary, "oracle-reports")
+  const oracleSelected = join(temporary, "oracle-selected")
+  mkdirSync(oracleReports, { recursive: true })
+  mkdirSync(oracleSelected, { recursive: true })
+  const rounds = [
+    { empty_patch_ids: ["stub__mixed"] },
+    { unresolved_ids: ["stub__mixed"] },
+    { empty_patch_ids: ["stub__mixed"] }
+  ]
+  rounds.forEach((lists, index) => {
+    writeFileSync(join(oracleReports, `codex-cli.oracle-codex-r${index + 1}.json`), JSON.stringify(lists))
+  })
+
+  const oracleRun = spawnSync(
+    process.execPath,
+    [
+      join(root, "matrix-report.mjs"),
+      "--prefix",
+      "oracle",
+      "--count",
+      "3",
+      "--reports",
+      oracleReports,
+      "--selected",
+      oracleSelected,
+      "--patches",
+      join(temporary, "patches"),
+      "--patches-codex",
+      join(temporary, "patches-codex"),
+      "--instances",
+      "stub__mixed",
+      "--out",
+      oracleReports
+    ],
+    { encoding: "utf8" }
+  )
+  assert.equal(oracleRun.status, 0, `${oracleRun.stdout}\n${oracleRun.stderr}`)
+  const oracle = JSON.parse(readFileSync(join(oracleReports, "matrix-report.json"), "utf8"))
+  assert.deepEqual(oracle.rows[0].codex, ["empty patch", "unresolved", "empty patch"])
+  assert.equal(
+    oracle.rows[0].bestOfN.codexOracle,
+    "unresolved",
+    "the oracle takes the best verdict any round earned, not the first round's"
+  )
+  assert.equal(oracle.totals.bestOfN.codexOracle, 0, "and it still resolves nothing")
 } finally {
   rmSync(temporary, { recursive: true, force: true })
 }

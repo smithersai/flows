@@ -6,11 +6,13 @@
 # Produces work/<instance_id>/ (the agent workspace), patches/<instance_id>.patch
 # (the model patch, empty if the agent changed nothing), timings/<instance_id>.json
 # (wall clock, for the scorecard), logs-agent/<instance_id>.run.log, and
-# journals/<instance_id>-r1/ (the run's journal, copied out of the workspace).
+# journals/<instance_id>/ (the run's journal, copied out of the workspace).
 #
 # With a run index — `run-instance.sh <id> <seat> <budget> r3` — every one of
-# those names carries `-r3`, so five runs of one instance coexist. `lib/run-
-# paths.sh` owns the rule and both harnesses derive their names from it. A run
+# those names carries `-r3`, journals/<instance_id>-r3/ included, so five runs
+# of one instance coexist and each archive belongs to the patch beside it.
+# `lib/run-paths.sh` owns the rule and both harnesses derive their names from
+# it. A run
 # given an index is a matrix run and deletes its extracted testbed once the patch
 # is captured; a run without one keeps the workspace, which is what
 # `regen-patch.sh` and the scorecard's default `--work work` read. See README,

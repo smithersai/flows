@@ -15,10 +15,16 @@
 # and the scorecard's default `--work work` among them — while a matrix run
 # carries its index in every artifact it writes.
 #
+# **The journal archive carries the same suffix as the patch**, so the two
+# artifacts a selection is made from always come from one run. Keying the
+# archive by `<id>-<index>` while the patch of an unindexed run is `<id>.patch`
+# would let a hand run overwrite `journals/<id>-r1/` with a journal belonging to
+# a different patch than `patches/<id>-r1.patch`, and the selector would rank
+# the pair without anything saying they had come apart.
+#
 # `RUN_INDEX` is `r1` when no index was given, because a run always has one even
-# when its paths do not carry it: the journal archive and the matrix manifest
-# are keyed by `<id>-<index>`, and a nameless run could not be recorded in
-# either.
+# when its paths do not carry it: the matrix manifest and every log line are
+# keyed by `<id>-<index>`, and a nameless run could not be recorded in either.
 #
 # The instance id and the index are validated here rather than by the caller.
 # Both reach a shell path, a docker container name and a docker image name, and
@@ -88,4 +94,4 @@ printf 'LOG_ROOT=%s\n' "\"$LOG_ROOT\""
 printf 'LOG_PREFIX=%s\n' "\"$LOG_ROOT/${INSTANCE}${SUFFIX}\""
 printf 'CONTAINER=%s\n' "$CONTAINER"
 printf 'JOURNAL_ROOT=%s\n' "\"$S/journals\""
-printf 'JOURNAL=%s\n' "\"$S/journals/${INSTANCE}-${RUN_INDEX}\""
+printf 'JOURNAL=%s\n' "\"$S/journals/${INSTANCE}${SUFFIX}\""

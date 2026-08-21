@@ -11,13 +11,17 @@
 # fingerprint still names the bytes the CLI actually loads, and replays the
 # read-only liveness checker over synthesised journals.
 #
+# It also pins the two harnesses to one prompt: everything one side is taught and
+# the other is not is a variable the comparison does not control.
+#
 # The best-of-n half is checked the same way: the per-run naming rule, the matrix
 # scheduler over a stub harness command, the journal-only selector over two real
 # waves, and the report generator over recorded evaluator verdicts.
 #
 # Spends no tokens, needs no docker, needs no dataset. Run it after touching
 # scorecard.ts, prices.ts, the journal's event shapes, patch capture,
-# lib/subject.mjs, lib/check-liveness.mjs, lib/run-paths.sh, lib/journal-facts.mjs,
+# lib/subject.mjs, lib/check-liveness.mjs, lib/write-flow.mjs,
+# lib/write-prompt-codex.mjs, lib/run-paths.sh, lib/journal-facts.mjs,
 # select-candidate.mjs, run-matrix.sh or matrix-report.mjs. The subject check
 # needs a built CLI: run ./preflight.sh first if `packages/cli/dist` is absent.
 set -eu
@@ -62,6 +66,9 @@ node "$S/fixtures/check-subject.mjs"
 
 echo "== the read-only liveness reading"
 node "$S/fixtures/check-liveness-report.mjs"
+
+echo "== one prompt, two harnesses"
+node "$S/fixtures/check-prompts.mjs"
 
 echo "== per-run artifact names"
 node "$S/fixtures/check-run-paths.mjs"

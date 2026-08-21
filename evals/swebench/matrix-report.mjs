@@ -16,11 +16,12 @@
  * 2. **Best-of-n, both sides.** The two are *not* computed the same way and the
  *    report says so on every line that carries them. The flows column is the
  *    verdict of the patch its own journal-only selector chose before grading —
- *    a number the harness could produce in production. The codex column is
- *    `any of the n resolved`, which is an **oracle**: it is chosen by the
- *    grader, no codex run could pick it, and it is an upper bound on what a
- *    codex best-of-n would score. Reporting them side by side without that
- *    sentence would be claiming a win the measurement does not support.
+ *    a number the harness could produce in production. The codex column is the
+ *    best verdict any of the n earned — `resolved` whenever one of them did —
+ *    which is an **oracle**: it is chosen by the grader, no codex run could pick
+ *    it, and it is an upper bound on what a codex best-of-n would score.
+ *    Reporting them side by side without that sentence would be claiming a win
+ *    the measurement does not support.
  * 3. **Selector quality.** Of the instances where at least one flows run
  *    resolved, how often the selector picked a resolving run. This is the flows
  *    column's own oracle gap: `hit` where the selector matched what an oracle
@@ -112,6 +113,22 @@ const bytesOf = (path) => existsSync(path) ? statSync(path).size : 0
 const cell = (report, id) => report === undefined ? "not graded" : report[id] ?? "not graded"
 const resolved = (report, id) => cell(report, id) === "resolved"
 
+/**
+ * Verdicts from best to worst, for the one column that is allowed to pick.
+ *
+ * The codex best-of-n column is an oracle: it reports what the best of the n
+ * runs did. Reading only "did any resolve" and falling back to r1 otherwise
+ * would print `empty` for a side whose other four rounds all produced a real
+ * patch, which understates the baseline in the harness's favour on the line
+ * that compares them. The oracle takes the best verdict any round earned.
+ */
+const verdictRank = ["resolved", "unresolved", "empty patch", "eval error", "not graded"]
+const best = (verdicts) =>
+  verdicts.reduce(
+    (kept, verdict) => verdictRank.indexOf(verdict) < verdictRank.indexOf(kept) ? verdict : kept,
+    "not graded"
+  )
+
 const rows = instances.map((id) => {
   const rationale = readJson(join(options.selected, `${id}.rationale.json`), undefined)
   const flows = flowsRounds.map((report) => cell(report, id))
@@ -149,7 +166,7 @@ const rows = instances.map((id) => {
       flows: selectedVerdict,
       // The codex side is an oracle: the grader picks the best of the n after
       // grading them all. No codex run could make this choice.
-      codexOracle: codex.some((verdict) => verdict === "resolved") ? "resolved" : codex[0] ?? "not graded",
+      codexOracle: best(codex),
       codexOracleIsGenerous: true
     },
     selectorQuality: !anyFlowsResolved

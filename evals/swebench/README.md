@@ -144,13 +144,14 @@ mounts it back at `/testbed` so the container's interpreter sees the same tree
 the agent edits, records the capture base (below), writes the fix flow with
 `lib/write-flow.mjs`, drives the CLI through `plan` → `approve` → `run` under a
 timeout, then captures the patch. It leaves `work/<id>/` (including the run's
-journal in `work/<id>/.flows/`), `journals/<id>-r1/` (that journal, copied out
+journal in `work/<id>/.flows/`), `journals/<id>/` (that journal, copied out
 so it survives the next wave), `patches/<id>.patch`,
 `patches/<id>.patch.untracked`, `timings/<id>.json`, and
 `logs-agent/<id>.run.log`.
 
 The codex baseline runs the same shape with its own isolated `CODEX_HOME`, the
-same prompt content, and the same budget:
+same prompt content — including the repository's own test runner, which
+`lib/test-command.py` derives for both sides — and the same budget:
 
 ```sh
 ./run-instance-codex.sh django__django-16612 1500
@@ -165,6 +166,39 @@ The whole sample, one harness at a time:
 
 Both run scripts take an optional trailing **run index**, which is how one
 instance carries five attempts at once. See [Best-of-n](#best-of-n).
+
+## The prompts
+
+`lib/write-flow.mjs` writes the flows prompt and `lib/write-prompt-codex.mjs`
+writes the codex one. **They differ only where they name a harness's own tools.**
+Anything else one side is told and the other is not is a variable the comparison
+does not control, and it shows up in the score as if it were harness quality.
+
+The flows-only lines are the frontmatter, the `write`/`read` flows, and the
+Jujutsu colocation the flows CLI creates in its own workspace and the codex
+workspace never has. `fixtures/check-prompts.mjs`, in `verify.sh`, lists them and
+asserts that the set of lines one prompt has and the other does not is exactly
+that list — so a sixth line, or a shared line dropped from one side, fails
+offline instead of moving a baseline quietly. It also asserts that neither prompt
+names `FAIL_TO_PASS`, `PASS_TO_PASS`, the graded test identifiers, or the gold
+patch, with all of them present in the synthesised instance row both writers are
+handed.
+
+**The repository's test command goes to both sides.** It comes from the pinned
+evaluator's `MAP_REPO_VERSION_TO_SPECS` through `lib/test-command.py`, which
+refuses to print a command naming the graded identifiers, and it is environment
+teaching of the same kind as "run it in the container": `./tests/runtests.py`
+for Django, `tox` for Sphinx, `pytest -rA` elsewhere.
+
+> **Disclosure — codex baselines before 2026-08-21.** From 2026-08-19 the flows
+> prompt named that runner and the codex prompt still told its agent to verify
+> with `python -m pytest`, which neither Django nor Sphinx can run. Waves 10 and
+> 11 therefore compared a harness that could check its work against a baseline
+> that could not, on two of the five sample instances, and the rig said nothing.
+> Codex numbers for `django__django-16612` and `sphinx-doc__sphinx-11445` from
+> those waves are not comparable and a write-up that quotes them owes this
+> sentence. Both sides derive the command from `lib/test-command.py` now, and the
+> next codex wave is the first one the head-to-head number holds for.
 
 ## Patch capture
 
@@ -407,7 +441,7 @@ matrix driver derive their names from, so the two harnesses cannot drift apart:
 | flows timings | `timings/<id>.json` | `timings/<id>-r3.json` |
 | flows logs | `logs-agent/<id>.*` | `logs-agent/<id>-r3.*` |
 | flows container | `flowsbench-<id>` | `flowsbench-<id>-r3` |
-| journal archive | `journals/<id>-r1/` | `journals/<id>-r3/` |
+| journal archive | `journals/<id>/` | `journals/<id>-r3/` |
 | codex workspace | `work-codex/<id>` | `work-codex/<id>-r3` |
 | codex patch | `patches-codex/<id>.patch` | `patches-codex/<id>-r3.patch` |
 | codex timings | `timings-codex/<id>.json` | `timings-codex/<id>-r3.json` |
@@ -416,9 +450,16 @@ matrix driver derive their names from, so the two harnesses cannot drift apart:
 
 **No index is today's names**, so `regen-patch.sh`, `scorecard.ts --work work`
 and every wave report that quotes a path keep working. A run still *has* an
-index — `r1` when none was given — because the journal archive and the matrix
-manifest are keyed by `<id>-<index>` and a nameless run could be recorded in
+index — `r1` when none was given — because the matrix manifest and every log
+line are keyed by `<id>-<index>` and a nameless run could be recorded in
 neither.
+
+The journal archive carries the **patch's** suffix rather than the run index, so
+the journal and the patch a selection is made from always come from one run. Key
+the archive by the index instead and a hand run, whose patch is `<id>.patch`,
+overwrites the archive belonging to `<id>-r1.patch` — after which the selector
+ranks a journal against a patch another run wrote and nothing says they came
+apart.
 
 `fixtures/check-run-paths.mjs`, in `verify.sh`, pins the whole table, proves five
 rounds name five distinct sets on both sides, and proves the run scripts derive
@@ -500,6 +541,13 @@ from that ledger that the two rules held, that the driver did overlap runs at
 all, and that the manifest it wrote agrees with what the runs actually did — no
 docker, no model, no tokens.
 
+It runs the scheduler twice, because one pass cannot check both rules. With three
+instances and two jobs the concurrency bound already serializes an instance's
+rounds, so deleting the same-instance wait leaves that schedule unchanged and the
+pass green. The second pass is one instance and three jobs, where the only thing
+that can keep two rounds apart is the rule itself, and the ledger has to read
+`S r1 E r1 S r2 E r2 S r3 E r3`.
+
 ### The selector
 
 ```sh
@@ -555,9 +603,20 @@ Three readings the journal cannot give, all stated in `lib/journal-facts.mjs`
 rather than guessed silently: whether a call declared a write is per frame and
 not per call, so a call is read as mutating when its flow is an editing flow;
 the call signature is the canonical form of `[flow, input]` rather than the
-controller's digest of it, which is the same equivalence relation; and a
-`sufficiency-observed` event is journaled without its fields today, so the
-selector recomputes the pair rather than reading it.
+controller's digest of it, which is the same equivalence relation; and
+`sufficiency-observed` and `narrow-only-demanded` reach the journal through
+`AgentSession`'s default branch, which writes the event's name and an empty
+payload, so the selector counts them and recomputes anything it needs from the
+frames instead of reading their fields.
+
+`fixtures/check-selector.mjs` pins that too, because every case it runs is a
+rehydrated distillation and a distillation proves the ranking, not the shape:
+rename an event or a payload field in `packages/agent/src/AgentSession.ts` and
+the fixture would stay green while every predicate silently read `false` on a
+real run. It asserts that every event `lib/journal-facts.mjs` reads is one
+`AgentEvent` declares, that the six it reads *fields* off are mapped by hand
+rather than through the empty-payload default, and that those fields are still
+the names `AgentSession` writes.
 
 `fixtures/check-selector.mjs`, in `verify.sh`, replays the selector over two real
 waves. Wave 10 and wave 11 ran the same five instances and both distillations
@@ -604,10 +663,12 @@ measurement, and the report says so on every line that carries them:
 - **flows best-of-n is the verdict of the patch the selector chose**, from
   journals and patches alone, before anything was graded. It is a number the
   harness could produce in production.
-- **codex best-of-n is an oracle**: resolved when *any* of the n codex runs
-  resolved. The grader makes that choice after grading all n, and no codex run
-  could make it. It is an upper bound on what a codex best-of-n would score, not
-  a measured one.
+- **codex best-of-n is an oracle**: the best verdict any of the n codex runs
+  earned, so resolved when *any* of them resolved. The grader makes that choice
+  after grading all n, and no codex run could make it. It is an upper bound on
+  what a codex best-of-n would score, not a measured one. The cell takes the
+  best of the n rather than r1's, so a side that shipped a real patch in four
+  rounds is never printed as `empty` because its first round was.
 - A comparison between them therefore favours codex by exactly the selector's
   miss rate, and the report prints the flows side's oracle too, so the gap
   between "the selector chose" and "an oracle would have chosen" is a number
@@ -704,9 +765,16 @@ different sample and do not edit the pinned list to match a new draw.
   understood, and take them in draw order from `sample.json` so the set is
   always a prefix of the same seeded sequence.
 - **Always run codex on the same instances.** A flows number without a codex
-  number on the same instance, same model, same budget, and same container is
-  not a comparison. Add the codex result to `baseline/codex-comparison.json`
-  when the sample grows.
+  number on the same instance, same model, same budget, same container and
+  **same prompt** is not a comparison. Add the codex result to
+  `baseline/codex-comparison.json` when the sample grows.
+- **Anything one harness is taught, both are taught.** The two prompts differ
+  only where they name a harness's own tools — the `write` flow, and the Jujutsu
+  colocation the flows CLI creates in its own workspace. Everything else,
+  including the repository's test runner, is environment teaching and goes to
+  both sides. `fixtures/check-prompts.mjs` lists the flows-only lines and fails
+  on a sixth one, because this is the rule the rig has already broken once: see
+  [The prompts](#the-prompts).
 - **Both-fail instances are acceptable.** Some instances have hidden tests that
   reject the obvious fix. Recording `both fail` is a result, not a gap to close.
 - **Any flows win gets called out explicitly.** The scorecard labels each

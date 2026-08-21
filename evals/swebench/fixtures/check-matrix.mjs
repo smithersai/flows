@@ -35,7 +35,19 @@ const instances = ["stub__alpha", "stub__beta", "stub__gamma"]
 const rounds = 3
 const jobs = 2
 
+/**
+ * The instance the solo pass runs, where `jobs` is larger than the sample.
+ *
+ * With three instances and two jobs the concurrency bound already serializes an
+ * instance's rounds, so that pass cannot tell whether the same-instance rule is
+ * enforced or merely implied: deleting the rule's wait leaves that schedule
+ * unchanged. One instance and three jobs isolates it — the only thing that can
+ * keep two rounds of one instance apart is the rule itself.
+ */
+const solo = "stub__solo"
+
 const ledger = join(temporary, "ledger.txt")
+const soloLedger = join(temporary, "solo-ledger.txt")
 
 try {
   writeFileSync(
@@ -153,8 +165,62 @@ exit 0
     written.runs.map((run) => run.runId),
     instances.flatMap((id) => [1, 2, 3].map((round) => `${id}-r${round}`))
   )
+
+  // ---------------------------------------------------------------------
+  // The same-instance rule on its own, with the concurrency bound removed
+  // as an explanation: one instance, three jobs, three rounds.
+  // ---------------------------------------------------------------------
+  writeFileSync(
+    join(temporary, "solo-dataset.json"),
+    JSON.stringify([{
+      instance_id: solo,
+      repo: "stub/stub",
+      version: "1.0",
+      base_commit: "abc123",
+      problem_statement: "stub"
+    }])
+  )
+  writeFileSync(join(temporary, "solo-sample.json"), JSON.stringify({ instances: [solo] }))
+  writeFileSync(soloLedger, "")
+
+  const soloStub = join(temporary, "solo-run.sh")
+  writeFileSync(
+    soloStub,
+    `#!/bin/bash
+set -u
+eval "$("${root}/lib/run-paths.sh" flows "$1" "$4")"
+printf 'S %s\\n' "$4" >> "${soloLedger}"
+sleep 0.4
+printf 'x' > "$PATCH"
+printf 'E %s\\n' "$4" >> "${soloLedger}"
+exit 0
+`
+  )
+  chmodSync(soloStub, 0o755)
+
+  const soloDriver = spawnSync(join(root, "run-matrix.sh"), ["flows", String(rounds), "3"], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      SWB_RUN_CMD: soloStub,
+      SWB_SAMPLE: join(temporary, "solo-sample.json"),
+      SWB_DATASET: join(temporary, "solo-dataset.json"),
+      SWB_SAMPLE_COUNT: "1",
+      SWB_MATRIX_OUT: join(temporary, "solo-matrix.json")
+    }
+  })
+  assert.equal(soloDriver.status, 0, `${soloDriver.stdout}\n${soloDriver.stderr}`)
+
+  // Strictly serial: every start is followed by its own end before the next
+  // start. Removing the rule's wait from run-matrix.sh turns this into three
+  // starts and then three ends.
+  assert.deepEqual(
+    readFileSync(soloLedger, "utf8").split("\n").filter((line) => line !== ""),
+    ["S r1", "E r1", "S r2", "E r2", "S r3", "E r3"],
+    "three rounds of one instance run one at a time, with three jobs available"
+  )
 } finally {
-  for (const id of instances) {
+  for (const id of [...instances, solo]) {
     for (let round = 1; round <= rounds; round++) {
       rmSync(join(root, "patches", `${id}-r${round}.patch`), { force: true })
       rmSync(join(root, "patches", `${id}-r${round}.patch.untracked`), { force: true })

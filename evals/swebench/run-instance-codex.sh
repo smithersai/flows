@@ -1,8 +1,8 @@
 #!/bin/bash
 # Runs the OpenAI Codex CLI harness on one SWE-bench Verified instance, under
 # the same conditions run-instance.sh gives the flows harness: same
-# image-derived checkout, same live container for tests, same prompt content,
-# same wall-clock budget.
+# image-derived checkout, same live container for tests, same repository test
+# command, same prompt content, same wall-clock budget.
 #
 #   run-instance-codex.sh <instance_id> [timeout-seconds] [model] [run-index]
 #
@@ -26,6 +26,9 @@ DATASET="${SWB_DATASET:-$S/swb-verified.json}"
 
 if [ ! -f "$DATASET" ]; then
   echo "[$INSTANCE] no dataset at $DATASET — run ./bootstrap.sh first"; exit 1
+fi
+if [ ! -x "$S/.venv-swb/bin/python" ]; then
+  echo "[$INSTANCE] no evaluator venv at $S/.venv-swb — run ./bootstrap.sh first"; exit 1
 fi
 
 IMAGE_ID="$(echo "$INSTANCE" | sed 's/__/_1776_/')"
@@ -83,7 +86,16 @@ docker run -d --platform linux/amd64 --name "$CONTAINER" \
   -v "$WORK:/testbed" -w /testbed "$IMAGE" sleep infinity >/dev/null 2>&1 || {
   echo "[$RUN_ID] CONTAINER START FAILED"; exit 1; }
 
-node "$S/lib/write-prompt-codex.mjs" "$DATASET" "$INSTANCE" "$CONTAINER" > "$LOG_PREFIX.prompt.md"
+# The repository's own test runner, from the same place the flows side reads it.
+# It is environment teaching, not an answer — `lib/test-command.py` refuses to
+# print a command naming the graded identifiers — and withholding it from one
+# side is not a baseline: `python -m pytest` cannot run Django's suite or
+# Sphinx's, so a codex run told to verify that way could not verify anything on
+# those instances while the harness under test could.
+TEST_CMD="$("$S/.venv-swb/bin/python" "$S/lib/test-command.py" "$DATASET" "$INSTANCE")" || {
+  echo "[$RUN_ID] NO TEST COMMAND — run ./bootstrap.sh first"; exit 1; }
+
+node "$S/lib/write-prompt-codex.mjs" "$DATASET" "$INSTANCE" "$CONTAINER" "$TEST_CMD" > "$LOG_PREFIX.prompt.md"
 
 # Network access is a benchmark condition, not a detail. SWB_CODEX_NETWORK=off
 # runs codex under its workspace-write sandbox, which denies network egress;

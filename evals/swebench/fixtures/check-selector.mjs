@@ -241,6 +241,41 @@ try {
   )
 
   // -----------------------------------------------------------------------
+  // Two spellings of one run index still have an order.
+  //
+  // `r1` and `r01` are both legal indexes — `lib/run-paths.sh` accepts
+  // `r<digits>` — and they name the same number. Two candidates that tie all
+  // the way down to the last key would otherwise compare equal, and which one
+  // was chosen would be `readdirSync`'s answer rather than a recorded one.
+  // -----------------------------------------------------------------------
+  const spelledJournals = join(temporary, "spelled-journals")
+  const spelledPatches = join(temporary, "spelled-patches")
+  const spelledOut = join(temporary, "spelled-selected")
+  writeFileSync(
+    join(temporary, "tie", "spelled.json"),
+    JSON.stringify({ journals: [twin("tie__spelling", 40, cost)] })
+  )
+  rehydrate(join(temporary, "tie", "spelled.json"), spelledJournals, "r01", spelledPatches)
+  rehydrate(join(temporary, "tie", "spelled.json"), spelledJournals, "r1", spelledPatches)
+
+  const spelledFirst = select("tie__spelling", spelledJournals, spelledPatches, spelledOut)
+  assert.equal(spelledFirst.status, 0, spelledFirst.stderr)
+  const spelledRationale = JSON.parse(rationaleOf(spelledOut, "tie__spelling"))
+  assert.deepEqual(
+    spelledRationale.candidates.map((candidate) => candidate.index),
+    ["r01", "r1"],
+    "two spellings of one number are ordered by the name, not by the directory listing"
+  )
+  assert.equal(spelledRationale.selected, "r01")
+  const spelledAgain = select("tie__spelling", spelledJournals, spelledPatches, spelledOut)
+  assert.equal(spelledAgain.status, 0, spelledAgain.stderr)
+  assert.equal(
+    rationaleOf(spelledOut, "tie__spelling"),
+    JSON.stringify(spelledRationale, null, 2) + "\n",
+    "and the order is the same the second time"
+  )
+
+  // -----------------------------------------------------------------------
   // What it refuses. The selector may only ever name a journal or a patch.
   // -----------------------------------------------------------------------
   const unknown = select(instances[0], journals, patches, out, ["--report", join(root, "flows-cell-harness.w11.json")])
@@ -262,6 +297,90 @@ try {
     { encoding: "utf8" }
   )
   assert.equal(twoIds.status, 2, "one instance at a time")
+
+  // -----------------------------------------------------------------------
+  // The journal it reads is the journal the harness writes.
+  //
+  // Every case above runs over a rehydrated distillation, so it proves the
+  // ranking and not the shape: rename an event or a payload field in
+  // `packages/agent/src/AgentSession.ts` and the fixture would keep passing
+  // while every predicate silently read `false` on a real run. The event names
+  // and the payload fields `lib/journal-facts.mjs` reads are therefore checked
+  // against the one module that writes them.
+  // -----------------------------------------------------------------------
+  const session = readFileSync(resolve(root, "../../packages/agent/src/AgentSession.ts"), "utf8")
+  const events = readFileSync(resolve(root, "../../packages/harness/src/AgentEvent.ts"), "utf8")
+  // Every event the harness declares, by the tag the journal names it under.
+  const declared = new Set(
+    [...events.matchAll(/\)\("([a-z][a-z-]+)",\s*\{/gu)].map((match) => `control.agent.${match[1]}`)
+  )
+  assert.ok(declared.size > 10, "AgentEvent still declares its events as tagged classes")
+  // Every event AgentSession maps by hand. The ones it does not reach the
+  // journal through its default branch, with an empty payload — which is why
+  // reading a field off one is the thing that has to be checked, not reading
+  // its name.
+  const mapped = new Set([...session.matchAll(/eventType: "(control\.agent\.[a-z-]+)"/gu)].map((match) => match[1]))
+
+  const facts = readFileSync(join(root, "lib/journal-facts.mjs"), "utf8")
+  const readBack = [...facts.matchAll(/case "(control\.agent\.[a-z-]+)":/gu)].map((match) => match[1])
+  assert.ok(readBack.length > 5, "journal-facts still reads its events by name")
+  for (const name of readBack) {
+    assert.ok(declared.has(name), `journal-facts reads ${name}, which the harness does not emit`)
+  }
+
+  // The events the fold reads *fields* off, rather than counting. Each needs an
+  // explicit mapping, because the default branch journals an empty payload and
+  // every predicate would quietly read `false` off one.
+  const withFields = [
+    "control.agent.turn-opened",
+    "control.agent.model-settled",
+    "control.agent.cell-call-started",
+    "control.agent.cell-call-settled",
+    "control.agent.mutation-observed",
+    "control.agent.transition-applied"
+  ]
+  for (const name of withFields) {
+    assert.ok(readBack.includes(name), `journal-facts stopped reading ${name}`)
+    assert.ok(mapped.has(name), `${name} reaches the journal with an empty payload`)
+  }
+  // The fields themselves: the seat that prices the run, the call's flow and
+  // result, and the frame's own measurement of the tree.
+  for (const field of ["seat", "flowName", "input", "outcome", "value", "basis", "mutated", "digest", "transition"]) {
+    assert.match(
+      session,
+      new RegExp(`\\b${field}: event\\.`, "u"),
+      `AgentSession no longer writes ${field}, which journal-facts reads`
+    )
+  }
+
+  // -----------------------------------------------------------------------
+  // What it can name at all. The flag surface above is one half of the rule;
+  // this is the other. Every module the selector loads is a node builtin, the
+  // harness's own detectors, the journal reader, or the committed price table
+  // — and none of the three files names an evaluator report, the dataset, or
+  // the graded identifiers, so there is no path to the answer to refuse.
+  // -----------------------------------------------------------------------
+  const sources = ["select-candidate.mjs", "lib/journal-facts.mjs", "prices.ts"]
+  const allowed = (specifier) =>
+    specifier.startsWith("node:")
+    || /^\.\.?\/(\.\.\/)*packages\/harness\/src\/[A-Za-z]+\.ts$/u.test(specifier)
+    || specifier === "./lib/journal-facts.mjs"
+    || specifier === "./prices.ts"
+  for (const name of sources) {
+    const source = readFileSync(join(root, name), "utf8")
+    for (const match of source.matchAll(/^import[^"']*["']([^"']+)["']/gmu)) {
+      assert.ok(allowed(match[1]), `${name} imports ${match[1]}, which is not a journal, a detector or a price`)
+    }
+    for (const forbidden of ["swb-verified", "preds-", "FAIL_TO_PASS", "PASS_TO_PASS", "resolved_ids", "test_patch"]) {
+      // The doc comments say what the selector must never read, so a mention is
+      // only a leak when it is not in a comment. Every line here is checked
+      // against the code with its comments stripped.
+      const code = source.replace(/\/\*[\s\S]*?\*\//gu, "").split("\n").filter((line) =>
+        !line.trimStart().startsWith("//")
+      ).join("\n")
+      assert.ok(!code.includes(forbidden), `${name} names ${forbidden} outside a comment`)
+    }
+  }
 } finally {
   rmSync(temporary, { recursive: true, force: true })
 }
