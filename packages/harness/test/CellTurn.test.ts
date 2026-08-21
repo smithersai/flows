@@ -92,6 +92,8 @@ const state = (
     readonly readOnlyCap?: number
     /** Declared per case: a park is only honored where somebody can answer it. */
     readonly approvalChannel?: boolean
+    /** Wall-clock one model call may spend; omitted takes the armed default. */
+    readonly modelCallMs?: number
   } = {}
 ) =>
   CellTurn.make({
@@ -110,7 +112,8 @@ const state = (
     contextWindow: window,
     maxFrames: overrides.maxFrames ?? 4,
     readOnlyCap: overrides.readOnlyCap ?? 0,
-    approvalChannel: overrides.approvalChannel ?? false
+    approvalChannel: overrides.approvalChannel ?? false,
+    ...(overrides.modelCallMs === undefined ? {} : { modelCallMs: overrides.modelCallMs })
   })
 
 /**
@@ -228,11 +231,34 @@ describe("CellTurn", () => {
       expect.objectContaining({
         readOnlyCap: 3,
         maxFrames: 2,
-        callMs: Sandbox.defaultLimits.callMs
+        callMs: Sandbox.defaultLimits.callMs,
+        // The budget the loop's own step runs under, journaled beside the
+        // budgets its cells run under. `model-settled` already states each
+        // call's `durationMillis`, so the pair is what makes the ceiling
+        // gradeable from the journal alone.
+        modelCallMs: CellTurn.defaultModelCallMs
       })
     ])
     expect(armed[0]).not.toHaveProperty("totalMs")
     expect(events[0]?._tag).toBe("discipline-armed")
+  })
+
+  it("hands the armed model-call budget to every sealed step it opens", async () => {
+    const { engine, events } = await run({
+      state: state({ modelCallMs: 45_000, maxFrames: 3 }),
+      script: [
+        emits(`return { intent: "continue", state: {}, context: [] }`),
+        emits(`return { intent: "complete", state: {}, output: "done" }`)
+      ]
+    })
+
+    // Enforcement is the engine's, so the controller has to say the number on
+    // the step rather than leave the engine to be configured with its own
+    // copy. One value, from one place, or the journal's record of what the run
+    // armed is not evidence of what the run enforced.
+    expect(engine.recorder.sealStep).toHaveLength(2)
+    expect(engine.recorder.sealStep.map((step) => step.modelCallMs)).toEqual([45_000, 45_000])
+    expect(of(events, "discipline-armed")[0]?.modelCallMs).toBe(45_000)
   })
 
   it("runs two data-dependent calls in one frame and completes the returned transition", async () => {

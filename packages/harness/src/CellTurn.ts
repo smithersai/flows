@@ -61,6 +61,36 @@ export const defaultMaxFrames = 100
  */
 export const defaultReadOnlyFrames = 12
 
+/**
+ * Default wall-clock milliseconds one model call may spend.
+ *
+ * The number is read off wave 7 of the SWE-bench harness, which journals
+ * `durationMillis` for every sealed step. Its 68 model calls settled at a
+ * median of 10.2 s, a p90 of 45.2 s, and a p95 of 110.6 s; the longest call
+ * that produced a usable answer took 252.3 s (`django__django-16612`, an
+ * instance that resolved), and the next longest 169.6 s. One call stood
+ * outside that distribution entirely: 667.1 s on `pytest-dev__pytest-6197` —
+ * 55% of the run's 1,200 s budget and 60,703 output tokens — for a cell that
+ * raised on its first property access. Nothing capped it, because a model call
+ * was the one thing the armed discipline did not bound.
+ *
+ * 300 s clears the longest answering call by 19% and every other call in the
+ * wave by more than 2.6x, so the budget is not a latency target and does not
+ * ration ordinary thinking; it is the ceiling that separates a slow answer
+ * from a run spending half its wall clock on one. Under it the outlier is
+ * interrupted at a quarter of the process budget instead of consuming
+ * more than half of it, and the retry that follows costs a jittered second
+ * rather than the whole run. 240 s would have cut off django's 252 s call, so
+ * it is not the number the evidence supports.
+ *
+ * Zero disarms the budget, which is what a host that wants a model call
+ * bounded by nothing but its own process must ask for explicitly.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const defaultModelCallMs = 300_000
+
 const MaxFrames = NonNegativeSafeInt.pipe(
   Schema.withConstructorDefault(Effect.succeed(defaultMaxFrames)),
   Schema.withDecodingDefaultKey(Effect.succeed(defaultMaxFrames))
@@ -127,6 +157,17 @@ export class State extends Schema.Class<State>("flows/harness/CellTurn/State")({
   readOnlyCap: NonNegativeSafeInt.pipe(
     Schema.withConstructorDefault(Effect.succeed(0)),
     Schema.withDecodingDefaultKey(Effect.succeed(0))
+  ),
+  /**
+   * Wall-clock milliseconds one model call may spend. Zero disarms the budget.
+   *
+   * Carried in controller state, and handed to the engine on every sealed
+   * step, so the value journaled in `discipline-armed` is the value enforced.
+   * See {@link defaultModelCallMs} for where the number comes from.
+   */
+  modelCallMs: NonNegativeSafeInt.pipe(
+    Schema.withConstructorDefault(Effect.succeed(defaultModelCallMs)),
+    Schema.withDecodingDefaultKey(Effect.succeed(defaultModelCallMs))
   ),
   /**
    * Frames settled since the last frame that changed the workspace.
@@ -270,6 +311,11 @@ export const make = (options: {
    */
   readonly readOnlyCap?: number | undefined
   /**
+   * Caps the wall-clock one model call may spend, in milliseconds. Omitted
+   * takes {@link defaultModelCallMs}; zero disarms the budget.
+   */
+  readonly modelCallMs?: number | undefined
+  /**
    * Whether a human can answer this run. Omitted or false refuses a `park`
    * transition and answers it in-frame; only a host that has wired somewhere
    * for an answer to come from may claim true.
@@ -289,6 +335,7 @@ export const make = (options: {
     contextWindowTokens: options.contextWindowTokens ?? 0,
     agentState: options.agentState ?? null,
     readOnlyCap: options.readOnlyCap ?? 0,
+    modelCallMs: options.modelCallMs ?? defaultModelCallMs,
     readOnlyFrames: 0,
     readOnlyGrace: 0,
     pendingReadOnlyDemand: undefined,
@@ -828,7 +875,11 @@ const compacted = (
       params: summaryRequest.params
     })
     const events = yield* Stream.runCollect(
-      engine.sealStep({ request, keyMaterial: keyMaterialFrom(state, request) }).pipe(
+      engine.sealStep({
+        request,
+        keyMaterial: keyMaterialFrom(state, request),
+        modelCallMs: state.modelCallMs
+      }).pipe(
         Stream.tap((event) => emitModelProgress(event, emit))
       )
     ).pipe(Effect.map((collected) => Array.from(collected)))
@@ -901,7 +952,11 @@ const frame = (
     // supplies a clock sees the duration it declared.
     const startedAt = yield* Clock.currentTimeMillis
     const events = yield* Stream.runCollect(
-      engine.sealStep({ request, keyMaterial: keyMaterialFrom(state, request) }).pipe(
+      engine.sealStep({
+        request,
+        keyMaterial: keyMaterialFrom(state, request),
+        modelCallMs: state.modelCallMs
+      }).pipe(
         Stream.tap((event) => emitModelProgress(event, emit))
       )
     ).pipe(Effect.map((collected) => Array.from(collected)))
@@ -1374,6 +1429,7 @@ export const run = (
             readOnlyCap: current.readOnlyCap,
             maxFrames: current.maxFrames,
             approvalChannel: current.approvalChannel,
+            modelCallMs: current.modelCallMs,
             ...limits
           })
         )

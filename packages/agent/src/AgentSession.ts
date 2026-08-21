@@ -106,6 +106,12 @@ export interface Options {
    */
   readonly readOnlyCap?: number | undefined
   /**
+   * Wall-clock milliseconds one model call may spend before the boundary
+   * interrupts it and re-issues it. Defaults to `CellTurn.defaultModelCallMs`;
+   * zero disarms it.
+   */
+  readonly modelCallMs?: number | undefined
+  /**
    * Whether a human answers this executor's runs, which is what makes a cell's
    * `park` transition honorable.
    *
@@ -174,6 +180,11 @@ export const trace = (
           readOnlyCap: event.readOnlyCap,
           maxFrames: event.maxFrames,
           approvalChannel: event.approvalChannel,
+          // The one budget a report can grade after the fact without any
+          // further instrumentation: `control.agent.model-settled` already
+          // journals `durationMillis` per call, so the pair says both what the
+          // run promised and what every call it made actually spent.
+          modelCallMs: event.modelCallMs,
           calls: event.calls,
           memoryBytes: event.memoryBytes,
           steps: event.steps,
@@ -822,6 +833,11 @@ export const make = (
           // A task run's frames are supposed to change something, so hold it
           // to a rhythm of acting rather than only reading.
           readOnlyCap: options.readOnlyCap ?? CellTurn.defaultReadOnlyFrames,
+          // Passed straight through rather than defaulted here: unlike the
+          // read-only cap, the controller's own default is the one this
+          // executor wants, and a second copy of the number would be a second
+          // thing to keep true.
+          modelCallMs: options.modelCallMs,
           approvalChannel: options.approvalChannel ?? false
         }).pipe(
           Stream.runForEach(record),

@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from "vitest"
 import * as AnthropicMessages from "../src/AnthropicMessages.ts"
-import { isContextOverflow } from "../src/ModelError.ts"
+import { isContextOverflow, ModelError } from "../src/ModelError.ts"
 import * as OpenAIResponses from "../src/OpenAIResponses.ts"
 
 describe("isContextOverflow", () => {
@@ -74,5 +74,13 @@ describe("protocol classification", () => {
       JSON.stringify({ error: { code: "context_length_exceeded", message: "too long" } })
     )
     expect(overflow.retryable).toBe(false)
+  })
+
+  it("treats a call the caller cut off at its own budget as retryable", () => {
+    // Nothing about the task changed when a caller stopped waiting, so the
+    // next attempt can still succeed — which is what separates `call_timeout`
+    // from the terminal codes and puts it on the same backoff as a dropped
+    // connection.
+    expect(new ModelError({ code: "call_timeout", message: "budget" }).retryable).toBe(true)
   })
 })

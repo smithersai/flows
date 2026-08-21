@@ -61,6 +61,7 @@ describe("AgentEvent", () => {
         readOnlyCap: 3,
         maxFrames: 100,
         approvalChannel: true,
+        modelCallMs: 300_000,
         calls: 8,
         memoryBytes: 1024,
         steps: 10_000,
@@ -182,7 +183,8 @@ describe("AgentEvent", () => {
         eventType: "flows.harness.discipline-armed.v1",
         readOnlyCap: 0,
         maxFrames: 1,
-        approvalChannel: false
+        approvalChannel: false,
+        modelCallMs: 0
       }),
       new AgentEvent.Suspended({
         eventType: "flows.harness.suspended.v1",

@@ -5,6 +5,14 @@ import { Schema } from "effect"
  * The provider-neutral failure vocabulary. A consumer branches on these
  * codes; provider message text is not a contract.
  *
+ * All but one describe something the provider did. `call_timeout` describes
+ * what the caller did: it exceeded a wall-clock budget it declared for the
+ * call and interrupted the request itself, so the request never settled and
+ * nothing about it is known. It is a distinct code rather than `transport`
+ * because the two are repaired differently — a transport failure is waited
+ * out unchanged, and an overrun is re-issued with the model told to be
+ * shorter.
+ *
  * @category models
  * @since 0.1.0
  * @slop
@@ -19,6 +27,7 @@ export const ModelErrorCode = Schema.Literals([
   "content_policy",
   "provider_internal",
   "transport",
+  "call_timeout",
   "invalid_provider_output",
   "unknown"
 ])
@@ -87,6 +96,7 @@ export class ModelError extends Schema.TaggedError<ModelError>()("flows/model/Mo
   get retryable(): boolean {
     if (this.code === "quota_exceeded") return false
     return this.code === "rate_limited" || this.code === "provider_internal" || this.code === "transport" ||
+      this.code === "call_timeout" ||
       this.httpStatus === 429 || (this.httpStatus !== undefined && this.httpStatus >= 500 && this.httpStatus <= 599)
   }
 }

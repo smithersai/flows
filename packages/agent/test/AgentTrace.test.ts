@@ -83,6 +83,7 @@ describe("trace", () => {
           readOnlyCap: 12,
           maxFrames: 100,
           approvalChannel: false,
+          modelCallMs: 300_000,
           calls: 64,
           memoryBytes: 134_217_728,
           steps: 1_000,
@@ -100,6 +101,11 @@ describe("trace", () => {
             // there. It is journaled before the first frame, like every other
             // armed budget.
             approvalChannel: false,
+            // The model-call budget is journaled beside the cell budgets, and
+            // `control.agent.model-settled` already carries `durationMillis`
+            // per call, so a report can grade every call against the ceiling
+            // the run armed without re-instrumenting anything.
+            modelCallMs: 300_000,
             calls: 64,
             memoryBytes: 134_217_728,
             steps: 1_000,

@@ -485,12 +485,23 @@ export const normalizeRecordedModelStep = (
  * `ERR_HTTP2_INVALID_SESSION: The session has been destroyed`, with the frame,
  * the run, and the workspace state all discarded.
  *
+ * `call_timeout` joins them for a different reason. It is the caller's own
+ * doing — the request was interrupted at the budget the controller armed — but
+ * it is retryable for the same reason the other two are: nothing about the
+ * task changed, and the next attempt can succeed. What separates it is that
+ * waiting alone would not help, so the re-issue also carries
+ * {@link overrunTeaching}.
+ *
  * Everything absent from this set is terminal for the request as written — a
  * bad key, a malformed request, a context overflow, a refusal — and retrying
  * one is pure latency. `context_overflow` in particular must reach the caller
  * unchanged: it is the typed signal compaction reads.
  */
-const retryableModelCodes: ReadonlySet<string> = new Set(["provider_internal", "transport"])
+const retryableModelCodes: ReadonlySet<string> = new Set([
+  "provider_internal",
+  "transport",
+  "call_timeout"
+])
 
 /**
  * The first delay the production transport policy waits, in milliseconds.
@@ -545,6 +556,54 @@ export const defaultModelRetryPolicy: Schedule.Schedule<unknown, Model.ModelFail
   .exponential(defaultModelRetryBaseMillis, defaultModelRetryFactor)
   .pipe(Schedule.jittered, Schedule.upTo({ times: defaultModelRetryTimes }))
 
+const seconds = (millis: number): number => Math.round(millis / 1000)
+
+/**
+ * What a re-issued call tells the model about the attempt that was cut off.
+ *
+ * A transport failure is repaired by waiting; an overrun is not. The provider
+ * would happily spend the budget again on the same answer, so the re-issue has
+ * to say something the first attempt did not, and the only party that can
+ * shorten the answer is the model. The note is deliberately terse and states
+ * one instruction, because it is prepended to a system context that already
+ * carries the cell contract, the task, and the run's state.
+ *
+ * @since 0.1.0
+ * @private
+ */
+export const overrunTeaching = (budgetMillis: number, overruns: number): string =>
+  `Time budget — your previous answer ran past this run's ${
+    seconds(budgetMillis)
+  }-second budget for one model call and was cut off before it finished, so none of it survives${
+    overruns === 1 ? "" : ` (${overruns} attempts so far)`
+  }. Answer directly this time: decide with the evidence you already have, keep the reasoning short, and emit the cell.`
+
+/**
+ * Re-issues one overrun call with the teaching prepended to its system context.
+ *
+ * The teaching goes at the front of `system` rather than at the end of the
+ * transcript because the transcript is the cell's to shape — the controller
+ * replaces it wholesale each frame from what the cell projected — while the
+ * system context is the run's stable teaching, which is where an instruction
+ * about how to answer belongs. The original request is never mutated; a later
+ * attempt re-derives from it, so two overruns leave one note rather than two.
+ *
+ * @since 0.1.0
+ * @private
+ */
+export const withOverrunTeaching = (
+  request: ModelRequest.ModelRequest,
+  budgetMillis: number,
+  overruns: number
+): ModelRequest.ModelRequest =>
+  ModelRequest.ModelRequest.make({
+    ...request,
+    system: [
+      ModelRequest.SystemPart.make({ text: overrunTeaching(budgetMillis, overruns) }),
+      ...request.system
+    ]
+  })
+
 /**
  * Retries transient provider failures inside the sealed step.
  *
@@ -572,16 +631,28 @@ export const defaultModelRetryPolicy: Schedule.Schedule<unknown, Model.ModelFail
  * slept — jitter and bound already applied — not the nominal one the base
  * schedule would have produced.
  *
+ * `budgetMillis` is the same retry, applied to the one failure the provider
+ * never reports: a call that answers, slowly, forever. It is enforced here
+ * rather than around the whole sealed step so an overrun is an attempt rather
+ * than the end of the frame — it is interrupted, classified `call_timeout`,
+ * and re-issued on this schedule with {@link overrunTeaching} in front of it.
+ * Interruption is the only mechanism involved: `Effect.timeoutOrElse` closes
+ * the attempt's scope, and the model layer's own request teardown follows from
+ * that, so nothing threads an abort signal and nothing polls a flag.
+ *
  * @since 0.1.0
  * @private
  */
 export const recordModelStep = (
   model: Model.Model,
   request: ModelRequest.ModelRequest,
-  policy: Schedule.Schedule<unknown, Model.ModelFailure>
+  policy: Schedule.Schedule<unknown, Model.ModelFailure>,
+  budgetMillis?: number | undefined
 ): Effect.Effect<typeof RecordedModelStep.Type, Exclude<Model.ModelFailure, ModelError.ModelError>> => {
   const retries: Array<ModelEvent.ModelEvent> = []
   let attempt = 0
+  /** How many attempts this step has already had cut off at the budget. */
+  let overruns = 0
   const schedule = policy.pipe(
     Schedule.while(({ input }) => input instanceof ModelError.ModelError && retryableModelCodes.has(input.code)),
     Schedule.tap(({ duration, input }) =>
@@ -603,7 +674,36 @@ export const recordModelStep = (
       })
     )
   )
-  return Stream.runCollect(model.stream(request)).pipe(
+  const budget = budgetMillis === undefined || budgetMillis <= 0 ? undefined : budgetMillis
+  const attemptOnce = budget === undefined
+    // Disarmed. The call is bounded by nothing but the caller's own process,
+    // which is what every model call was before this budget existed.
+    ? Stream.runCollect(model.stream(request))
+    // Suspended so each attempt reads the overrun count the attempt before it
+    // left. That is what puts the teaching on a re-issue and never on the
+    // first call, and what keeps the original request the one thing every
+    // attempt derives from.
+    : Effect.suspend(() =>
+      Stream.runCollect(
+        model.stream(overruns === 0 ? request : withOverrunTeaching(request, budget, overruns))
+      ).pipe(
+        Effect.timeoutOrElse({
+          duration: budget,
+          orElse: () =>
+            Effect.sync(() => {
+              overruns++
+            }).pipe(
+              Effect.andThen(Effect.fail(
+                new ModelError.ModelError({
+                  code: "call_timeout",
+                  message: `The model call ran past its ${seconds(budget)}-second budget and was interrupted`
+                })
+              ))
+            )
+        })
+      )
+    )
+  return attemptOnce.pipe(
     Effect.retry(schedule),
     Effect.map((events) => ({ events: [...retries, ...events] })),
     Effect.catchIf(
@@ -919,7 +1019,10 @@ export const make = (
             execute: recordModelStep(
               options.model,
               step.request,
-              options.modelRetryPolicy ?? defaultModelRetryPolicy
+              options.modelRetryPolicy ?? defaultModelRetryPolicy,
+              // The controller's armed budget, carried on the step, so the
+              // number a run journals as armed is the number it ran under.
+              step.modelCallMs
             )
           })
           const normalized = normalizeRecordedModelStep(recorded)

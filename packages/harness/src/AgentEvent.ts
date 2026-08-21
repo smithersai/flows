@@ -41,6 +41,14 @@ export class DisciplineArmed extends Schema.TaggedClass<DisciplineArmed>(
    * answer nobody will give has stopped working with its budget unspent.
    */
   approvalChannel: Schema.Boolean,
+  /**
+   * Wall-clock milliseconds one model call may spend; zero means disarmed.
+   *
+   * Every other budget here caps the cell — the calls it makes, the memory and
+   * time its code spends, the run's frames. This one caps the step in between,
+   * which was the only unbounded thing the loop did.
+   */
+  modelCallMs: Schema.Number,
   /** Maximum calls per cell, when this binding can enforce one. */
   calls: Schema.optional(Schema.Number),
   /** Maximum sandbox heap, when this binding can enforce one. */

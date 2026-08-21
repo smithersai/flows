@@ -144,6 +144,16 @@ export interface Options {
    */
   readonly readOnlyCap?: number | undefined
   /**
+   * Caps the wall-clock one model call may spend, in milliseconds; see
+   * `CellTurn.defaultModelCallMs` for the default and the evidence behind it.
+   *
+   * Armed by default, unlike `readOnlyCap`, because it bounds a failure that
+   * has nothing to do with what the run is for: a call that answers slowly
+   * enough to eat the run's whole wall clock costs a conversational run
+   * exactly what it costs a task run. Zero disarms it.
+   */
+  readonly modelCallMs?: number | undefined
+  /**
    * Whether a human can answer this run; see `CellTurn.make`.
    *
    * The default is false, because the default run is unattended. Only a caller
@@ -246,7 +256,10 @@ const withRequestPlugins = (
               keyMaterial: {
                 ...step.keyMaterial,
                 body: { _tag: "ModelCall", request }
-              }
+              },
+              // A plugin may rewrite what is asked; it does not get to change
+              // how long the run will wait for the answer.
+              modelCallMs: step.modelCallMs
             })
           )
         )
@@ -341,6 +354,7 @@ const runProduction: Service["run"] = (options) =>
             contextWindowTokens: options.seat.contextWindowTokens,
             maxFrames: options.maxFrames,
             readOnlyCap: options.readOnlyCap,
+            modelCallMs: options.modelCallMs,
             approvalChannel: options.approvalChannel
           })
           return CellTurn.run({ state, flows, limits: options.limits }).pipe(

@@ -66,6 +66,20 @@ export class SuspendReason extends Schema.Class<SuspendReason>("flows/harness/En
 export interface SealedModelStep {
   readonly request: ModelRequest.ModelRequest
   readonly keyMaterial: KeyMaterial.KeyMaterial
+  /**
+   * Wall-clock milliseconds one attempt at this step may spend; zero disarms.
+   *
+   * The budget travels on the step rather than on the engine's construction so
+   * the number the controller journals as armed is the number the engine
+   * enforces — one value, read from the controller's own state, and no way for
+   * a run's record of its discipline to disagree with the discipline it ran
+   * under.
+   *
+   * It is not key material and must never become key material: it says how
+   * long the caller will wait, not what the model was asked, and a step keyed
+   * on it would miss its cache the moment a host retuned the budget.
+   */
+  readonly modelCallMs?: number | undefined
 }
 
 /**
