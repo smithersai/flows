@@ -356,6 +356,9 @@ describe("Agent.run", () => {
           capabilityEnvelope: [],
           placement: Option.some("local"),
           maxFrames: 2,
+          readOnlyCap: 5,
+          modelCallMs: 45_000,
+          repeatCap: 0,
           limits: { calls: 8 }
         }).pipe(
           Stream.runForEach((event) => Effect.sync(() => events.push(event))),
@@ -375,6 +378,13 @@ describe("Agent.run", () => {
     // The resolved seat's id — not the record — is what the turn runs under.
     const opened = events.find((event) => event._tag === "turn-opened")
     expect(opened?._tag === "turn-opened" ? opened.seat : "").toBe("test-model")
+
+    // Every armed budget the host declared reaches the controller and is
+    // journaled as the host's number. A budget this surface cannot set is a
+    // constant the run records as if it were a choice, and a grader reading
+    // `discipline-armed` cannot tell the two apart.
+    const armed = events.find((event) => event._tag === "discipline-armed")
+    expect(armed).toMatchObject({ readOnlyCap: 5, modelCallMs: 45_000, repeatCap: 0, maxFrames: 2 })
 
     // The declared layer set and session reach the call identity, which is what
     // the durable key is derived from.

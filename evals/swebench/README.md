@@ -222,9 +222,10 @@ Before spending tokens on the rest of a wave, run and grade its first flows
 instance, then inspect that workspace's journal for exactly one
 `control.agent.discipline-armed` event per run. Its payload is the positive
 record of the discipline configured at run start: `readOnlyCap` must be nonzero,
-and `maxFrames`, `modelCallMs`, plus every armed sandbox limit (`calls`,
-`memoryBytes`, `steps`, `timeMs`, `callMs`, and `totalMs`) must match the wave's
-intended budgets. Stop the wave if the event is absent or the values are wrong.
+and `maxFrames`, `modelCallMs`, `repeatCap`, plus every armed sandbox limit
+(`calls`, `memoryBytes`, `steps`, `timeMs`, `callMs`, and `totalMs`) must match
+the wave's intended budgets. Stop the wave if the event is absent or the values
+are wrong.
 
 Gate on this event rather than on `control.agent.read-only-demanded`. The demand
 event proves an armed cap was reached, not merely armed; a run that writes early
@@ -239,6 +240,16 @@ attempt. Wave 7 is the reason the budget exists — one 667,067 ms call on
 `pytest-dev__pytest-6197` spent 55% of that run's wall clock and produced a cell
 that raised on its first property access — so a wave whose longest
 `durationMillis` sits near the ceiling is reporting a real finding, not noise.
+One overrun costs at most one re-issue, so the most model time a single sealed
+step can spend is twice `modelCallMs`; a report that adds up more than that on
+one step is reading a bug, not a budget.
+
+`repeatCap` is armed the same way and read from
+`control.agent.repeat-demanded`, which is journaled when the demand is *issued*
+rather than when it is answered. Zero demand events with a nonzero `repeatCap`
+is a wave whose runs never spent four consecutive frames re-asking questions
+they had already answered, which is the intended reading; zero with `repeatCap:
+0` says the control was never armed at all.
 
 For the wave report, read `control.agent.read-only-demanded` directly. Each
 event records the streak and configured cap that triggered the intervention,

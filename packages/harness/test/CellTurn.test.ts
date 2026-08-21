@@ -1012,6 +1012,49 @@ describe("CellTurn read-only cap", () => {
     expect(model.recorder.requests).toHaveLength(2)
   })
 
+  it("counts a frame that answered with no cell at all toward the streak", async () => {
+    const { events, model } = await run({
+      state: capped(3, 4),
+      flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] }), editor],
+      script: [
+        ...readCells(1),
+        prose("I will describe the plan instead of emitting a cell."),
+        ...readCells(1),
+        ...readCells(1)
+      ],
+      calls: successes(3)
+    })
+
+    // A rejected cell is the same stall as a raise seen one step earlier: no
+    // cell ran, so the frame called nothing and wrote nothing. Freezing the
+    // counter here left a model that answers with prose free to spend the
+    // whole frame budget without the cap ever advancing.
+    expect(of(events, "cell-settled")[1]?.outcome._tag).toBe("rejected")
+    expect(JSON.stringify(model.recorder.requests[3]?.messages)).toContain("Read-only discipline")
+    expect(of(events, "read-only-demanded")).toEqual([
+      expect.objectContaining({ streak: 3, cap: 3, nextFrame: 3, nextAction: "read-only" })
+    ])
+  })
+
+  it("stops a run that never emits a cell at twice the cap", async () => {
+    const { failure, model } = await run({
+      state: capped(1, 6),
+      flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] }), editor],
+      script: [
+        prose("first, some reasoning"),
+        prose("second, more reasoning"),
+        emits(`return { intent: "complete", state: {}, output: "never reached" }`)
+      ]
+    })
+
+    // Twice the cap ends this exit too. Without it a run whose model cannot
+    // produce a parseable cell spends every frame it has and then reports
+    // whatever the budget message says, which is the failure the cap exists to
+    // refuse.
+    expect(failure).toMatchObject({ code: "read_only_cap" })
+    expect(model.recorder.requests).toHaveLength(2)
+  })
+
   it("clears the streak when a call declares a write", async () => {
     const { model } = await run({
       state: capped(2, 5),

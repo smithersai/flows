@@ -112,6 +112,12 @@ export interface Options {
    */
   readonly modelCallMs?: number | undefined
   /**
+   * Consecutive repeat-observation frames a run may spend before the
+   * controller names the repetition and redirects it. Defaults to
+   * `CellTurn.defaultRepeatFrames`; zero disarms it.
+   */
+  readonly repeatCap?: number | undefined
+  /**
    * Whether a human answers this executor's runs, which is what makes a cell's
    * `park` transition honorable.
    *
@@ -848,8 +854,9 @@ export const make = (
           // Passed straight through rather than defaulted here: unlike the
           // read-only cap, the controller's own default is the one this
           // executor wants, and a second copy of the number would be a second
-          // thing to keep true.
+          // thing to keep true. The repeat cap is passed the same way.
           modelCallMs: options.modelCallMs,
+          repeatCap: options.repeatCap,
           approvalChannel: options.approvalChannel ?? false
         }).pipe(
           Stream.runForEach(record),

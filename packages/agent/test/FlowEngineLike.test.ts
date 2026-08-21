@@ -1224,6 +1224,8 @@ describe("FlowEngineLike model-call budget", () => {
     readonly requests: Array<ModelRequest.ModelRequest>
     /** Attempts whose stream ran to its end rather than being torn down. */
     readonly completed: Array<number>
+    /** The injected clock when each attempt opened, which bounds the step. */
+    readonly startedAt: Array<number>
   }
 
   const settlement: ReadonlyArray<ModelEvent.ModelEvent> = [
@@ -1244,9 +1246,10 @@ describe("FlowEngineLike model-call budget", () => {
     Model.make({
       stream: (issued) =>
         Stream.unwrap(
-          Effect.sync(() => {
+          Effect.gen(function*() {
             const index = seen.requests.length
             seen.requests.push(issued)
+            seen.startedAt.push(yield* Clock.currentTimeMillis)
             return Stream.fromEffect(
               Effect.sleep(takesMillis[Math.min(index, takesMillis.length - 1)]!).pipe(
                 Effect.andThen(Effect.sync(() => seen.completed.push(index)))
@@ -1280,7 +1283,7 @@ describe("FlowEngineLike model-call budget", () => {
     )
 
   it("interrupts a call that runs past the budget and re-issues it with the teaching", async () => {
-    const seen: Seen = { requests: [], completed: [] }
+    const seen: Seen = { requests: [], completed: [], startedAt: [] }
     // One attempt that would take twice the budget, then one that answers.
     const recorded = await drive(slow([budgetMillis * 2, budgetMillis / 5], seen))
 
@@ -1315,7 +1318,7 @@ describe("FlowEngineLike model-call budget", () => {
   })
 
   it("leaves a call that answers inside the budget alone", async () => {
-    const seen: Seen = { requests: [], completed: [] }
+    const seen: Seen = { requests: [], completed: [], startedAt: [] }
     const recorded = await drive(slow([budgetMillis - 1], seen))
 
     // A generous ceiling is not a latency target: a call that spends almost
@@ -1328,7 +1331,7 @@ describe("FlowEngineLike model-call budget", () => {
   })
 
   it("runs unbounded when the controller disarms the budget", async () => {
-    const seen: Seen = { requests: [], completed: [] }
+    const seen: Seen = { requests: [], completed: [], startedAt: [] }
     const recorded = await drive(slow([budgetMillis * 100], seen), 0)
 
     // Zero is the explicit opt-out, and it must really opt out: a call far
@@ -1338,25 +1341,42 @@ describe("FlowEngineLike model-call budget", () => {
     expect(FlowEngineLike.normalizeRecordedModelStep(recorded).error).toBeUndefined()
   })
 
-  it("surfaces the typed error once every attempt has overrun", async () => {
-    const seen: Seen = { requests: [], completed: [] }
+  it("surfaces the typed error once the re-issue has overrun too", async () => {
+    const seen: Seen = { requests: [], completed: [], startedAt: [] }
     const recorded = await drive(slow([budgetMillis * 2], seen))
 
     // Exhaustion ends the frame the way any other exhausted model failure
     // does: the typed error reaches the caller, with the code that says the
     // budget — not the provider — is what stopped it.
     const retries = retriesOf(recorded)
-    expect(retries).toHaveLength(FlowEngineLike.defaultModelRetryTimes)
+    expect(retries).toHaveLength(FlowEngineLike.defaultModelOverruns)
     expect(new Set(retries.map((retry) => retry.code))).toEqual(new Set(["call_timeout"]))
-    expect(seen.requests).toHaveLength(FlowEngineLike.defaultModelRetryTimes + 1)
     expect(seen.completed).toEqual([])
     const error = FlowEngineLike.normalizeRecordedModelStep(recorded).error
     expect(error).toBeInstanceOf(ModelError)
     expect((error as ModelError).code).toBe("call_timeout")
     expect((error as ModelError).message).toContain("5-second budget")
-    // The teaching states the attempt count so a run cannot read five
-    // identical notes as one repeated mistake.
-    expect(seen.requests[5]!.system[0]!.text).toContain("(5 attempts so far)")
+  })
+
+  it("spends at most twice the budget on a provider that stalls every attempt", async () => {
+    const seen: Seen = { requests: [], completed: [], startedAt: [] }
+    await drive(slow([budgetMillis * 2], seen))
+
+    // The bound the budget exists to state. An overrun is the one retryable
+    // failure whose every attempt costs a whole ceiling, so it does not get
+    // the transport codes' five retries: on the shipped 300 s default those
+    // would let one sealed step spend 1,800 s — 150% of the 1,200 s the wave
+    // gave a whole run, and 2.7x the single 667 s call the budget was written
+    // to bound.
+    expect(seen.requests).toHaveLength(FlowEngineLike.defaultModelOverruns + 1)
+    // Measured on the injected clock rather than counted: the last attempt
+    // opens one budget plus one jittered backoff in, so the step's total model
+    // time is two budgets and change, whatever the schedule's other codes do.
+    const opened = seen.startedAt[seen.startedAt.length - 1]! - seen.startedAt[0]!
+    expect(opened).toBeLessThanOrEqual(
+      budgetMillis + FlowEngineLike.defaultModelRetryBaseMillis * 1.2
+    )
+    expect(opened).toBeGreaterThanOrEqual(budgetMillis)
   })
 })
 

@@ -490,7 +490,10 @@ export const normalizeRecordedModelStep = (
  * it is retryable for the same reason the other two are: nothing about the
  * task changed, and the next attempt can succeed. What separates it is that
  * waiting alone would not help, so the re-issue also carries
- * {@link overrunTeaching}.
+ * {@link overrunTeaching} — and that it does not get this set's whole retry
+ * budget, because it is the one code whose every attempt costs a full wall
+ * clock ceiling rather than a refused connection. {@link defaultModelOverruns}
+ * bounds it separately.
  *
  * Everything absent from this set is terminal for the request as written — a
  * bad key, a malformed request, a context overflow, a refusal — and retrying
@@ -559,6 +562,32 @@ export const defaultModelRetryPolicy: Schedule.Schedule<unknown, Model.ModelFail
 const seconds = (millis: number): number => Math.round(millis / 1000)
 
 /**
+ * How many times one sealed step re-issues a call its budget cut off.
+ *
+ * The retry budget the transport codes share cannot be shared with an overrun,
+ * because the two cost different things. A dropped session fails in
+ * milliseconds, so five retries of it cost five backoffs; an overrun fails
+ * only after spending the whole armed ceiling, so five retries of it cost five
+ * ceilings. On the wave 7 default of 300,000 ms that is a single sealed step
+ * spending 1,800 s of wall clock — 150% of the 1,200 s process budget that
+ * wave gave a whole run, and 2.7x the 667 s call the budget was written to
+ * bound. A budget that multiplies the failure it names is not a budget.
+ *
+ * One re-issue is the number the mechanism supports. Waiting cannot shorten an
+ * answer, so the only thing a re-issue adds is {@link overrunTeaching}, and a
+ * model that overran again *after* being told to answer directly has already
+ * shown the teaching did not land; a third ask costs another full ceiling and
+ * buys nothing new. With one re-issue a step spends at most twice the armed
+ * budget — 600 s at the default, under the 667 s single call that motivated
+ * the ceiling — and then fails the frame with the typed error, which is a
+ * bound a report can state.
+ *
+ * @category policies
+ * @since 0.1.0
+ */
+export const defaultModelOverruns = 1
+
+/**
  * What a re-issued call tells the model about the attempt that was cut off.
  *
  * A transport failure is repaired by waiting; an overrun is not. The provider
@@ -568,15 +597,17 @@ const seconds = (millis: number): number => Math.round(millis / 1000)
  * one instruction, because it is prepended to a system context that already
  * carries the cell contract, the task, and the run's state.
  *
+ * It says nothing about how many attempts have been spent, because
+ * {@link defaultModelOverruns} allows exactly one: a call carrying this note is
+ * always the last one the step will make.
+ *
  * @since 0.1.0
  * @private
  */
-export const overrunTeaching = (budgetMillis: number, overruns: number): string =>
+export const overrunTeaching = (budgetMillis: number): string =>
   `Time budget — your previous answer ran past this run's ${
     seconds(budgetMillis)
-  }-second budget for one model call and was cut off before it finished, so none of it survives${
-    overruns === 1 ? "" : ` (${overruns} attempts so far)`
-  }. Answer directly this time: decide with the evidence you already have, keep the reasoning short, and emit the cell.`
+  }-second budget for one model call and was cut off before it finished, so none of it survives, and this is the last attempt this step will make. Answer directly this time: decide with the evidence you already have, keep the reasoning short, and emit the cell.`
 
 /**
  * Re-issues one overrun call with the teaching prepended to its system context.
@@ -593,13 +624,12 @@ export const overrunTeaching = (budgetMillis: number, overruns: number): string 
  */
 export const withOverrunTeaching = (
   request: ModelRequest.ModelRequest,
-  budgetMillis: number,
-  overruns: number
+  budgetMillis: number
 ): ModelRequest.ModelRequest =>
   ModelRequest.ModelRequest.make({
     ...request,
     system: [
-      ModelRequest.SystemPart.make({ text: overrunTeaching(budgetMillis, overruns) }),
+      ModelRequest.SystemPart.make({ text: overrunTeaching(budgetMillis) }),
       ...request.system
     ]
   })
@@ -640,6 +670,12 @@ export const withOverrunTeaching = (
  * the attempt's scope, and the model layer's own request teardown follows from
  * that, so nothing threads an abort signal and nothing polls a flag.
  *
+ * The overrun rides the schedule's delays but not its count. Every other
+ * retryable code fails fast and costs a backoff; an overrun costs a whole
+ * armed ceiling, so it stops after {@link defaultModelOverruns} re-issues and
+ * the step's total model time stays bounded by twice the budget rather than by
+ * six times it.
+ *
  * @since 0.1.0
  * @private
  */
@@ -654,7 +690,13 @@ export const recordModelStep = (
   /** How many attempts this step has already had cut off at the budget. */
   let overruns = 0
   const schedule = policy.pipe(
-    Schedule.while(({ input }) => input instanceof ModelError.ModelError && retryableModelCodes.has(input.code)),
+    Schedule.while(({ input }) =>
+      input instanceof ModelError.ModelError && retryableModelCodes.has(input.code) &&
+      // The overrun's own bound. `overruns` was incremented by the attempt
+      // this failure came from, so the first cut-off call reads 1 and is
+      // re-issued, and the re-issue's own cut-off reads 2 and is not.
+      (input.code !== "call_timeout" || overruns <= defaultModelOverruns)
+    ),
     Schedule.tap(({ duration, input }) =>
       Effect.sync(() => {
         attempt++
@@ -685,7 +727,7 @@ export const recordModelStep = (
     // attempt derives from.
     : Effect.suspend(() =>
       Stream.runCollect(
-        model.stream(overruns === 0 ? request : withOverrunTeaching(request, budget, overruns))
+        model.stream(overruns === 0 ? request : withOverrunTeaching(request, budget))
       ).pipe(
         Effect.timeoutOrElse({
           duration: budget,

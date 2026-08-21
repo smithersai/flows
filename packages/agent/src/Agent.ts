@@ -154,6 +154,18 @@ export interface Options {
    */
   readonly modelCallMs?: number | undefined
   /**
+   * Caps consecutive repeat-observation frames; see
+   * `CellTurn.defaultRepeatFrames` for the default and the evidence behind it.
+   *
+   * Armed by default like `modelCallMs`, and exposed here for the same reason
+   * `readOnlyCap` is: the demand it issues names a code task's evidence — the
+   * failing check, the history of the symbol, the callers — so a run whose
+   * repetition is not a stall passes zero and takes it off. Whatever this says
+   * is what `discipline-armed` journals, so a grader reads the host's choice
+   * and not a constant.
+   */
+  readonly repeatCap?: number | undefined
+  /**
    * Whether a human can answer this run; see `CellTurn.make`.
    *
    * The default is false, because the default run is unattended. Only a caller
@@ -355,6 +367,7 @@ const runProduction: Service["run"] = (options) =>
             maxFrames: options.maxFrames,
             readOnlyCap: options.readOnlyCap,
             modelCallMs: options.modelCallMs,
+            repeatCap: options.repeatCap,
             approvalChannel: options.approvalChannel
           })
           return CellTurn.run({ state, flows, limits: options.limits }).pipe(

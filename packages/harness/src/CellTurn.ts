@@ -1151,7 +1151,19 @@ const frame = (
           outcome: rejection
         })
       )
-      const step = observe(rejection.message)
+      // A rejected cell is the fourth exit that continues the run, and it is
+      // judged by the same rule as the other three: no cell ran, so this frame
+      // made no call and wrote nothing, and a frame that wrote nothing counts.
+      // Leaving it frozen kept one shape of stall outside the only control
+      // that ends one — a model that answers with prose instead of a cell
+      // advanced no counter at all and spent the whole frame budget doing it.
+      // Nothing to measure and nothing to demand: the cell never reached the
+      // sandbox, so any pending demand is carried forward unanswered.
+      const rejectedFrames = state.readOnlyFrames + 1
+      if (state.readOnlyCap > 0 && rejectedFrames >= state.readOnlyCap * 2) {
+        return yield* readOnlyCapFailure(state.readOnlyCap, rejectedFrames)
+      }
+      const step = observe(rejection.message, { readOnlyFrames: rejectedFrames })
       if (step._tag === "Done") {
         yield* emit(
           new AgentEvent.TurnClosed({
