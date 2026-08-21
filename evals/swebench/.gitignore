@@ -34,6 +34,12 @@
 /matrix-*.json
 /matrix-report.md
 
+# The full benchmark's whole working set: the manifest, the checkpoint log, the
+# scoreboard, the driver's logs, and the per-instance archive of patches,
+# journals, timings and evaluator reports. Days of running and gigabytes of
+# journals; none of it is committed.
+/fullbench/
+
 # Generated fixture: `./verify.sh` rebuilds it from the committed numbers.
 /fixtures/work/
 /fixtures/patches/

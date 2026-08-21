@@ -18,11 +18,17 @@
 # scheduler over a stub harness command, the journal-only selector over two real
 # waves, and the report generator over recorded evaluator verdicts.
 #
+# So is the full benchmark's half that does not need processes: the manifest's
+# fold, the resume boundary, and the scoreboard. The half that does —
+# pull, extract, delete, kill, resume — is `./fullbench-dryrun.sh`, which needs
+# docker and is not run here.
+#
 # Spends no tokens, needs no docker, needs no dataset. Run it after touching
 # scorecard.ts, prices.ts, the journal's event shapes, patch capture,
 # lib/subject.mjs, lib/check-liveness.mjs, lib/write-flow.mjs,
 # lib/write-prompt-codex.mjs, lib/run-paths.sh, lib/journal-facts.mjs,
-# select-candidate.mjs, run-matrix.sh or matrix-report.mjs. The subject check
+# select-candidate.mjs, run-matrix.sh, matrix-report.mjs, fullbench.sh,
+# fullbench-report.mjs or anything under lib/fullbench-*. The subject check
 # needs a built CLI: run ./preflight.sh first if `packages/cli/dist` is absent.
 set -eu
 S="$(cd "$(dirname "$0")" && pwd)"
@@ -81,3 +87,6 @@ node "$S/fixtures/check-selector.mjs"
 
 echo "== the matrix report"
 node "$S/fixtures/check-matrix-report.mjs"
+
+echo "== the full benchmark's ledger, queue and report"
+node "$S/fixtures/check-fullbench.mjs"
