@@ -111,6 +111,12 @@ export * as TruncatedOutput from "./TruncatedOutput.ts"
  * @category models
  * @since 0.1.0
  */
+export * as CallLedger from "./CallLedger.ts"
+
+/**
+ * @category models
+ * @since 0.1.0
+ */
 export * as NarrowedCheck from "./NarrowedCheck.ts"
 
 /**

@@ -117,18 +117,33 @@ const clip = (text: string, width: number): string => text.length > width ? `${t
 export const targeting = (term: string): boolean => term.includes("/") || term.includes(".")
 
 /**
- * The distinct terms of one call input, sorted.
+ * The terms of one call input in the order the canonical document states them.
  *
  * The whole canonical input is lexed, keys included, so the relation works for
  * a shell command, a structured search, and any host flow this harness has
- * never heard of. Sorted and de-duplicated because the only questions asked of
- * it are set questions.
+ * never heard of.
+ *
+ * Exported in document order because `CallLedger` asks a positional question of
+ * the same lexer — which term this call is *about*, which is the first one that
+ * {@link targeting} accepts — and a second copy of the separator would be a
+ * second thing to keep true. {@link terms} is the set view of the same lex.
  *
  * @category conversions
  * @since 0.1.0
  */
-export const terms = (input: Schema.Json): ReadonlyArray<string> =>
-  [...new Set(CanonicalJson.stringify(input).split(separator).filter((term) => term.length > 0))].sort()
+export const lex = (input: Schema.Json): ReadonlyArray<string> =>
+  CanonicalJson.stringify(input).split(separator).filter((term) => term.length > 0)
+
+/**
+ * The distinct terms of one call input, sorted.
+ *
+ * Sorted and de-duplicated because the only questions asked of it are set
+ * questions.
+ *
+ * @category conversions
+ * @since 0.1.0
+ */
+export const terms = (input: Schema.Json): ReadonlyArray<string> => [...new Set(lex(input))].sort()
 
 /**
  * One check this run has run, and the tree it ran over.

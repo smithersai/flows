@@ -1023,7 +1023,7 @@ describe("Sandbox.compile", () => {
     it(`compiles the wave-5 cell ${name} that the text match rejected`, () => {
       const extracted = Cell.extract(rejectedCell(name))
       expect(extracted._tag).toBe("Success")
-      expect(typeof Sandbox.compile((extracted as { readonly success: Cell.Source }).success)).toBe("string")
+      expect(typeof Sandbox.compile((extracted as { readonly success: Cell.Extracted }).success.source)).toBe("string")
     })
   }
 })

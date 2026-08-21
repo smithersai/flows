@@ -126,6 +126,22 @@ export class Continue extends Schema.TaggedClass<Continue>("flows/harness/Cell/C
   state: Schema.Json,
   context: Schema.Array(ContextEntry),
   /**
+   * Durable-state keys the next frame must be shown in full.
+   *
+   * `state` is what the next *cell* computes with; this is what the next
+   * *model turn* reads. Without it a state larger than the printable limit
+   * renders as a key roster, so the only way to look at what the run already
+   * knows is to author a cell that copies it into `context` — which is a whole
+   * model turn spent moving bytes the run already owns. Twenty-eight of
+   * ninety-one frames in one graded wave did exactly that, and the
+   * justifications those frames volunteered say so in the model's own words:
+   * "the stored excerpts were not visible in the model context".
+   *
+   * Naming a key here renders its JSON in the next frame's state section
+   * instead of its roster line. See `CellTurn` `stateTeaching` for the bounds.
+   */
+  render: Schema.optional(Schema.Array(Schema.String)),
+  /**
    * Why this frame changed nothing, when the controller demanded that it
    * either mutate or say why not.
    *
@@ -201,6 +217,7 @@ const Returned = Schema.Union([
     intent: Schema.Literal("continue"),
     state: Schema.optional(Schema.Json),
     context: Schema.Array(ContextEntry),
+    render: Schema.optional(Schema.Array(Schema.String)),
     justification: Schema.optional(Schema.String)
   }),
   Schema.Struct({
@@ -328,6 +345,7 @@ export const transition = (value: unknown): Outcome => {
         transition: new Continue({
           state: returned.state ?? null,
           context: returned.context,
+          render: returned.render,
           justification: returned.justification
         })
       })
@@ -491,11 +509,61 @@ const languageOf = (info: string): Language | undefined => {
 }
 
 /**
- * Extracts the cell one model settlement emitted.
+ * One reply's cell program, and how many fenced blocks it was written in.
  *
- * The last fenced block tagged as a cell wins, so a model that reasons in prose
- * with illustrative snippets before committing to its final cell is read the
- * way it intended.
+ * `blocks` is journaled rather than derived later because it is the only
+ * record of how the model chose to lay its frame out, and a reply written as
+ * several blocks is exactly the reply the old extraction discarded.
+ *
+ * @category models
+ * @since 0.1.0
+ * @slop
+ */
+export interface Extracted {
+  readonly source: Source
+  /** How many fenced cell blocks the reply carried, repeats included. */
+  readonly blocks: number
+}
+
+/**
+ * Extracts the cell program one model settlement emitted.
+ *
+ * Every fenced block tagged as a cell is kept, in reply order, and the blocks
+ * are joined with newlines into one program. They are bodies of one async
+ * function, so the semantics that follows is the honest one and needs no
+ * machinery: execution runs the blocks in order and the **first `return` wins**
+ * — a block that settles a transition ends the frame and the blocks after it do
+ * not run. That is how the model evidently thinks of them, as sequential
+ * frames, and it is what a single concatenated function body already does.
+ *
+ * Keeping only the *last* block is what this replaces, and the cost of that
+ * rule was measured: on one graded instance the model wrote a near-par program
+ * as seven blocks in a single reply — recon, probe, edit-plus-diagnostics,
+ * suite, rehydrate, guarded replay, completion — and the harness executed block
+ * seven, the imagined completion, against a tree where blocks one through six
+ * had never run. Empty patch, run over in two frames. Multi-block replies were
+ * 2 of 91 replies in that wave: rare, and instance-deciding when they land.
+ *
+ * A byte-identical repeat of a block is dropped rather than concatenated. Both
+ * multi-block replies in that wave are in the journals, and the second one is a
+ * model that emitted the same block twice: joining the duplicate would declare
+ * its names twice and turn a frame that runs today into a `compile_failed`. A
+ * repeat is the model restating one program, never a second step — a second
+ * step that genuinely re-runs the same code would still have to differ
+ * somewhere, if only in what it does with the result.
+ *
+ * Distinct blocks are joined as they were written, so a value bound in one is
+ * bound for the ones after it. One program therefore means one set of
+ * declarations, and two blocks that both declare the same name are a
+ * `SyntaxError` the compiler reports — a durable observation the next frame can
+ * fix, unlike silently running one block of seven, which is not observable at
+ * all. The contract states the rule so a model that batches writes blocks that
+ * compose, and `CellTurn` names the block count when such a program fails to
+ * compile.
+ *
+ * The program is `typescript` when any block declared a typed fence, because
+ * both bindings run TypeScript by erasing type-only syntax and erasure is
+ * harmless to a plain-JavaScript block.
  *
  * Extraction reads text and never judges syntax. Whether the source uses module
  * syntax is a question about JavaScript, and it is answered by parsing the cell
@@ -506,26 +574,32 @@ const languageOf = (info: string): Language | undefined => {
  * @since 0.1.0
  * @slop
  */
-export const extract = (text: string): Result.Result<Source, Rejected> => {
-  let language: Language | undefined
-  let body: string | undefined
+export const extract = (text: string): Result.Result<Extracted, Rejected> => {
+  const bodies: Array<string> = []
+  const distinct = new Set<string>()
+  let typed = false
   fenced.lastIndex = 0
   for (const match of text.matchAll(fenced)) {
     /* v8 ignore next -- `info` is a mandatory group of `fenced`, outside any alternation or quantifier, so it participates in every match; the default only discharges the optional type TypeScript gives `RegExpMatchArray.groups` */
     const candidate = languageOf(match.groups?.info ?? "")
     if (candidate === undefined) continue
-    language = candidate
+    if (candidate === "typescript") typed = true
     /* v8 ignore next -- `body` is likewise mandatory in `fenced`; a match that reached here already produced `info`, so `groups` is present and carries both */
-    body = match.groups?.body ?? ""
+    const body = match.groups?.body ?? ""
+    bodies.push(body)
+    distinct.add(body)
   }
-  if (language === undefined || body === undefined) {
+  if (bodies.length === 0) {
     return Result.fail(
       new Rejected({
         code: "no_cell",
         message:
-          "No cell was found in the response. Emit exactly one fenced ```cell block containing the JavaScript for this transition."
+          "No cell was found in the response. Emit a fenced ```cell block containing the JavaScript for this transition."
       })
     )
   }
-  return Result.succeed(source(body, language))
+  return Result.succeed({
+    source: source([...distinct].join("\n"), typed ? "typescript" : "javascript"),
+    blocks: bodies.length
+  })
 }

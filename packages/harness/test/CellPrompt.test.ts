@@ -139,12 +139,30 @@ describe("cellPrompt", () => {
     expect(CellPrompt.make(flows)).toEqual(CellPrompt.make(flows))
   })
 
-  it("teaches the one cell-block rule and the three transition intents", () => {
+  it("teaches the cell-block rule and the three transition intents", () => {
     const contract = CellPrompt.make({})[0]?.text ?? ""
-    expect(contract).toContain("exactly one fenced block tagged `cell`")
+    expect(contract).toContain("fenced block tagged `cell`")
     for (const intent of ["intent: \"continue\"", "intent: \"complete\"", "intent: \"park\""]) {
       expect(contract).toContain(intent)
     }
+  })
+
+  it("teaches that several cell blocks are one program and that the first return ends it", () => {
+    // The contract has to say this because the harness now runs every block:
+    // a model that batches must declare each name once, and a model that
+    // returns early must know the blocks after that return do not run.
+    const contract = CellPrompt.make({})[0]?.text ?? ""
+    expect(contract).toContain("concatenated in order and run as ONE program in ONE frame")
+    expect(contract).toContain("the first `return` ends the frame")
+  })
+
+  it("teaches the state projection and the automatic call ledger", () => {
+    // Both close the same leak: a model that cannot see what it already knows
+    // spends a whole frame moving bytes it already owns.
+    const contract = CellPrompt.make({})[0]?.text ?? ""
+    expect(contract).toContain("name the keys your next frame must SEE")
+    expect(contract).toContain("never spend a frame echoing state into `context`")
+    expect(contract).toContain("Every call this run has settled is listed for you")
   })
 
   it("teaches canonical regression evidence and language-aware post-edit diagnostics", () => {

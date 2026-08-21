@@ -22,6 +22,7 @@ import { CanonicalJson, type Model, ModelEvent, ModelRequest } from "@smthrs/mod
 import { Descriptor } from "@smthrs/registry"
 import { Clock, Effect, Option, Queue, Result, Schema, Stream } from "effect"
 import * as AgentEvent from "./AgentEvent.ts"
+import * as CallLedger from "./CallLedger.ts"
 import * as Cell from "./Cell.ts"
 import * as Compaction from "./Compaction.ts"
 import * as ContextWindow from "./ContextWindow.ts"
@@ -432,6 +433,28 @@ export class State extends Schema.Class<State>("flows/harness/CellTurn/State")({
    */
   checks: NarrowedCheck.Ledger,
   /**
+   * Every call this run has settled, bounded and rendered every frame.
+   *
+   * State rather than a per-frame detail because the frame that needs to see a
+   * result is rarely the frame that fetched it, and a cell is authored before
+   * any of its results exist. See `CallLedger`.
+   */
+  callLedger: CallLedger.Ledger,
+  /**
+   * Durable-state keys the next frame is shown in full instead of by roster.
+   *
+   * Named by the transition that closed the previous frame and replaced by
+   * every `continue` — a projection is a statement about the frame being
+   * opened, not a standing subscription, so a cell that names nothing is shown
+   * the roster. An exit that settles no `continue` carries the standing
+   * projection forward, because it also left `agentState` where it was. See
+   * `Cell.Continue` `render`.
+   */
+  renderKeys: Schema.Array(Schema.String).pipe(
+    Schema.withConstructorDefault(Effect.succeed<ReadonlyArray<string>>([])),
+    Schema.withDecodingDefaultKey(Effect.succeed<ReadonlyArray<string>>([]))
+  ),
+  /**
    * The output of the completion a completion demand handed back, if any.
    *
    * The demand takes a finished answer away and asks for one more frame. It is
@@ -614,6 +637,8 @@ export const make = (options: {
     unresolvedDemands: 0,
     openingDigest: "",
     checks: [],
+    callLedger: [],
+    renderKeys: [],
     approvalChannel: options.approvalChannel ?? false,
     workspace: undefined,
     truncatedOutputs: []
@@ -696,7 +721,47 @@ const keyMaterialFrom = (
 })
 
 /**
- * Renders the durable state for the system context.
+ * The largest state, in bytes of canonical JSON, printed whole rather than
+ * rostered.
+ */
+const printableState = 2048
+
+/**
+ * The largest projection, in bytes, one key named by `render` may occupy.
+ *
+ * A key over the bound renders its first and last {@link projectionEdge} bytes
+ * with the elision stated between them, because the two ends of a file excerpt,
+ * a diff, or a test log are where the identifying bytes are and the middle is
+ * where the repetition is.
+ */
+const projectionBytes = 4096
+
+/** Bytes kept at each end of an over-bound projection. */
+const projectionEdge = projectionBytes / 2
+
+/**
+ * How many keys one transition may project.
+ *
+ * The bound exists because the model chooses the list and the section has to
+ * stay bounded whatever it chooses. Eight keys at {@link projectionBytes} each
+ * is 32 KB, which is under a fifth of the smallest context window this harness
+ * runs against; keys named past the eighth keep their roster line and are told
+ * why.
+ */
+const projectionKeys = 8
+
+const projection = (value: unknown): string => {
+  const rendered = CanonicalJson.stringify(value as Schema.Json)
+  if (rendered.length <= projectionBytes) return rendered
+  return `${rendered.slice(0, projectionEdge)}\n… ${
+    rendered.length - projectionBytes
+  } bytes elided from the middle of this value; the whole of it is in ctx.state …\n${
+    rendered.slice(rendered.length - projectionEdge)
+  }`
+}
+
+/**
+ * Renders the durable state for the frame's own state section.
  *
  * The full value is the cell's `ctx.state` binding, so the prompt only needs
  * enough to plan with: the whole JSON while it is small, and a key roster with
@@ -704,20 +769,78 @@ const keyMaterialFrom = (
  * bytes twice and taught the model to treat the prompt as the store — the
  * roster is Prime Agent's `<ipython_state>` pattern, naming what survives
  * outside the transcript instead of hauling it back in.
+ *
+ * The roster alone was not enough, and the price is measured. It names what
+ * survives without saying what it says, and `ctx.state` is readable only from
+ * inside a cell that has already been authored — so the only way to look at a
+ * large state was to spend a frame copying it into `context`. That is what
+ * `render` on the transition removes: a cell names the keys its next frame must
+ * *see*, and those keys are printed here in full under the bounds above while
+ * every other key keeps its roster line.
  */
-const stateTeaching = (agentState: Schema.Json): string => {
+const stateTeaching = (agentState: Schema.Json, keys: ReadonlyArray<string>): string => {
   const rendered = CanonicalJson.stringify(agentState)
-  if (rendered.length <= 2048) {
+  if (rendered.length <= printableState) {
     return `Agent-owned durable state for this frame (JSON), also available in the cell as ctx.state:\n${rendered}`
   }
-  const roster = agentState !== null && typeof agentState === "object" && !Array.isArray(agentState)
-    ? Object.entries(agentState)
+  const members = new Map<string, Schema.Json>(
+    agentState !== null && typeof agentState === "object" && !Array.isArray(agentState)
+      ? Object.entries(agentState)
+      : []
+  )
+  const named = keys.filter((key) => members.has(key))
+  const shown = named.slice(0, projectionKeys)
+  const overflow = named.slice(projectionKeys)
+  const missing = keys.filter((key) => !members.has(key))
+  const roster = members.size === 0
+    ? `(${rendered.length} bytes)`
+    : [...members]
+      .filter(([key]) => !shown.includes(key))
       // `CanonicalJson.stringify` above already rejected every value
       // `JSON.stringify` renders as `undefined`, so each member has a length.
       .map(([key, value]) => `- ${key} (${JSON.stringify(value).length} bytes)`)
       .join("\n")
-    : `(${rendered.length} bytes)`
-  return `Agent-owned durable state for this frame is ${rendered.length} bytes and is available in the cell as ctx.state. Its keys:\n${roster}\nRead what you need from ctx.state instead of reconstructing it.`
+  const notes = [
+    ...(overflow.length === 0
+      ? []
+      : [
+        `Only the first ${projectionKeys} keys you named are rendered in full; ${
+          overflow.join(", ")
+        } kept their roster line. Name fewer keys to see them.`
+      ]),
+    ...(missing.length === 0 ? [] : [`No such key in state: ${missing.join(", ")}.`])
+  ]
+  return [
+    `Agent-owned durable state for this frame is ${rendered.length} bytes and is available in the cell as ctx.state. Its keys:`,
+    roster,
+    ...(shown.length === 0
+      ? ["Read what you need from ctx.state instead of reconstructing it."]
+      : [
+        "Rendered in full because your last transition named them in `render`:",
+        ...shown.map((key) => `## ${key}\n${projection(members.get(key))}`)
+      ]),
+    ...notes
+  ].join("\n")
+}
+
+/**
+ * Everything about this frame that is not stable across frames.
+ *
+ * It is one trailing user message rather than a system part, and that placement
+ * is the whole point: the teaching, the task and the flow catalog are
+ * byte-identical for the life of a run, so putting the one block that changes
+ * every frame *after* the transcript leaves the provider's prefix cache
+ * covering every byte before it. With the block in the middle, the cache broke
+ * at the system boundary on every frame and the accumulated transcript behind
+ * it was re-read at full price; two graded instances ran at 38% and 69% cached
+ * input against model time that is 76% to 93% of wall clock.
+ */
+const stateSection = (state: State): string => {
+  const ledger = CallLedger.render(state.callLedger)
+  return [
+    stateTeaching(state.agentState, state.renderKeys),
+    ...(ledger === undefined ? [] : [ledger])
+  ].join("\n\n")
 }
 
 const requestFrom = (state: State): Result.Result<ModelRequest.ModelRequest, HarnessError> => {
@@ -736,11 +859,8 @@ const requestFrom = (state: State): Result.Result<ModelRequest.ModelRequest, Har
   return Result.succeed(
     ModelRequest.ModelRequest.make({
       modelId: modelIdFromSeat(state.seat),
-      system: [
-        ...rendered.system,
-        ModelRequest.SystemPart.make({ text: stateTeaching(state.agentState) })
-      ],
-      messages: rendered.messages,
+      system: rendered.system,
+      messages: [...rendered.messages, ModelRequest.Message.user(stateSection(state))],
       // A cell-first frame never declares provider tools: the cell is the plan
       // and `ctx.call` is the only invocation path.
       tools: [],
@@ -1406,8 +1526,14 @@ const frame = (
       return step
     }
 
-    const cell = extracted.success
-    yield* emit(new AgentEvent.CellProduced({ eventType: eventType.cellProduced, cell }))
+    const cell = extracted.success.source
+    yield* emit(
+      new AgentEvent.CellProduced({
+        eventType: eventType.cellProduced,
+        cell,
+        blocks: extracted.success.blocks
+      })
+    )
 
     // Every call the frame settles is remembered so a raise can hand the
     // model its partial work. Without this, one uncaught throw discarded the
@@ -1428,6 +1554,10 @@ const frame = (
       readonly signature: string
       /** What this invocation asked for, verbatim, for the narrowing ledger. */
       readonly input: Schema.Json
+      /** What the call resolved with, verbatim, for the call ledger's digest. */
+      readonly value: Schema.Json
+      /** What the flow said about a failure, for the call ledger's digest. */
+      readonly message: string | undefined
       /** What the flow said about its own failure, when it said it ran nothing. */
       readonly invalidProbe: { readonly reason: string; readonly message: string } | undefined
       /**
@@ -1462,6 +1592,8 @@ const frame = (
               // asking it again learns nothing either.
               signature: signatureOf(invocation.flow, invocation.input),
               input: invocation.input,
+              value: result.value,
+              message: result.message,
               invalidProbe: probe,
               failing: result.outcome === "success" && probe === undefined &&
                 UnresolvedFailure.failed(result.value)
@@ -1484,6 +1616,12 @@ const frame = (
     yield* emit(
       new AgentEvent.CellSettled({ eventType: eventType.cellSettled, cell: cell.digest, outcome })
     )
+
+    // What this frame asked, folded into what the run had already asked. Every
+    // exit that continues the run carries it, a raise included: a call that
+    // settled before the throw is work the run paid for, and the ledger is the
+    // only place the next model turn can read it.
+    const callLedger = CallLedger.remember(state.callLedger, observedCalls)
 
     // The frame's own record of what it did to the world, computed once and
     // carried out through every exit.
@@ -1620,15 +1758,24 @@ const frame = (
           observedCalls.map((call) => `- ${call.flow} -> ${call.ok ? "ok" : "FAILED"}: ${call.summary}`).join("\n")
         }`
       const alert = probeNotice === undefined ? "" : `\n\n${probeNotice}`
+      // A multi-block reply is concatenated into one program, so the most
+      // likely way it fails to compile is a name two of its blocks both
+      // declare. The compiler says which name; only the controller knows the
+      // reply's shape, so it says where the second declaration came from.
+      const batched = outcome._tag === "rejected" && outcome.code === "compile_failed" &&
+          extracted.success.blocks > 1
+        ? `\nThis reply carried ${extracted.success.blocks} cell blocks. They run as ONE program, in order, so a name two of them declare is declared twice. Emit one program.`
+        : ""
       const note = outcome._tag === "raised"
         ? `The cell threw ${outcome.name}: ${outcome.message}. Emit a corrected cell.${salvage}${alert}`
-        : `${outcome.message}${salvage}${alert}`
+        : `${outcome.message}${batched}${salvage}${alert}`
       const step = observe(note, {
         workspace: closed,
         readOnlyFrames: raisedFrames,
         repeatFrames,
         callSignatures,
         checks,
+        callLedger,
         openingDigest,
         ...(mutated ? { readOnlyGrace: 0, pendingReadOnlyDemand: undefined } : {})
       })
@@ -1699,6 +1846,7 @@ const frame = (
             repeatFrames,
             callSignatures,
             checks,
+            callLedger,
             openingDigest,
             ...(mutated ? { readOnlyGrace: 0 } : {})
           }
@@ -1885,6 +2033,7 @@ const frame = (
             repeatFrames,
             callSignatures,
             checks,
+            callLedger,
             openingDigest,
             ...demanded.spent,
             // The answer the demand is taking away, kept so it cannot be lost.
@@ -2026,6 +2175,11 @@ const frame = (
           replaced: context.replaced
         }),
         agentState: transition.state,
+        // A projection is a statement about the frame being opened, so it is
+        // replaced rather than merged: a cell that names nothing is shown the
+        // roster, and no key stays projected because some earlier frame wanted
+        // it.
+        renderKeys: transition.render ?? [],
         truncatedOutputs: TruncatedOutput.retain(ledger),
         workspace: closed,
         readOnlyFrames,
@@ -2033,6 +2187,7 @@ const frame = (
         repeatFrames: repeatDemanded ? 0 : repeatFrames,
         callSignatures,
         checks,
+        callLedger,
         openingDigest,
         pendingReadOnlyDemand: demanded && !justified ? { streak: readOnlyFrames, cap } : undefined
       })

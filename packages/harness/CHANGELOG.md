@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Changed
+
+- `Cell.extract` now runs **every** fenced `cell` block of one reply as one program instead of keeping only the last, and returns `Extracted` (`{ source, blocks }`) rather than bare `Source`. Distinct blocks are concatenated in reply order, so a value bound in one is bound for the ones after it and the first `return` ends the frame; a byte-identical repeat of a block is dropped rather than concatenated. `AgentEvent.CellProduced` carries the reply's block count. Wave-10 django wrote a near-par seven-block program in one reply and the harness executed block seven — the imagined completion — against a tree where blocks one to six had never run: empty patch, run over in two frames. Replaying all five wave-10 journals through the new extraction: 2 of 91 replies were multi-block (7 blocks discarded), the astropy one is a duplicated block that de-duplication now runs unchanged, and the django one is a redeclaration that becomes a `compile_failed` the controller annotates with the block count instead of a wrong completion.
+
+- Moved the frame's state section out of the system context and into one trailing user message after the transcript, so the whole stable span — contract, catalog, task, registry — is a byte-identical prefix for the life of a run and a provider's prefix cache covers all of it. Two graded instances ran at 38% and 69% cached input with the volatile block sitting between the teaching and the transcript.
+
+### Added
+
+- Added `Cell.Continue.render`: a `continue` transition may name durable-state keys the next frame must see rendered in full. Named keys are printed in the state section instead of their roster line, bounded at 4,096 bytes each (over-bound values keep their first and last 2,048 bytes with the elision stated) and at 8 keys per transition. Replaying the wave-10 journals, 21 of 91 frames were zero-call frames whose only work was copying state into `context`, and all 86 keys they read were already held by the previous transition's own state — every one of those frames was reachable by `render`.
+
+- Added `CallLedger`, the run's automatic ledger of settled calls, rendered in every frame's state section: ordinal, flow, the first targeting term of the input, ok or failed, and a structural digest of the result (counts, byte lengths, exit codes — never payloads), bounded to the 30 most recent. A call result was previously invisible unless the blind-authored cell that made it happened to copy it, which is what manufactured the zero-call rehydration frames; the ledger also survives a raised frame, so settled work is no longer lost with the throw.
+
+- Added `NarrowedCheck.lex`, the document-order view of the lexer `NarrowedCheck.terms` already sorted, so `CallLedger` asks its positional question of the same lexer rather than copying the separator.
+
 ### Removed
 
 - Removed `Steering.drainBoundary`. Its only caller was the deleted legacy

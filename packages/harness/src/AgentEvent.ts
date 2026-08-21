@@ -192,7 +192,18 @@ export class CellProduced extends Schema.TaggedClass<CellProduced>(
   "flows/harness/AgentEvent/CellProduced"
 )("cell-produced", {
   eventType: Schema.Literal("flows.harness.cell-produced.v1"),
-  cell: Cell.Source
+  cell: Cell.Source,
+  /**
+   * How many fenced cell blocks the reply was written in.
+   *
+   * Journaled because it is the only record of how the model laid its frame
+   * out, and because the count above one is the shape whose whole program the
+   * harness used to discard. See `Cell.extract`.
+   */
+  blocks: Schema.Int.check(Schema.isGreaterThanOrEqualTo(1)).pipe(
+    Schema.withConstructorDefault(Effect.succeed(1)),
+    Schema.withDecodingDefaultKey(Effect.succeed(1))
+  )
 }) {}
 
 /**

@@ -75,7 +75,8 @@ describe("AgentEvent", () => {
       }),
       new AgentEvent.CellProduced({
         eventType: "flows.harness.cell-produced.v1",
-        cell: cellSource
+        cell: cellSource,
+        blocks: 3
       }),
       new AgentEvent.CellCallStarted({
         eventType: "flows.harness.cell-call-started.v1",

@@ -94,6 +94,8 @@ const state = (
     readonly approvalChannel?: boolean
     /** Wall-clock one model call may spend; omitted takes the armed default. */
     readonly modelCallMs?: number
+    /** The durable state the run opens holding. */
+    readonly agentState?: Schema.Json
   } = {}
 ) =>
   CellTurn.make({
@@ -113,7 +115,8 @@ const state = (
     maxFrames: overrides.maxFrames ?? 4,
     readOnlyCap: overrides.readOnlyCap ?? 0,
     approvalChannel: overrides.approvalChannel ?? false,
-    ...(overrides.modelCallMs === undefined ? {} : { modelCallMs: overrides.modelCallMs })
+    ...(overrides.modelCallMs === undefined ? {} : { modelCallMs: overrides.modelCallMs }),
+    ...(overrides.agentState === undefined ? {} : { agentState: overrides.agentState })
   })
 
 /**
@@ -184,6 +187,25 @@ const run = async (options: {
   )
   return { events, engine, model, failure: outcome._tag === "Failure" ? outcome.failure : undefined }
 }
+
+/**
+ * The frame's own state section: the one trailing user message the controller
+ * appends after the transcript, carrying the durable state and the call ledger.
+ */
+const stateSection = (request: ModelRequest.ModelRequest | undefined): string =>
+  request?.messages.at(-1)?.content.flatMap((part) => part.type === "text" ? [part.text] : []).join("\n") ?? ""
+
+/** Only what the harness itself said to the model on one request. */
+const observationsOf = (model: ScriptedModel.Fixture, index: number): string =>
+  (model.recorder.requests[index]?.messages ?? [])
+    .filter((message) => message.role === "user")
+    .flatMap((message) => message.content.flatMap((part) => part.type === "text" ? [part.text] : []))
+    .join("\n")
+
+/** Everything the frame showed the model except its trailing state section. */
+const conversation = (
+  request: ModelRequest.ModelRequest | undefined
+): ReadonlyArray<ModelRequest.Message> => request?.messages.slice(0, -1) ?? []
 
 const of = <T extends AgentEvent.AgentEvent["_tag"]>(
   events: ReadonlyArray<AgentEvent.AgentEvent>,
@@ -350,11 +372,11 @@ describe("CellTurn", () => {
     })
 
     const second = model.recorder.requests[1]
-    expect(second?.messages).toEqual([
+    expect(conversation(second)).toEqual([
       ModelRequest.Message.user("the original goal"),
       ModelRequest.Message.assistant("I chose to keep only this.", { stopReason: "stop" })
     ])
-    expect(second?.system.at(-1)?.text).toBe(
+    expect(stateSection(second)).toBe(
       "Agent-owned durable state for this frame (JSON), also available in the cell as ctx.state:\n{\"plan\":[\"one\",\"two\"]}"
     )
     // The transition is on the record, so a replayed run rebuilds the same
@@ -629,7 +651,7 @@ describe("CellTurn", () => {
       ModelRequest.Message.user("steer: prefer the shorter route")
     ])
     const second = model.recorder.requests[1]
-    expect(second?.messages).toEqual([
+    expect(conversation(second)).toEqual([
       ModelRequest.Message.user("kept"),
       ModelRequest.Message.user("steer: prefer the shorter route")
     ])
@@ -2059,7 +2081,7 @@ describe("CellTurn compaction", () => {
       })
     )
     const rebuilt = Effect.runSync(Compaction.apply(crowded, step, summary!))
-    expect(model.recorder.requests[1]?.messages).toEqual(ContextWindow.render(rebuilt).messages)
+    expect(conversation(model.recorder.requests[1])).toEqual(ContextWindow.render(rebuilt).messages)
     expect(of(events, "resolved")[0]?.message.content).toEqual([
       ModelRequest.TextPart.make({ text: "done" })
     ])
@@ -2685,5 +2707,232 @@ describe("CellTurn unanswered failure", () => {
     expect(of(events, "resolved")[0]?.message.content).toEqual([
       expect.objectContaining({ text: "narrowed" })
     ])
+  })
+})
+
+/**
+ * A recorded model frame whose text carries several fenced cells.
+ *
+ * This is the reply shape wave 10 measured on two instances and the harness
+ * threw away: django's frame 1 carried seven blocks — a near-par program — and
+ * only the seventh ran.
+ */
+const emitsBlocks = (...cells: ReadonlyArray<string>): ScriptedModel.Step => ({
+  events: [
+    ModelEvent.ModelEvent.TextStart({ type: "text-start", id: "cell" }),
+    ModelEvent.ModelEvent.TextDelta({
+      type: "text-delta",
+      id: "cell",
+      text: "Here is the plan.\n\n" + cells.map((cell) => "```cell\n" + cell + "\n```").join("\n\nthen:\n\n")
+    }),
+    ModelEvent.ModelEvent.TextEnd({ type: "text-end", id: "cell" }),
+    ModelEvent.ModelEvent.Usage({ inputTokens: 8, outputTokens: 4 }),
+    ModelEvent.ModelEvent.Settle({ type: "settle", stopReason: "stop" })
+  ]
+})
+
+describe("CellTurn multi-block replies", () => {
+  it("runs every cell block of one reply, in order, as one frame", async () => {
+    const { engine, events } = await run({
+      script: [
+        emitsBlocks(
+          `const listed = await ctx.call("fs/list", { path: "src" })`,
+          `const read = await ctx.call("fs/list", { path: listed.next })`,
+          `return { intent: "complete", state: {}, output: "saw " + read.entries }`
+        )
+      ],
+      calls: [
+        { _tag: "Success", value: { next: "src/lib" } },
+        { _tag: "Success", value: { entries: 4 } }
+      ]
+    })
+
+    // Both calls ran, and the second's input was derived from the first's
+    // result — which only happens if block two saw block one's binding.
+    expect(engine.recorder.calls.map((call) => call.input)).toEqual([{ path: "src" }, { path: "src/lib" }])
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      ModelRequest.TextPart.make({ text: "saw 4" })
+    ])
+  })
+
+  it("journals how many blocks a reply was written in", async () => {
+    const { events } = await run({
+      script: [
+        emitsBlocks(`const a = 1`, `return { intent: "complete", state: {}, output: "a=" + a }`),
+        emits(`return { intent: "complete", state: {}, output: "done" }`)
+      ]
+    })
+
+    expect(of(events, "cell-produced")[0]?.blocks).toBe(2)
+  })
+
+  it("journals one block for an ordinary single-cell reply", async () => {
+    const { events } = await run({
+      script: [emits(`return { intent: "complete", state: {}, output: "done" }`)]
+    })
+
+    expect(of(events, "cell-produced")[0]?.blocks).toBe(1)
+  })
+
+  it("ends the frame at the first block that returns, leaving the later blocks unrun", async () => {
+    const { engine, events } = await run({
+      script: [
+        emitsBlocks(
+          `return { intent: "complete", state: {}, output: "first" }`,
+          `await ctx.call("fs/list", { path: "never" })`
+        )
+      ],
+      calls: [{ _tag: "Success", value: null }]
+    })
+
+    expect(engine.recorder.calls).toEqual([])
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      ModelRequest.TextPart.make({ text: "first" })
+    ])
+  })
+
+  it("reports a reply whose blocks redeclare a name as a correctable compile failure", async () => {
+    // One program means one set of declarations. The contract says so; this is
+    // what the model is told when it says otherwise, and it is a durable
+    // observation rather than a silently executed fragment of the program.
+    const { events, model } = await run({
+      script: [
+        emitsBlocks(`const seen = 1`, `const seen = 2\nreturn { intent: "complete", state: {}, output: "x" }`),
+        emits(`return { intent: "complete", state: {}, output: "recovered" }`)
+      ]
+    })
+
+    expect(of(events, "cell-settled")[0]?.outcome).toMatchObject({ _tag: "rejected", code: "compile_failed" })
+    // The compiler names the identifier; only the controller knows the reply
+    // was written as several blocks, so it says where the redeclaration came
+    // from.
+    expect(observationsOf(model, 1)).toContain("This reply carried 2 cell blocks.")
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      ModelRequest.TextPart.make({ text: "recovered" })
+    ])
+  })
+
+  it("drops a byte-identical repeat of a block rather than declaring its names twice", async () => {
+    // Wave 10's astropy reply is exactly this: the same state-echo block
+    // emitted twice. Concatenating the repeat would redeclare `s` and lose a
+    // frame that runs today.
+    const echo = `const s = ctx.state
+return { intent: "complete", state: s, output: "echoed " + s.plan }`
+    const { events } = await run({
+      script: [emitsBlocks(echo, echo)],
+      state: state({ agentState: { plan: "read" } })
+    })
+
+    expect(of(events, "cell-produced")[0]?.blocks).toBe(2)
+    expect(of(events, "cell-settled")[0]?.outcome).toMatchObject({ _tag: "settled" })
+    expect(of(events, "resolved")[0]?.message.content).toEqual([
+      ModelRequest.TextPart.make({ text: "echoed read" })
+    ])
+  })
+})
+
+describe("CellTurn call ledger", () => {
+  it("lists every settled call of the run in the next frame, without the model copying it", async () => {
+    const { model } = await run({
+      script: [
+        emits(
+          `await ctx.call("fs/list", { path: "src/lib/index.ts" })
+           try { await ctx.call("fs/list", { path: "src/missing.ts" }) } catch {}
+           return { intent: "continue", state: {}, context: [] }`
+        ),
+        emits(`return { intent: "complete", state: {}, output: "done" }`)
+      ],
+      calls: [
+        { _tag: "Success", value: { content: "abcd", totalLines: 12, truncated: false } },
+        { _tag: "Failure", message: "no such file" }
+      ]
+    })
+
+    const section = stateSection(model.recorder.requests[1])
+    expect(section).toContain("Calls this run has settled (2), oldest first")
+    // Ordinal, flow, what the call was about, the outcome, and a structural
+    // digest of the result — counts and statuses, never the payload.
+    expect(section).toContain("1. fs/list src/lib/index.ts — ok: content=4b totalLines=12 truncated=false")
+    expect(section).toContain("2. fs/list src/missing.ts — FAILED: no such file")
+    expect(section).not.toContain("abcd")
+  })
+
+  it("shows no ledger at all until the run has settled a call", async () => {
+    const { model } = await run({
+      script: [
+        emits(`return { intent: "continue", state: {}, context: [] }`),
+        emits(`return { intent: "complete", state: {}, output: "done" }`)
+      ]
+    })
+
+    expect(stateSection(model.recorder.requests[1])).not.toContain("Calls this run has settled")
+  })
+
+  it("carries the calls a raised frame settled before it threw", async () => {
+    // The advice a raise already gives — "use them instead of redoing the
+    // work" — was unactionable because the results were addressable from
+    // nowhere. The ledger is where they now are.
+    const { model } = await run({
+      script: [
+        emits(`await ctx.call("fs/list", { path: "src/a.ts" })\nthrow new Error("boom")`),
+        emits(`return { intent: "complete", state: {}, output: "done" }`)
+      ],
+      calls: [{ _tag: "Success", value: { totalLines: 3 } }]
+    })
+
+    expect(stateSection(model.recorder.requests[1])).toContain("1. fs/list src/a.ts — ok: totalLines=3")
+  })
+})
+
+describe("CellTurn context ordering", () => {
+  /** One request rendered in the order a provider serializes it. */
+  const wire = (request: ModelRequest.ModelRequest | undefined): string =>
+    (request?.system ?? []).map((part) => part.text).join("\n\n") + "\n\n" +
+    (request?.messages ?? []).map((message) =>
+      message.content.flatMap((part) => part.type === "text" ? [part.text] : []).join("\n")
+    ).join("\n\n")
+
+  /** The span a provider's prefix cache can cover: everything before the transcript. */
+  const stable = (request: ModelRequest.ModelRequest | undefined): string =>
+    (request?.system ?? []).map((part) => part.text).join("\n\n") + "\n\n"
+
+  const commonPrefix = (left: string, right: string): number => {
+    let index = 0
+    while (index < left.length && index < right.length && left[index] === right[index]) index += 1
+    return index
+  }
+
+  it("keeps every byte a provider can cache ahead of the frame's own state section", async () => {
+    // Two consecutive frames whose projected transcripts differ from their
+    // first byte. The state section, the roster and the ledger all change every
+    // frame, so the only way the shared prefix reaches past the teaching is
+    // for that section to sit LAST, after the transcript.
+    const { model } = await run({
+      script: [
+        emits(`return { intent: "continue", state: { a: 1 }, context: [{ role: "user", text: "alpha" }] }`),
+        emits(`return { intent: "continue", state: { b: 2 }, context: [{ role: "user", text: "beta" }] }`),
+        emits(`return { intent: "complete", state: {}, output: "done" }`)
+      ]
+    })
+
+    const first = model.recorder.requests[1]
+    const second = model.recorder.requests[2]
+    expect(stable(first)).toBe(stable(second))
+    expect(stable(first).length).toBeGreaterThan(0)
+    expect(commonPrefix(wire(first), wire(second))).toBe(stable(first).length)
+  })
+
+  it("serializes the stable span byte-identically across every frame of a run", async () => {
+    const { model } = await run({
+      script: [
+        emits(`return { intent: "continue", state: { a: 1 }, context: [{ role: "user", text: "alpha" }] }`),
+        emits(`return { intent: "continue", state: { b: 2 }, context: [{ role: "user", text: "beta" }] }`),
+        emits(`return { intent: "complete", state: {}, output: "done" }`)
+      ]
+    })
+
+    // No counters, no timestamps, no unordered keys anywhere in the span.
+    const spans = model.recorder.requests.map(stable)
+    expect(new Set(spans).size).toBe(1)
   })
 })

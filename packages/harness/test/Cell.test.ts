@@ -8,24 +8,64 @@ import { rejectedCell, rejectedCellNames } from "./fixtures/rejectedCells.ts"
 const fenced = (info: string, body: string): string => "```" + info + "\n" + body + "\n```"
 
 describe("Cell.extract", () => {
-  it("takes the last fenced cell so illustrative snippets never win", () => {
+  it("runs every fenced cell of a reply, in order, as one program", () => {
+    // Wave 10's django frame 1 wrote a near-par program as seven blocks and
+    // the harness ran block seven — the imagined completion — against a tree
+    // where blocks one through six had never run. Every block is the frame now.
     const text = [
-      "I could do this:",
-      fenced("cell", "return { intent: \"complete\", output: \"draft\" }"),
-      "but on reflection:",
-      fenced("cell", "return { intent: \"complete\", output: \"final\" }")
+      "First I look:",
+      fenced("cell", "const files = await ctx.call(\"fs/list\", { path: \".\" })"),
+      "then I decide:",
+      fenced("cell", "return { intent: \"complete\", state: {}, output: files.length + \" entries\" }")
     ].join("\n\n")
 
     const extracted = Result.getOrThrow(Cell.extract(text))
-    expect(extracted.text).toBe("return { intent: \"complete\", output: \"final\" }")
-    expect(extracted.language).toBe("javascript")
+    expect(extracted.source.text).toBe(
+      "const files = await ctx.call(\"fs/list\", { path: \".\" })\n" +
+        "return { intent: \"complete\", state: {}, output: files.length + \" entries\" }"
+    )
+    expect(extracted.source.language).toBe("javascript")
+    expect(extracted.blocks).toBe(2)
+  })
+
+  it("counts one block for the ordinary single-cell reply", () => {
+    const extracted = Result.getOrThrow(Cell.extract(fenced("cell", "return 1")))
+    expect(extracted.blocks).toBe(1)
+    expect(extracted.source.text).toBe("return 1")
+  })
+
+  it("drops a byte-identical repeat of a block instead of declaring its names twice", () => {
+    // Wave 10's astropy multi-block reply is the same state-echo block twice.
+    // A repeat is one program restated, never a second step.
+    const echo = "const s = ctx.state\nreturn { intent: \"continue\", state: s, context: [] }"
+    const extracted = Result.getOrThrow(Cell.extract([fenced("cell", echo), fenced("cell", echo)].join("\n\n")))
+    expect(extracted.source.text).toBe(echo)
+    expect(extracted.blocks).toBe(2)
+  })
+
+  it("stops at the first block that returns, because a return ends the function", () => {
+    // The documented semantics of concatenation, stated as a test rather than
+    // as prose: block two is dead code the compiler still has to accept.
+    const text = [
+      fenced("cell", "return { intent: \"complete\", state: {}, output: \"first\" }"),
+      fenced("cell", "return { intent: \"complete\", state: {}, output: \"second\" }")
+    ].join("\n\n")
+    const extracted = Result.getOrThrow(Cell.extract(text))
+    expect(extracted.source.text.indexOf("first")).toBeLessThan(extracted.source.text.indexOf("second"))
+  })
+
+  it("reads a program as typescript when any of its blocks declared a typed fence", () => {
+    // Both bindings run TypeScript by erasing type-only syntax, so erasure is
+    // harmless to a plain-JavaScript block and the mixed reply compiles.
+    const text = [fenced("cell", "const a = 1"), fenced("ts", "const b: number = 2\nreturn null")].join("\n\n")
+    expect(Result.getOrThrow(Cell.extract(text)).source.language).toBe("typescript")
   })
 
   it("accepts the js and javascript fences a model reaches for", () => {
-    expect(Result.getOrThrow(Cell.extract(fenced("js", "return 1"))).language).toBe("javascript")
-    expect(Result.getOrThrow(Cell.extract(fenced("javascript", "return 1"))).language).toBe("javascript")
-    expect(Result.getOrThrow(Cell.extract(fenced("ts", "return 1"))).language).toBe("typescript")
-    expect(Result.getOrThrow(Cell.extract(fenced("typescript", "return 1"))).language).toBe("typescript")
+    expect(Result.getOrThrow(Cell.extract(fenced("js", "return 1"))).source.language).toBe("javascript")
+    expect(Result.getOrThrow(Cell.extract(fenced("javascript", "return 1"))).source.language).toBe("javascript")
+    expect(Result.getOrThrow(Cell.extract(fenced("ts", "return 1"))).source.language).toBe("typescript")
+    expect(Result.getOrThrow(Cell.extract(fenced("typescript", "return 1"))).source.language).toBe("typescript")
   })
 
   it("reads the fence tag case-insensitively and past decoration the model adds", () => {
@@ -33,7 +73,7 @@ describe("Cell.extract", () => {
       const extracted = Cell.extract(fenced(info, "return 1"))
       expect(extracted._tag, info).toBe("Success")
     }
-    expect(Result.getOrThrow(Cell.extract(fenced("linenums ts", "return 1"))).language).toBe("typescript")
+    expect(Result.getOrThrow(Cell.extract(fenced("linenums ts", "return 1"))).source.language).toBe("typescript")
   })
 
   it("ignores a fence with no tag at all", () => {
@@ -52,29 +92,30 @@ describe("Cell.extract", () => {
     }
   })
 
-  it("skips unrecognized fences on the way to the last cell fence", () => {
+  it("takes only the cell fences and leaves every other fence out of the program", () => {
     const text = [
-      fenced("cell", "return \"first\""),
+      fenced("cell", "const first = 1"),
       fenced("json", "{ \"not\": \"a cell\" }"),
       fenced("", "untagged"),
-      fenced("cell", "return \"last\""),
+      fenced("cell", "return first"),
       fenced("text", "trailing prose block")
     ].join("\n\n")
 
     const extracted = Result.getOrThrow(Cell.extract(text))
-    expect(extracted.text).toBe("return \"last\"")
-    expect(extracted.language).toBe("javascript")
+    expect(extracted.source.text).toBe("const first = 1\nreturn first")
+    expect(extracted.source.language).toBe("javascript")
+    expect(extracted.blocks).toBe(2)
   })
 
-  it("keeps the language of the last recognized fence when a later one is unrecognized", () => {
+  it("keeps the language of the recognized fence when a later one is unrecognized", () => {
     const text = [fenced("ts", "return 1"), fenced("python", "print(1)")].join("\n\n")
-    expect(Result.getOrThrow(Cell.extract(text)).language).toBe("typescript")
+    expect(Result.getOrThrow(Cell.extract(text)).source.language).toBe("typescript")
   })
 
   it("accepts an empty cell body as an empty cell", () => {
     const extracted = Result.getOrThrow(Cell.extract("```cell\n```"))
-    expect(extracted.text).toBe("")
-    expect(extracted.digest).toBe(Cell.source("").digest)
+    expect(extracted.source.text).toBe("")
+    expect(extracted.source.digest).toBe(Cell.source("").digest)
   })
 
   it("finds no cell in an unterminated fence", () => {
@@ -91,8 +132,8 @@ describe("Cell.extract", () => {
     // The fence pattern is a module-level global regexp, which carries a
     // cursor between calls unless it is reset.
     const text = fenced("cell", "return \"repeatable\"")
-    expect(Result.getOrThrow(Cell.extract(text)).text).toBe("return \"repeatable\"")
-    expect(Result.getOrThrow(Cell.extract(text)).text).toBe("return \"repeatable\"")
+    expect(Result.getOrThrow(Cell.extract(text)).source.text).toBe("return \"repeatable\"")
+    expect(Result.getOrThrow(Cell.extract(text)).source.text).toBe("return \"repeatable\"")
   })
 
   it("reports a missing cell as a correctable rejection, not a failure", () => {
@@ -128,7 +169,7 @@ describe("Cell.extract on the frames one benchmark wave rejected", () => {
     it(`extracts the cell ${name} carried`, () => {
       const extracted = Cell.extract(rejectedCell(name))
       expect(extracted._tag).toBe("Success")
-      expect(Result.getOrThrow(extracted).text).toContain("ctx.call")
+      expect(Result.getOrThrow(extracted).source.text).toContain("ctx.call")
     })
   }
 })
@@ -195,6 +236,7 @@ describe("Cell.transition", () => {
         transition: new Cell.Continue({
           state: { seen: 2 },
           context: [new Cell.ContextEntry({ role: "user", text: "two files" })],
+          render: undefined,
           justification: undefined
         })
       })
@@ -243,7 +285,23 @@ describe("Cell.transition", () => {
       new Cell.Continue({
         state: null,
         context: [new Cell.ContextEntry({ role: "assistant", text: "still reading" })],
+        render: undefined,
         justification: "the fix is not located yet"
+      })
+    )
+
+    const projecting = Cell.transition({
+      intent: "continue",
+      state: { excerpt: "…", probe: "…" },
+      context: [],
+      render: ["excerpt", "probe"]
+    })
+    expect((projecting as Cell.Settled).transition).toStrictEqual(
+      new Cell.Continue({
+        state: { excerpt: "…", probe: "…" },
+        context: [],
+        render: ["excerpt", "probe"],
+        justification: undefined
       })
     )
 
