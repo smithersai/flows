@@ -65,9 +65,12 @@ if [ "$(dirname "$WORK")" != "$WORK_ROOT" ]; then
   echo "[$RUN_ID] resolved work path escaped $WORK_ROOT"; exit 2
 fi
 
+# The extraction lock is released by owner, never by whoever happens to be
+# exiting: this trap is installed before the lock is taken, and `rmdir` here
+# used to hand another lane's live extraction to a third one.
 cleanup() {
   docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
-  rmdir "$S/.extract-lock" 2>/dev/null || true
+  "$S/lib/lock.sh" release "$S/.extract-lock" --owner $$ --quiet || true
 }
 trap cleanup EXIT INT TERM
 
@@ -84,13 +87,19 @@ fi
 # Serialize the extraction across concurrent lanes: docker cp of a multi-GB tree
 # is the disk-bandwidth spike, and five at once can fill the drive before any
 # lane's cleanup runs.
+#
+# `lib/lock.sh` owns the protocol: the lock records this process's pid, a waiter
+# takes it back the moment that pid is gone rather than spinning for ever on a
+# lock a `kill -9` left behind, and the wait is bounded so a wedged lane fails
+# this run instead of hanging it.
 LOCK="$S/.extract-lock"
-until mkdir "$LOCK" 2>/dev/null; do sleep 5; done
+"$S/lib/lock.sh" acquire "$LOCK" --owner $$ --label "$RUN_ID extraction" || {
+  echo "[$RUN_ID] EXTRACTION LOCK TIMED OUT"; exit 1; }
 rm -rf -- "$WORK"; mkdir -p "$WORK"
 TMPC="$(docker create --platform linux/amd64 "$IMAGE")"
 docker cp "$TMPC:/testbed/." "$WORK/" >/dev/null 2>&1
 docker rm -f "$TMPC" >/dev/null 2>&1
-rmdir "$LOCK" 2>/dev/null
+"$S/lib/lock.sh" release "$LOCK" --owner $$
 
 # Anchor the patch capture to the tree as extracted, before anything of ours
 # touches it. Everything the official image already changed relative to the base

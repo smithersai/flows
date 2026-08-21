@@ -130,15 +130,26 @@ export const summarise = (options) => {
   const failed = instances.filter((state) => state.state === "failed")
   const inFlight = instances.filter((state) => state.state === "pulled" || state.state === "ran")
 
-  const spentUsd = instances.reduce((sum, state) => sum + (state.cost?.usd ?? 0), 0)
-  const priced = instances.filter((state) => typeof state.cost?.usd === "number")
+  // Money is counted off **every attempt**, not off the folded state. A `pulled`
+  // row opens a fresh attempt and replaces the dead one's columns — which is
+  // right for a verdict and wrong for a bill — so an instance that crashed after
+  // its model calls and re-ran would otherwise have its first attempt's tokens
+  // vanish from the total the budget gate reads, and a benchmark that crashes
+  // often could spend past its cap without ever tripping it.
+  const attempts = manifest.rows.filter((row) => row.kind === "instance" && row.cost !== undefined)
+  const spentUsd = attempts.reduce((sum, row) => sum + (row.cost?.usd ?? 0), 0)
+  const priced = attempts.filter((row) => typeof row.cost?.usd === "number")
   const meanUsd = priced.length === 0 ? undefined : spentUsd / priced.length
-  const tokens = instances.reduce((sum, state) => ({
-    inputTokens: sum.inputTokens + (state.cost?.usage?.inputTokens ?? 0),
-    cachedInputTokens: sum.cachedInputTokens + (state.cost?.usage?.cachedInputTokens ?? 0),
-    outputTokens: sum.outputTokens + (state.cost?.usage?.outputTokens ?? 0),
-    reasoningTokens: sum.reasoningTokens + (state.cost?.usage?.reasoningTokens ?? 0)
+  const tokens = attempts.reduce((sum, row) => ({
+    inputTokens: sum.inputTokens + (row.cost?.usage?.inputTokens ?? 0),
+    cachedInputTokens: sum.cachedInputTokens + (row.cost?.usage?.cachedInputTokens ?? 0),
+    outputTokens: sum.outputTokens + (row.cost?.usage?.outputTokens ?? 0),
+    reasoningTokens: sum.reasoningTokens + (row.cost?.usage?.reasoningTokens ?? 0)
   }), { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0 })
+  // Attempts that were paid for and then replaced by a re-run. Nothing else in
+  // the report shows them, and they are the difference between what the
+  // scoreboard graded and what the card was charged.
+  const retried = attempts.length - new Set(attempts.map((row) => row.id)).size
 
   const walls = instances.filter((state) => typeof state.wallSeconds === "number")
     .map((state) => state.wallSeconds)
@@ -149,7 +160,13 @@ export const summarise = (options) => {
   const remaining = total - graded.length
   const jobs = header.jobs ?? 2
 
-  const firstAt = header.at ?? (instances[0]?.at ?? options.now)
+  // The span is the **whole** ledger's, from the first session's header: the
+  // observed throughput is defined as everything that happened divided by
+  // everything that completed, stops and pauses included. Measuring from the
+  // latest session's header while dividing by every instance ever graded is
+  // what makes a benchmark resumed at instance 300 report that it will finish
+  // in forty seconds.
+  const firstAt = first.at ?? (instances[0]?.at ?? options.now)
   const lastAt = instances.length === 0 ? options.now : Math.max(...instances.map((state) => state.at ?? 0))
   const elapsedSeconds = Math.max(0, (lastAt - firstAt) / 1000)
   const observedPerInstance = graded.length === 0 ? undefined : elapsedSeconds / graded.length
@@ -196,6 +213,8 @@ export const summarise = (options) => {
     spentUsd,
     meanUsd,
     projectedUsd: meanUsd === undefined ? undefined : meanUsd * total,
+    attempts: attempts.length,
+    retried,
     tokens,
     wallTotalSeconds: wallTotal,
     meanWallSeconds: meanWall,
@@ -295,7 +314,8 @@ export const renderReport = (summary) => {
   lines.push("## Cost and wall clock", "")
   lines.push("| | |", "| --- | ---: |")
   lines.push(`| spent so far | ${money(summary.spentUsd)} |`)
-  lines.push(`| mean per instance | ${money(summary.meanUsd)} |`)
+  lines.push(`| paid attempts | ${summary.attempts}${summary.retried > 0 ? ` (${summary.retried} re-run after a crash, and still on the bill)` : ""} |`)
+  lines.push(`| mean per attempt | ${money(summary.meanUsd)} |`)
   lines.push(`| projected for all ${summary.total} | ${money(summary.projectedUsd)} |`)
   lines.push(`| budget | ${money(summary.header.budgetUsd)} |`)
   lines.push(`| input tokens | ${summary.tokens.inputTokens.toLocaleString("en-US")} |`)
@@ -413,7 +433,7 @@ const CHECKPOINT_HEADER = [
   "The rate carries a 95% Wilson interval; the projection assumes the mean cost so far holds for",
   "the rest, and the finish estimate is the observed throughput including every stop and wait.",
   "",
-  "| at | graded | resolved | resolve rate (95% CI) | mean $/instance | spent | projected total | finish (observed) | disk free |",
+  "| at | graded | resolved | resolve rate (95% CI) | mean $/attempt | spent | projected total | finish (observed) | disk free |",
   "| --- | --- | ---: | --- | ---: | ---: | ---: | --- | ---: |",
   ""
 ].join("\n")
@@ -428,9 +448,15 @@ const main = () => {
   const manifest = optionValue(argv, "--manifest", join(rigRoot, "fullbench", "manifest.jsonl"))
 
   if (argv.includes("--spend-cents")) {
-    const states = read(manifest).states
+    // Every attempt's cost, including the attempts a crash replaced. This is
+    // the number the driver's budget gate compares, so it has to be the number
+    // the invoice will say.
     let cents = 0
-    for (const state of states.values()) cents += Math.round((state.cost?.usd ?? 0) * 100)
+    for (const row of read(manifest).rows) {
+      if (row.kind === "instance" && typeof row.cost?.usd === "number") {
+        cents += Math.round(row.cost.usd * 100)
+      }
+    }
     process.stdout.write(`${cents}\n`)
     return
   }

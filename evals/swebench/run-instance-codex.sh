@@ -65,14 +65,19 @@ fi
 # Serialize the testbed extraction across concurrent lanes: docker cp of a
 # multi-GB tree is the disk-bandwidth spike, and five at once can fill the
 # drive before any lane's cleanup runs.
+# `lib/lock.sh` owns the protocol, and the same lock the flows side takes: the
+# lock records this process's pid, so a lane that is killed while extracting
+# hands the lock straight to the next waiter instead of wedging every later
+# extraction in the rig.
 LOCK="$S/.extract-lock"
-until mkdir "$LOCK" 2>/dev/null; do sleep 5; done
-trap 'rmdir "$LOCK" 2>/dev/null' EXIT
+"$S/lib/lock.sh" acquire "$LOCK" --owner $$ --label "$RUN_ID extraction" || {
+  echo "[$RUN_ID] EXTRACTION LOCK TIMED OUT"; exit 1; }
+trap '"$S/lib/lock.sh" release "$LOCK" --owner $$ --quiet' EXIT
 rm -rf "$WORK"; mkdir -p "$WORK"
 TMPC="$(docker create --platform linux/amd64 "$IMAGE")"
 docker cp "$TMPC:/testbed/." "$WORK/" >/dev/null 2>&1
 docker rm -f "$TMPC" >/dev/null 2>&1
-rmdir "$LOCK" 2>/dev/null
+"$S/lib/lock.sh" release "$LOCK" --owner $$
 trap - EXIT
 
 # Same capture base as the flows side: the tree as the image ships it, so the

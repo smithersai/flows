@@ -1,7 +1,7 @@
 /**
  * The order the full benchmark runs its 500 instances in, and what is left.
  *
- *   node lib/fullbench-queue.mjs <dataset.json> <manifest.jsonl> [--all|--done|--count]
+ *   node lib/fullbench-queue.mjs <dataset.json> <manifest.jsonl> [--all|--done|--count|--unclean]
  *
  * The order is **the seeded draw**, not the dataset's own. `lib/sample.mjs`
  * shuffles all 500 rows with mulberry32 seeded 20260818 and the rig's sample is
@@ -82,6 +82,19 @@ const main = () => {
     case "--count":
       process.stdout.write(`${done.length} ${remaining.length} ${ids.length}\n`)
       break
+    // Instances that are finished as far as resume is concerned but never
+    // reached `cleaned`: a kill between the verdict and the `docker rmi`. They
+    // are the only instances nothing ever visits again, so their images are the
+    // only ones that can be orphaned for the rest of the benchmark. One
+    // `<id> <image>` line each, for the driver's startup sweep.
+    case "--unclean": {
+      const rows = done
+        .map((id) => manifest.states.get(id))
+        .filter((state) => state.state !== "cleaned" && typeof state.image === "string")
+        .map((state) => `${state.id} ${state.image}`)
+      if (rows.length > 0) process.stdout.write(`${rows.join("\n")}\n`)
+      break
+    }
     case "--remaining":
       if (remaining.length > 0) process.stdout.write(`${remaining.join("\n")}\n`)
       break

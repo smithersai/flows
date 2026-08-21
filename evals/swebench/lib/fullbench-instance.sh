@@ -76,11 +76,19 @@ row() { node "$S/lib/fullbench-row.mjs" "$@"; }
 # scheduling, enforced here by the filesystem as well, because two drivers is a
 # thing an operator can do by accident and two runs of one instance share an
 # image, an image cache and a testbed.
+#
+# The claim is a `lib/lock.sh` lock holding this worker's pid, and that is what
+# makes it survive the driver rather than the session: a driver that is killed
+# on its own — `pkill -f fullbench.sh` matches the driver and not this script —
+# leaves its workers running, and the next driver must not schedule a second
+# attempt beside one of them. A claim whose owner is gone is taken back on the
+# spot; a claim whose owner is alive refuses this attempt with exit 3.
 # ---------------------------------------------------------------------------
 CLAIM="$FB/claims/$ID"
 mkdir -p "$FB/claims"
-if ! mkdir "$CLAIM" 2>/dev/null; then
-  log "already claimed by another worker — refusing to run it twice"
+if ! "$S/lib/lock.sh" acquire "$CLAIM" --owner $$ --timeout 0 --quiet \
+  --label "fullbench-instance.sh $ID"; then
+  log "already claimed by live worker pid $("$S/lib/lock.sh" owner "$CLAIM") — refusing to run it twice"
   exit 3
 fi
 
@@ -99,13 +107,39 @@ for PIN in $PINNED; do
   if [ "$PIN" = "$ID" ]; then KEEP_IMAGE=1; fi
 done
 
-cleanup() { rmdir "$CLAIM" 2>/dev/null || true; }
+cleanup() {
+  "$S/lib/lock.sh" release "$CLAIM" --owner $$ --quiet || true
+  # Whichever of the two this worker took. Releasing by owner makes the other
+  # call a no-op rather than a lock someone else loses.
+  "$S/lib/lock.sh" release "$S/.grade-lock" --owner $$ --quiet || true
+  "$S/lib/lock.sh" release "$FB/.grade-lock" --owner $$ --quiet || true
+}
 trap cleanup EXIT INT TERM
 
+# The image and the testbed this instance pulled, gone. Called on the way out of
+# a verdict and on the way out of a failure alike: an instance that failed is
+# re-run from the top on the next resume and re-pulls what it needs, so keeping
+# its image buys nothing and costs 2–3 GB of a 16 GiB budget. Leaving them
+# behind is what turns a handful of failures into a disk gate that never opens
+# again.
+discard_image() {
+  # `run-paths.sh` may not have run yet — the first `fail` is the one that says
+  # it refused this instance — so neither name is assumed to exist.
+  if [ -n "${CONTAINER:-}" ]; then docker rm -f "$CONTAINER" >/dev/null 2>&1 || true; fi
+  if [ -n "${WORK:-}" ]; then rm -rf -- "$WORK"; fi
+  if [ "$KEEP_IMAGE" = "1" ]; then printf 'kept'; return 0; fi
+  # An instance that failed before its pull never had one, and a ledger that
+  # says `deleted` for it reads as if a pull had happened.
+  if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then printf 'absent'; return 0; fi
+  docker rmi -f "$IMAGE" >/dev/null 2>&1 || log "could not delete $IMAGE"
+  if docker image inspect "$IMAGE" >/dev/null 2>&1; then printf 'present'; else printf 'deleted'; fi
+}
+
 fail() {
+  REMOVED="$(discard_image)"
   append "$MANIFEST" "$(row --kind instance --id "$ID" --state failed --at "$(now_ms)" \
-    --image "$IMAGE" --reason "$1")"
-  log "FAILED: $1"
+    --image "$IMAGE" --image-state "$REMOVED" --reason "$1")"
+  log "FAILED: $1 (image $REMOVED)"
   exit 1
 }
 
@@ -154,6 +188,13 @@ rm -f -- "$PATCH" "$PATCH.untracked" "$TIMINGS" "$LOG_PREFIX".*
 rm -rf -- "$FB/journals/$ID"
 rm -f -- "$FB/patches/$ID.patch" "$FB/patches/$ID.patch.untracked" \
   "$FB/timings/$ID.json" "$FB/logs/$ID.run.log" "$FB/logs/$ID.pull.log" "$FB/reports/$ID.json"
+# The official evaluator's own log directory for this instance, too. It skips
+# any instance that already has a `report.json` under the run id — 500 instances
+# accumulating into one run id is exactly that layout — so a re-run whose
+# predecessor was graded but never recorded (killed between the report and the
+# manifest row) would be handed the dead attempt's verdict for this attempt's
+# patch. Deleting the directory is what makes a re-run a re-grade.
+rm -rf -- "$EVAL_LOG_ROOT/$RUN_ID/$MODEL/$ID"
 mkdir -p "$FB/patches" "$FB/journals" "$FB/timings" "$FB/logs" "$FB/reports"
 
 # ---------------------------------------------------------------------------
@@ -239,8 +280,21 @@ if [ "$PATCH_BYTES" = "0" ]; then
   VERDICT="empty patch"
   log "patch is empty — recorded as 'empty patch' without invoking the evaluator"
 else
-  GRADE_LOCK="$FB/.grade-lock"
-  until mkdir "$GRADE_LOCK" 2>/dev/null; do sleep 5; done
+  # The rig's one evaluator lock, not a second one under fullbench/: a
+  # `grade-matrix.sh` an operator starts beside this benchmark is another
+  # evaluator process on the same docker daemon, and `evaluate.sh` documents
+  # what two of those do to each other's image cleanup. It is held across the
+  # verdict read as well, so `evaluate.sh` is told not to take it again.
+  #
+  # A stubbed evaluator starts no container and touches no image, so it takes a
+  # lock under fullbench/ instead: the rig's lock is about real evaluator
+  # processes on one docker daemon, and a dry run that queued behind a wave's
+  # real grading would be measuring that wave's clock rather than its own.
+  if [ -n "${SWB_GRADE_CMD:-}" ]; then GRADE_LOCK="$FB/.grade-lock"; else GRADE_LOCK="$S/.grade-lock"; fi
+  if ! "$S/lib/lock.sh" acquire "$GRADE_LOCK" --owner $$ --label "fullbench $ID" \
+    --timeout "${SWB_GRADE_LOCK_TIMEOUT:-7200}"; then
+    fail "another evaluator held $GRADE_LOCK for too long"
+  fi
   if [ "$KEEP_IMAGE" = "1" ]; then CACHE_LEVEL=instance; else CACHE_LEVEL=env; fi
   log "grading as $RUN_ID (cache_level $CACHE_LEVEL)"
   if [ -n "${SWB_GRADE_CMD:-}" ]; then
@@ -252,14 +306,14 @@ else
     # evaluator would look for in the wrong place.
     REL_PATCHES="${FB#"$S/"}/patches"
     if [ "$REL_PATCHES" = "$FB/patches" ]; then
-      rmdir "$GRADE_LOCK" 2>/dev/null || true
+      "$S/lib/lock.sh" release "$GRADE_LOCK" --owner $$ --quiet || true
       fail "FB_DIR ($FB) is outside the rig, and the evaluator resolves its patches inside it"
     fi
     SWB_PATCHES="$REL_PATCHES" SWB_MODEL_NAME="$MODEL" SWB_CACHE_LEVEL="$CACHE_LEVEL" \
+      SWB_GRADE_LOCK_HELD=1 \
       "$S/evaluate.sh" "$RUN_ID" "$ID" >> "$FB/logs/$ID.grade.log" 2>&1
   fi
   GRADE_STATUS=$?
-  rmdir "$GRADE_LOCK" 2>/dev/null || true
 
   REPORT="$EVAL_LOG_ROOT/$RUN_ID/$MODEL/$ID/report.json"
   if [ -f "$REPORT" ]; then
@@ -274,6 +328,9 @@ else
     VERDICT="eval error"
     log "the evaluator wrote no report for this instance (exit $GRADE_STATUS)"
   fi
+  # Released here rather than in the trap: the verdict is read, and the next
+  # worker's grading may start while this one deletes its image.
+  "$S/lib/lock.sh" release "$GRADE_LOCK" --owner $$ --quiet || true
 fi
 
 append "$MANIFEST" "$(row --kind instance --id "$ID" --state graded --at "$(now_ms)" \
@@ -286,17 +343,8 @@ log "verdict: $VERDICT"
 # The five the 5x5 matrix pinned are never deleted, whatever this instance is,
 # because that wave needs them warm and re-pulling one costs 3 GB.
 # ---------------------------------------------------------------------------
-if [ "$KEEP_IMAGE" = "1" ]; then
-  log "image kept: $ID is one of the pinned five"
-  REMOVED=kept
-else
-  docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
-  if docker image inspect "$IMAGE" >/dev/null 2>&1; then
-    docker rmi -f "$IMAGE" >/dev/null 2>&1 || log "could not delete $IMAGE"
-  fi
-  if docker image inspect "$IMAGE" >/dev/null 2>&1; then REMOVED=present; else REMOVED=deleted; fi
-fi
-rm -rf -- "$WORK"
+REMOVED="$(discard_image)"
+if [ "$KEEP_IMAGE" = "1" ]; then log "image kept: $ID is one of the pinned five"; fi
 
 append "$MANIFEST" "$(row --kind instance --id "$ID" --state cleaned --at "$(now_ms)" \
   --image "$IMAGE" --image-state "$REMOVED" --freeMiB "$("$S/lib/disk-free.sh")")"

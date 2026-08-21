@@ -109,6 +109,15 @@ export const read = (path) => {
     }
   }
   return {
+    /**
+     * Every parsed row, in the order they were appended.
+     *
+     * The fold answers "where is this instance now"; money answers "what has
+     * been spent", and those are not the same question. An attempt that died
+     * after its model calls is replaced in the fold by the attempt that
+     * followed it, and the tokens it burned are still on the invoice.
+     */
+    rows,
     /** The first session's header: the subject of record for the whole run. */
     header: headers[0],
     /** Every session's header, oldest first. One per driver start. */

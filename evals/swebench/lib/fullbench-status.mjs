@@ -66,7 +66,8 @@ out.push(
 out.push("")
 out.push(
   `  spent      ${money(summary.spentUsd)} of ${money(summary.header.budgetUsd)}   `
-    + `mean ${money(summary.meanUsd)}/instance   projected ${money(summary.projectedUsd)}`
+    + `mean ${money(summary.meanUsd)}/attempt   projected ${money(summary.projectedUsd)}`
+    + `${summary.retried > 0 ? `   ${summary.retried} paid re-run(s)` : ""}`
 )
 out.push(
   `  wall       mean ${duration(summary.meanWallSeconds)}/instance   `

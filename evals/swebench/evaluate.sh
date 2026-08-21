@@ -30,6 +30,15 @@
 # The wave itself (run-sample.sh) is a different matter and does run its
 # instances concurrently; only grading serializes.
 #
+# That serialization is rig-wide, not per-caller: the full benchmark grades an
+# instance the moment its patch exists, so it and a `grade-matrix.sh` started by
+# hand are two evaluator processes racing the same image cleanup on the same
+# docker daemon. Every invocation therefore takes `.grade-lock` through
+# `lib/lock.sh`, which releases it by owner and takes it back from a pid that is
+# gone. A caller that already holds it says so with SWB_GRADE_LOCK_HELD=1 —
+# `lib/fullbench-instance.sh` does, because it holds the lock across the verdict
+# it reads afterwards — and this then grades without taking it a second time.
+#
 # SWB_CACHE_LEVEL is the evaluator's `--cache_level`. It defaults to `env`,
 # which deletes each official instance image once that instance is graded — a
 # 3 GB re-pull for the next wave. Set it to `instance` for a supplementary
@@ -72,6 +81,16 @@ fi
 
 node "$S/lib/make-preds.mjs" "$PATCHES" "$MODEL" "$SUFFIX" "$@" > "$S/preds-$RUN_ID.json"
 cd "$S" || exit 1
+
+HELD=0
+if [ "${SWB_GRADE_LOCK_HELD:-0}" != "1" ]; then
+  "$S/lib/lock.sh" acquire "$S/.grade-lock" --owner $$ --label "evaluate.sh $RUN_ID" \
+    --timeout "${SWB_GRADE_LOCK_TIMEOUT:-7200}" || {
+    echo "evaluate.sh: another evaluator still holds $S/.grade-lock"; exit 1; }
+  HELD=1
+  trap '"$S/lib/lock.sh" release "$S/.grade-lock" --owner $$ --quiet' EXIT INT TERM
+fi
+
 # lib/grade.py is the evaluator, run with the rig's architecture. See its
 # docstring: the evaluator picks arm64 from platform.machine() alone, while
 # every instance here was produced against a --platform linux/amd64 checkout.
@@ -83,3 +102,10 @@ cd "$S" || exit 1
   --max_workers "$WORKERS" \
   --cache_level "$CACHE_LEVEL" \
   --timeout 1800
+STATUS=$?
+
+if [ "$HELD" = "1" ]; then
+  trap - EXIT INT TERM
+  "$S/lib/lock.sh" release "$S/.grade-lock" --owner $$ --quiet
+fi
+exit "$STATUS"

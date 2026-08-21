@@ -8,6 +8,8 @@
 #   ./fullbench.sh --stop          ask a running driver to stop after its
 #                                  in-flight instances finish
 #   ./fullbench.sh --clear-pause   remove a PAUSED marker so --resume can start
+#   ./fullbench.sh --aggregate     write the evaluator's own report over every
+#                                  instance graded so far (spends nothing)
 #
 # Detached launch, exactly. Copy this line:
 #
@@ -50,6 +52,7 @@ INDEX="${SWB_FULLBENCH_INDEX:-r90}"
 SEAT="${SWB_SEAT:-openai:gpt-5.6-sol}"
 INSTANCE_BUDGET="${SWB_FULLBENCH_BUDGET:-1200}"
 DATASET="${SWB_DATASET:-$S/swb-verified.json}"
+MODEL_NAME="${SWB_MODEL_NAME:-flows-cell-harness}"
 SAMPLE="${SWB_SAMPLE:-$S/sample.json}"
 POLL_SECONDS="${SWB_FULLBENCH_POLL_SECONDS:-5}"
 POLL_LIMIT="${SWB_FULLBENCH_POLL_LIMIT:-720}"
@@ -59,6 +62,42 @@ POLL_LIMIT="${SWB_FULLBENCH_POLL_LIMIT:-720}"
 # holds a queue still while it kills the driver.
 SESSION_LIMIT="${SWB_FULLBENCH_LIMIT:-}"
 
+# Every knob that reaches shell arithmetic or a `[ -ge ]`, checked before
+# anything is spent. `[ 1200 -ge NaN ]` is not a comparison that fails safe: it
+# is an error the shell reports and the `if` then treats as false, so a budget
+# typed as `$600` would read as no budget at all for two days.
+for PAIR in "JOBS:$JOBS" "CHECKPOINT_EVERY:$CHECKPOINT_EVERY" "MIN_FREE_MIB:$MIN_FREE_MIB" \
+  "INSTANCE_BUDGET:$INSTANCE_BUDGET" "POLL_SECONDS:$POLL_SECONDS" "POLL_LIMIT:$POLL_LIMIT"; do
+  NAME="${PAIR%%:*}"; VALUE="${PAIR#*:}"
+  case "$VALUE" in
+    ''|*[!0-9]*|0) echo "fullbench.sh: $NAME must be a positive integer, got '$VALUE'"; exit 2 ;;
+  esac
+done
+case "$BUDGET_USD" in
+  ''|*[!0-9.]*|*.*.*|.|*.) echo "fullbench.sh: SWB_FULLBENCH_BUDGET_USD must be a number, got '$BUDGET_USD'"; exit 2 ;;
+esac
+if [ -n "$SESSION_LIMIT" ]; then
+  case "$SESSION_LIMIT" in
+    ''|*[!0-9]*) echo "fullbench.sh: SWB_FULLBENCH_LIMIT must be a non-negative integer, got '$SESSION_LIMIT'"; exit 2 ;;
+  esac
+fi
+
+# Is the pid in driver.pid a live driver? The file is written once and never
+# deleted, on purpose, so `kill -0` alone answers "is *something* alive with
+# that number" — and over days on a machine that recycles pids, something
+# unrelated eventually is. A benchmark that then refuses every resume for the
+# rest of the week is the failure this avoids.
+driver_alive() {
+  if [ ! -f "$FB/driver.pid" ]; then return 1; fi
+  DRIVER_PID="$(cat "$FB/driver.pid" 2>/dev/null || printf '')"
+  case "$DRIVER_PID" in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+  if ! kill -0 "$DRIVER_PID" 2>/dev/null; then return 1; fi
+  ps -p "$DRIVER_PID" -o command= 2>/dev/null | grep -q 'fullbench\.sh' || return 1
+  return 0
+}
+
 RESUME=0
 FOREGROUND=0
 for ARG in "$@"; do
@@ -66,13 +105,37 @@ for ARG in "$@"; do
     --resume) RESUME=1 ;;
     --foreground) FOREGROUND=1 ;;
     --stop)
-      if [ -f "$FB/driver.pid" ] && kill -0 "$(cat "$FB/driver.pid" 2>/dev/null)" 2>/dev/null; then
-        kill -TERM "$(cat "$FB/driver.pid")"
-        echo "fullbench.sh: asked pid $(cat "$FB/driver.pid") to stop"
+      if driver_alive; then
+        kill -TERM "$DRIVER_PID"
+        echo "fullbench.sh: asked pid $DRIVER_PID to stop"
         exit 0
       fi
       echo "fullbench.sh: no driver is running"; exit 1 ;;
     --clear-pause) rm -f "$FB/PAUSED"; echo "fullbench.sh: pause cleared"; exit 0 ;;
+    # The official evaluator's own aggregate report for the whole run.
+    #
+    # Grading one instance at a time accumulates the per-instance reports under
+    # one run id, which is what the driver reads — but it rewrites
+    # `preds-<run id>.json` and the evaluator's `<model>.<run id>.json` each
+    # time, so the file the rig documents as "the evaluator's own report" ends
+    # up describing the last instance alone. This grades every id the ledger
+    # says is done in one invocation: each already has a report, so the
+    # evaluator skips all of them, starts no container and spends nothing, and
+    # writes the summary over all of them.
+    --aggregate)
+      AGGREGATE_IDS="$(node "$S/lib/fullbench-queue.mjs" "$DATASET" "$FB/manifest.jsonl" --done \
+        | tr '\n' ' ')"
+      if [ -z "$AGGREGATE_IDS" ]; then
+        echo "fullbench.sh: nothing has been graded yet"; exit 1
+      fi
+      REL_PATCHES="${FB#"$S/"}/patches"
+      if [ "$REL_PATCHES" = "$FB/patches" ]; then
+        echo "fullbench.sh: FB_DIR ($FB) is outside the rig; the evaluator resolves patches inside it"
+        exit 1
+      fi
+      echo "fullbench.sh: aggregating $(printf '%s' "$AGGREGATE_IDS" | wc -w | tr -d ' ') graded instances into $MODEL_NAME.$RUN_ID.json"
+      SWB_PATCHES="$REL_PATCHES" SWB_MODEL_NAME="$MODEL_NAME" SWB_CACHE_LEVEL=instance \
+        exec "$S/evaluate.sh" "$RUN_ID" $AGGREGATE_IDS ;;
     --help|-h) sed -n '2,40p' "$0"; exit 0 ;;
     *) echo "fullbench.sh: unknown argument '$ARG'"; exit 2 ;;
   esac
@@ -87,8 +150,8 @@ PROGRESS="$FB/progress.md"
 # ---------------------------------------------------------------------------
 if [ -z "${SWB_FULLBENCH_EXEC:-}" ]; then
   mkdir -p "$FB"
-  if [ -f "$FB/driver.pid" ] && kill -0 "$(cat "$FB/driver.pid" 2>/dev/null)" 2>/dev/null; then
-    echo "fullbench.sh: a driver is already running (pid $(cat "$FB/driver.pid")). Use --stop first."
+  if driver_alive; then
+    echo "fullbench.sh: a driver is already running (pid $DRIVER_PID). Use --stop first."
     exit 1
   fi
   if [ -f "$FB/PAUSED" ]; then
@@ -137,11 +200,30 @@ log() { printf '%s [driver] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
 append() { node "$S/lib/manifest-append.mjs" "$1" "$2"; }
 row() { node "$S/lib/fullbench-row.mjs" "$@"; }
 
-# Locks a crashed predecessor may have left. This driver is a singleton — the
-# launcher refused to start beside a live one — so anything still held is stale
-# and holding it would stall every worker.
-rmdir "$FB/.grade-lock" 2>/dev/null || true
-rm -rf "$FB/claims"; mkdir -p "$FB/claims"
+# Locks and claims a crashed predecessor may have left. Every one of them is
+# taken back by owner rather than by assumption: this driver is a singleton, but
+# the rig it runs in is not. `.extract-lock` and `.grade-lock` are shared with
+# the 5x5 matrix wave, and clearing one of those while that wave holds it would
+# put two multi-gigabyte extractions — or two evaluators — on one disk, which is
+# the thing they exist to prevent. `lib/lock.sh` clears a lock only when the pid
+# that owns it is gone.
+for LOCK in "$S/.extract-lock" "$S/.grade-lock" "$FB/.grade-lock"; do
+  log "$("$S/lib/lock.sh" reconcile "$LOCK" 2>&1)"
+done
+# A claim whose worker is still alive is a worker *this* driver did not start:
+# killing the driver alone leaves its workers running (`pkill -f fullbench.sh`
+# matches the driver and not `fullbench-instance.sh`), and scheduling a second
+# attempt beside one of those is two agents spending on one instance, into one
+# patch path. The claim outlives the driver on purpose; only the dead ones go.
+for CLAIM in "$FB"/claims/*; do
+  if [ ! -d "$CLAIM" ]; then continue; fi
+  CLAIM_OWNER="$("$S/lib/lock.sh" owner "$CLAIM")"
+  if [ -n "$CLAIM_OWNER" ] && kill -0 "$CLAIM_OWNER" 2>/dev/null; then
+    log "an orphaned worker is still running $(basename "$CLAIM") (pid $CLAIM_OWNER) — it keeps the instance"
+  else
+    log "$("$S/lib/lock.sh" reconcile "$CLAIM" 2>&1)"
+  fi
+done
 rm -f "$FB"/workers/*.done "$FB"/workers/*.pid 2>/dev/null || true
 
 if [ ! -f "$DATASET" ]; then log "no dataset at $DATASET — run ./bootstrap.sh first"; exit 1; fi
@@ -209,6 +291,48 @@ log "subject $SUBJECT ($SUBJECT_SOURCE), HEAD $HEAD_AT_START"
 log "jobs $JOBS, budget \$$BUDGET_USD, disk gate ${MIN_FREE_MIB} MiB, checkpoint every $CHECKPOINT_EVERY"
 log "images never deleted: $PINNED"
 
+# ---------------------------------------------------------------------------
+# Images an interrupted instance left behind.
+#
+# `graded` is the resume boundary, so an instance killed between its verdict and
+# its cleanup — a window that includes the whole `docker rmi` — is skipped for
+# ever after, and its 2–3 GB image would sit on this disk for the rest of the
+# benchmark. Nothing else ever looks at it again, so this is the sweep that
+# closes it, and it runs before the first instance is scheduled because the disk
+# it frees is the disk the first pull needs.
+#
+# The image ref comes out of the ledger rather than being re-derived, so a run
+# that mapped its images (the dry run does) reconciles the ones it really used.
+# ---------------------------------------------------------------------------
+UNCLEAN="$(node "$S/lib/fullbench-queue.mjs" "$DATASET" "$MANIFEST" --unclean 2>/dev/null || printf '')"
+if [ -n "$UNCLEAN" ]; then
+  printf '%s\n' "$UNCLEAN" | while read -r STALE_ID STALE_IMAGE; do
+    if [ -z "$STALE_ID" ] || [ -z "$STALE_IMAGE" ]; then continue; fi
+    STALE_KEEP=0
+    for PIN in $PINNED; do
+      if [ "$PIN" = "$STALE_ID" ]; then STALE_KEEP=1; fi
+    done
+    if STALE_PATHS="$("$S/lib/run-paths.sh" flows "$STALE_ID" "$INDEX" 2>/dev/null)"; then
+      eval "$STALE_PATHS"
+      docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
+      rm -rf -- "$WORK"
+    fi
+    if [ "$STALE_KEEP" = "1" ]; then
+      STALE_STATE=kept
+    else
+      docker rmi -f "$STALE_IMAGE" >/dev/null 2>&1 || true
+      if docker image inspect "$STALE_IMAGE" >/dev/null 2>&1; then
+        STALE_STATE=present
+      else
+        STALE_STATE=deleted
+      fi
+    fi
+    append "$MANIFEST" "$(row --kind instance --id "$STALE_ID" --state cleaned --at "$(now_ms)" \
+      --image "$STALE_IMAGE" --image-state "$STALE_STATE" --reconciled 1)"
+    log "reconciled $STALE_ID: graded but never cleaned (image $STALE_STATE)"
+  done
+fi
+
 export FB_DIR="$FB"
 export SWB_FULLBENCH_INDEX="$INDEX"
 export SWB_FULLBENCH_RUN_ID="$RUN_ID"
@@ -249,7 +373,11 @@ reap_finished() {
       wait "${PIDS[$i]}" 2>/dev/null
       CODE="$(cat "$FB/workers/${NAMES[$i]}.done" 2>/dev/null || printf 'unknown')"
       rm -f "$FB/workers/${NAMES[$i]}.done" "$FB/workers/${NAMES[$i]}.pid"
-      log "${NAMES[$i]} finished (exit $CODE)"
+      if [ "$CODE" = "3" ]; then
+        log "${NAMES[$i]} is claimed by a worker this driver did not start — left to it"
+      else
+        log "${NAMES[$i]} finished (exit $CODE)"
+      fi
       PIDS[$i]=""
       RUNNING=$((RUNNING - 1))
       REAPED=1
@@ -258,14 +386,28 @@ reap_finished() {
   return $((1 - REAPED))
 }
 
-# Blocks on the oldest tracked worker. Only reached when polling has gone a full
-# hour without a `.done` marker, which means a worker died without running its
-# own exit path; `wait` on a zombie returns at once.
+# Reaps the oldest tracked worker that is **already dead**. Reached when polling
+# has gone a full hour without a `.done` marker, which is either a worker that
+# died without running its own exit path — `wait` on a zombie returns at once —
+# or one that is simply slow.
+#
+# It must never block on a worker that is still alive. `wait` on a live pid is a
+# driver that stops logging, stops scheduling and stops checkpointing until that
+# worker returns, which is indistinguishable from the crash it is meant to
+# survive. So a live worker is reported instead, together with the one thing
+# that can wedge one for ever: a lock whose holder is gone.
 reap_oldest() {
   if [ "${#PIDS[@]}" -eq 0 ]; then return 1; fi
   for i in "${!PIDS[@]}"; do
     if [ -n "${PIDS[$i]}" ]; then
-      log "${NAMES[$i]} left no completion marker — waiting on it directly"
+      if kill -0 "${PIDS[$i]}" 2>/dev/null; then
+        log "${NAMES[$i]} has run for over $((POLL_LIMIT * POLL_SECONDS / 60)) minutes without finishing"
+        for LOCK in "$S/.extract-lock" "$S/.grade-lock"; do
+          log "  $("$S/lib/lock.sh" reconcile "$LOCK" 2>&1)"
+        done
+        return 1
+      fi
+      log "${NAMES[$i]} left no completion marker — reaping it"
       wait "${PIDS[$i]}" 2>/dev/null
       rm -f "$FB/workers/${NAMES[$i]}.done" "$FB/workers/${NAMES[$i]}.pid"
       PIDS[$i]=""
@@ -276,12 +418,20 @@ reap_oldest() {
   return 1
 }
 
+# Waits for a slot, and returns only when there is one. Returning without one —
+# which is what "give up after an hour" used to do — schedules a third instance
+# beside two that are still running, and three testbeds is the disk this whole
+# shape exists to bound.
 wait_for_slot() {
   POLLS=0
   while [ "$RUNNING" -ge "$JOBS" ]; do
     if reap_finished; then return 0; fi
+    if [ "$STOPPING" = "1" ]; then return 0; fi
     POLLS=$((POLLS + 1))
-    if [ "$POLLS" -ge "$POLL_LIMIT" ]; then reap_oldest; return 0; fi
+    if [ "$POLLS" -ge "$POLL_LIMIT" ]; then
+      if reap_oldest; then return 0; fi
+      POLLS=0
+    fi
     sleep "$POLL_SECONDS"
   done
   return 0
@@ -291,6 +441,17 @@ checkpoint() {
   node "$S/fullbench-report.mjs" --checkpoint --manifest "$MANIFEST" --dataset "$DATASET" \
     --sample "$SAMPLE" --out "$FB" || log "the report generator failed"
 }
+
+# Whole cents spent so far, or the empty string when the ledger could not be
+# read. Never a number the caller did not get from the manifest.
+spend_cents() {
+  CENTS="$(node "$S/fullbench-report.mjs" --spend-cents --manifest "$MANIFEST" 2>/dev/null)"
+  case "$CENTS" in
+    ''|*[!0-9]*) printf '' ;;
+    *) printf '%s' "$CENTS" ;;
+  esac
+}
+BUDGET_CENTS="$(node -e 'process.stdout.write(String(Math.round(Number(process.argv[1]) * 100)))' "$BUDGET_USD")"
 
 pause_now() {
   PAUSE_REASON="$1"
@@ -313,8 +474,17 @@ for ID in $QUEUE; do
 
   # The budget, checked before every launch rather than at a checkpoint: 25
   # instances of overshoot at a few dollars each is real money.
-  SPENT_CENTS="$(node "$S/fullbench-report.mjs" --spend-cents --manifest "$MANIFEST" 2>/dev/null || printf 0)"
-  BUDGET_CENTS="$(node -e 'process.stdout.write(String(Math.round(Number(process.argv[1]) * 100)))' "$BUDGET_USD")"
+  #
+  # A read that fails is not zero. `|| printf 0` here would turn one bad node
+  # invocation into a benchmark with no budget at all, so an unreadable ledger
+  # is retried once and then pauses: stopping early is recoverable with
+  # `--clear-pause`, and spending blind for two days is not.
+  SPENT_CENTS="$(spend_cents)"
+  if [ -z "$SPENT_CENTS" ]; then sleep 2; SPENT_CENTS="$(spend_cents)"; fi
+  if [ -z "$SPENT_CENTS" ]; then
+    pause_now "the ledger's cumulative cost could not be read, so the budget cannot be enforced"
+    break
+  fi
   if [ "$SPENT_CENTS" -ge "$BUDGET_CENTS" ]; then
     pause_now "cumulative API cost \$$(node -e 'process.stdout.write((Number(process.argv[1])/100).toFixed(2))' "$SPENT_CENTS") reached the \$$BUDGET_USD budget"
     break
