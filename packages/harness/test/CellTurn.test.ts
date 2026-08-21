@@ -774,6 +774,22 @@ const readCells = (count: number): ReadonlyArray<ScriptedModel.Step> =>
       )
   )
 
+/** Read-only cells that also volunteer a justification the harness never asked for. */
+const justifiedCells = (count: number, reason: string): ReadonlyArray<ScriptedModel.Step> =>
+  Array.from(
+    { length: count },
+    () =>
+      emits(
+        `await ctx.call("fs/list", { path: "." })
+         return {
+           intent: "continue",
+           state: {},
+           context: [{ role: "user", text: "still reading" }],
+           justification: ${JSON.stringify(reason)}
+         }`
+      )
+  )
+
 const successes = (count: number): ReadonlyArray<ScriptedEngine.CallStep> =>
   Array.from({ length: count }, () => ({ _tag: "Success", value: ["alpha.md"] }) as const)
 
@@ -1154,6 +1170,68 @@ describe("CellTurn read-only cap", () => {
     // the counter keeps running underneath it: the run still stops at twice
     // the cap rather than reading forever on a rationale.
     expect(JSON.stringify(model.recorder.requests[3]?.messages)).not.toContain("Read-only discipline")
+    expect(failure).toMatchObject({ code: "read_only_cap" })
+  })
+
+  it("issues the demand to a run that volunteers a justification nobody asked for", async () => {
+    const { events, failure, model } = await run({
+      state: capped(3, 10),
+      flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] })],
+      script: [
+        ...readCells(1),
+        ...justifiedCells(4, "the symbol I need is not located yet"),
+        ...readCells(1)
+      ],
+      calls: successes(6)
+    })
+
+    // Frames one and two volunteer a justification before the streak reaches
+    // three, and volunteering buys nothing: the cap is reached on frame two
+    // and the demand goes to frame three regardless. Grace is for an answer,
+    // so the justification frame three writes — the first one this run was
+    // actually asked for — buys the full spell and frame four is quiet.
+    expect(JSON.stringify(model.recorder.requests[2]?.messages)).not.toContain("Read-only discipline")
+    expect(JSON.stringify(model.recorder.requests[3]?.messages)).toContain("Read-only discipline")
+    expect(JSON.stringify(model.recorder.requests[4]?.messages)).not.toContain("Read-only discipline")
+    expect(of(events, "read-only-demanded")).toEqual([
+      expect.objectContaining({ streak: 3, cap: 3, nextFrame: 3, nextAction: "justification" })
+    ])
+    expect(failure).toMatchObject({ code: "read_only_cap" })
+  })
+
+  it("reaches the demand on the wave-11 shape that volunteered its way to the hard stop", async () => {
+    // `pydata__xarray-7393`, waves 10 and 11: twenty-four frames, none of them
+    // mutating, with justifications volunteered on ten of them and a cap of
+    // twelve. Both waves recorded zero `read-only-demanded` events and both
+    // died on the hard stop, because a justification on the frame where the
+    // streak reached the cap took the demand away before it was ever issued.
+    const volunteered = new Set([3, 6, 10, 11, 12, 14, 15, 17, 18, 21])
+    const { events, failure, model } = await run({
+      state: capped(12, 30),
+      flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] })],
+      script: Array.from(
+        { length: 24 },
+        (_, frame) =>
+          volunteered.has(frame)
+            ? justifiedCells(1, `frame ${frame} is still reading`)[0]!
+            : readCells(1)[0]!
+      ),
+      calls: successes(24)
+    })
+
+    // The streak reaches twelve on frame eleven, which volunteered one of the
+    // ten. The demand is issued anyway, so frame twelve is the frame the
+    // control finally speaks to — twelve frames before the hard stop, instead
+    // of never.
+    expect(JSON.stringify(model.recorder.requests[11]?.messages)).not.toContain("Read-only discipline")
+    expect(JSON.stringify(model.recorder.requests[12]?.messages)).toContain("Read-only discipline")
+    expect(of(events, "read-only-demanded")).toEqual([
+      expect.objectContaining({ streak: 12, cap: 12, nextFrame: 12, nextAction: "justification" })
+    ])
+    // Replaying the same transitions still ends on the hard stop — none of
+    // them ever writes, and no grace touches that arithmetic. What the fix
+    // changes is that the run was asked.
+    expect(model.recorder.requests).toHaveLength(24)
     expect(failure).toMatchObject({ code: "read_only_cap" })
   })
 

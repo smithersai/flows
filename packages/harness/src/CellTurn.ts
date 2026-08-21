@@ -306,6 +306,13 @@ export class State extends Schema.Class<State>("flows/harness/CellTurn/State")({
    * A justification is an escape hatch with a price: it buys `readOnlyCap`
    * quiet frames and never resets {@link State.readOnlyFrames}, so a run that
    * keeps justifying still reaches the hard stop at twice the cap.
+   *
+   * Only an *answer* buys it. A justification is accepted when the frame that
+   * wrote it was handed the demand — {@link State.pendingReadOnlyDemand} is
+   * set — and a justification volunteered by a frame that was asked nothing is
+   * recorded on its transition and buys zero frames. Otherwise a run can spend
+   * the whole allowance without the demand ever being issued: see the comment
+   * beside the intervention in `frame`.
    */
   readOnlyGrace: NonNegativeSafeInt.pipe(
     Schema.withConstructorDefault(Effect.succeed(0)),
@@ -2249,9 +2256,23 @@ const frame = (
     // it must write something or say why it cannot; a justification is typed
     // data on the transition, is recorded, and buys a bounded quiet spell
     // without resetting the counter that ends the run at twice the cap.
+    //
+    // A justification buys that spell only when it *answers* a demand this
+    // frame was handed. A justification volunteered by a frame nobody asked is
+    // recorded — it is a field on the transition and the journal writes the
+    // whole transition — and buys nothing. The two cannot be the same price,
+    // because the counter runs regardless of which one is written: a run that
+    // volunteers one every few frames used to renew the quiet spell before the
+    // streak could ever hand the demand out, so the demand was never issued,
+    // never journaled, and never got its one chance to redirect the run, while
+    // the hard stop at twice the cap — which no grace touches — killed the run
+    // anyway. Two SWE-bench waves lost `pydata__xarray-7393` exactly so: ten
+    // volunteered justifications, zero `read-only-demanded` events, and death
+    // at 24 frames against a cap of 12 without the control ever speaking.
     const graceLeft = readOnly ? state.readOnlyGrace : 0
     const demanded = cap > 0 && readOnly && readOnlyFrames >= cap && graceLeft === 0
-    const justified = demanded && (transition.justification ?? "").trim().length > 0
+    const justified = readOnly && state.pendingReadOnlyDemand !== undefined &&
+      (transition.justification ?? "").trim().length > 0
     const readOnlyGrace = justified ? cap : Math.max(0, graceLeft - 1)
     const demand = demanded && !justified
       ? [ModelRequest.Message.user(readOnlyDemand(cap, readOnlyFrames))]
