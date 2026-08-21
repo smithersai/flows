@@ -62,6 +62,7 @@ describe("AgentEvent", () => {
         maxFrames: 100,
         approvalChannel: true,
         modelCallMs: 300_000,
+        repeatCap: 4,
         calls: 8,
         memoryBytes: 1024,
         steps: 10_000,
@@ -184,7 +185,8 @@ describe("AgentEvent", () => {
         readOnlyCap: 0,
         maxFrames: 1,
         approvalChannel: false,
-        modelCallMs: 0
+        modelCallMs: 0,
+        repeatCap: 0
       }),
       new AgentEvent.Suspended({
         eventType: "flows.harness.suspended.v1",

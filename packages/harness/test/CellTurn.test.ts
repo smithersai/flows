@@ -236,7 +236,11 @@ describe("CellTurn", () => {
         // budgets its cells run under. `model-settled` already states each
         // call's `durationMillis`, so the pair is what makes the ceiling
         // gradeable from the journal alone.
-        modelCallMs: CellTurn.defaultModelCallMs
+        modelCallMs: CellTurn.defaultModelCallMs,
+        // The convergence threshold, armed for every run that does not opt
+        // out. A wave that journals no repeat demand can then tell "armed and
+        // never needed" from "never armed".
+        repeatCap: CellTurn.defaultRepeatFrames
       })
     ])
     expect(armed[0]).not.toHaveProperty("totalMs")
@@ -913,37 +917,99 @@ describe("CellTurn read-only cap", () => {
     })
   })
 
-  it.each(
-    [
-      ["read-only", `throw new Error("diagnostic failed")`, 2],
-      [
-        "write",
-        `await ctx.call("edit", { path: "a.py", text: "partial" })
-       throw new Error("post-edit diagnostic failed")`,
-        3
-      ]
-    ] as const
-  )("records a demanded frame that raises after a %s response", async (nextAction, response, calls) => {
+  it("records a demanded frame that wrote something and then raised", async () => {
     const { events } = await run({
       state: capped(1, 3),
       flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] }), editor],
       script: [
         ...readCells(1),
-        emits(response),
+        emits(
+          `await ctx.call("edit", { path: "a.py", text: "partial" })
+           throw new Error("post-edit diagnostic failed")`
+        ),
         emits(
           `await ctx.call("edit", { path: "a.py", text: "recovered" })
            return { intent: "complete", state: {}, output: "done" }`
         )
       ],
-      calls: successes(calls)
+      calls: successes(3)
     })
 
+    // The edit landed before the throw, so the demanded frame answered the
+    // demand even though it settled no transition.
     expect(of(events, "read-only-demanded")[0]).toMatchObject({
       streak: 1,
       cap: 1,
       nextFrame: 1,
-      nextAction
+      nextAction: "write"
     })
+  })
+
+  it("leaves a demand pending across a frame that raised without writing", async () => {
+    const { events } = await run({
+      state: capped(2, 5),
+      flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] }), editor],
+      script: [
+        ...readCells(2),
+        emits(`throw new Error("diagnostic failed")`),
+        emits(
+          `await ctx.call("edit", { path: "a.py", text: "fixed" })
+           return { intent: "complete", state: {}, output: "done" }`
+        )
+      ],
+      calls: successes(3)
+    })
+
+    // A demand is answered by a write or by a justification, and a frame that
+    // settled no transition produced neither. Recording the raise as the
+    // answer closed the demand with nothing behind it and let the next frame
+    // start clean; the demand instead waits for frame 3, which writes.
+    expect(of(events, "read-only-demanded")).toEqual([
+      expect.objectContaining({ streak: 2, cap: 2, nextFrame: 3, nextAction: "write" })
+    ])
+  })
+
+  it("counts a frame that raised without writing toward the streak", async () => {
+    const { events, model } = await run({
+      state: capped(3, 4),
+      flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] }), editor],
+      script: [
+        ...readCells(1),
+        emits(`throw new Error("diagnostic failed")`),
+        ...readCells(1),
+        ...readCells(1)
+      ],
+      calls: successes(3)
+    })
+
+    // Freezing the counter on a raise made a run that alternates raising with
+    // reading take two frames to advance the streak by one, so a cap of twelve
+    // needed twenty-four frames and a run that raised more often never reached
+    // it. The raising frame wrote nothing, so it counts: the streak is at the
+    // cap of three by frame 2 and frame 3 carries the demand, where before the
+    // demand arrived a frame after the budget ran out.
+    expect(JSON.stringify(model.recorder.requests[3]?.messages)).toContain("Read-only discipline")
+    expect(of(events, "read-only-demanded")).toEqual([
+      expect.objectContaining({ streak: 3, cap: 3, nextFrame: 3, nextAction: "read-only" })
+    ])
+  })
+
+  it("stops a run whose raising frames spend twice the cap", async () => {
+    const { failure, model } = await run({
+      state: capped(1, 6),
+      flows: [descriptor("fs/list", { capabilities: ["fs:read:**"] }), editor],
+      script: [
+        emits(`throw new Error("first")`),
+        emits(`throw new Error("second")`),
+        emits(`return { intent: "complete", state: {}, output: "never reached" }`)
+      ]
+    })
+
+    // A raise continues the run, so it is judged like every other continuing
+    // frame: two frames that changed nothing is twice a cap of one, and the
+    // run stops there rather than raising its way to the budget wall.
+    expect(failure).toMatchObject({ code: "read_only_cap" })
+    expect(model.recorder.requests).toHaveLength(2)
   })
 
   it("clears the streak when a call declares a write", async () => {
@@ -1391,6 +1457,205 @@ describe("CellTurn observed mutation", () => {
     // changed a tracked file.
     expect(of(events, "mutation-observed")[1]).toMatchObject({ basis: "observed", mutated: true })
     expect(of(events, "read-only-demanded")).toEqual([])
+  })
+
+  /** An edit the cell attempts and survives, whatever the flow answers. */
+  const attempt = (text: string) =>
+    `try { await ctx.call("edit", { path: "a.py", text: ${JSON.stringify(text)} }) } catch (error) {}
+     return { intent: "continue", state: {}, context: [] }`
+
+  it("lets a complete measurement veto the declaration of a call that failed", async () => {
+    const { events, model } = await shell(
+      [attempt("one"), attempt("two"), attempt("three"), `return { intent: "complete", state: {}, output: "done" }`],
+      [
+        { _tag: "Failure", message: "oldString does not occur" },
+        { _tag: "Failure", message: "Failed to find expected lines" },
+        { _tag: "Success", value: { edited: true } }
+      ],
+      { cap: 2, tree: "a.py=same", maxFrames: 4 }
+    )
+
+    // A failed call declared what it *would* have written. The workspace was
+    // measured whole on both sides of the frame and did not move, so the
+    // declaration is contradicted rather than merely unconfirmed, and the
+    // frame is not a write. Wave 7 recorded two frames of exactly this shape,
+    // each clearing a read-only streak the run had not broken.
+    const observed = of(events, "mutation-observed")
+    expect(observed.slice(0, 2)).toEqual([
+      expect.objectContaining({ basis: "observed", mutated: false, declaredWrites: 1 }),
+      expect.objectContaining({ basis: "observed", mutated: false, declaredWrites: 1 })
+    ])
+    // The successful edit still counts on the same unchanged digest: the
+    // measurement is rooted, pruned and bounded, so it may contradict a call
+    // that reported failure and never a call that reported success.
+    expect(observed[2]).toMatchObject({ basis: "observed", mutated: true, declaredWrites: 1 })
+
+    // Two vetoed frames make a streak of two, which is the cap, and the frame
+    // that finally edits answers the demand. Under the union rule the run
+    // spent both frames looking like it was writing and was never demanded.
+    expect(of(events, "read-only-demanded")).toEqual([
+      expect.objectContaining({ streak: 2, cap: 2, nextFrame: 2, nextAction: "write" })
+    ])
+    expect(JSON.stringify(model.recorder.requests[2]?.messages)).toContain("Read-only discipline")
+  })
+
+  it("keeps a failed call's declaration where the measurement covered only a prefix", async () => {
+    const { events } = await shell(
+      [attempt("one"), attempt("two"), attempt("three")],
+      [
+        { _tag: "Failure", message: "oldString does not occur" },
+        { _tag: "Failure", message: "oldString does not occur" },
+        { _tag: "Failure", message: "oldString does not occur" }
+      ],
+      { cap: 2, tree: "prefix-of-the-tree", treeComplete: false, maxFrames: 3 }
+    )
+
+    // A bounded walk that saw a prefix hold still says nothing about the path
+    // the call named, so it cannot contradict anything. The veto needs a
+    // measurement that covered the tree; short of that the declaration stands
+    // and the run is not stopped on the absence of evidence.
+    expect(of(events, "mutation-observed").map((event) => event.mutated)).toEqual([true, true, true])
+    expect(of(events, "read-only-demanded")).toEqual([])
+  })
+})
+
+describe("CellTurn repeated observation", () => {
+  const shell = descriptor("bash", { capabilities: ["proc:spawn:*"], tier: "irreversible" })
+
+  /** A frame that runs one command and reports on it. */
+  const running = (command: string) =>
+    `await ctx.call("bash", { mode: "unhermetic", command: ${JSON.stringify(command)} })
+     return { intent: "continue", state: {}, context: [{ role: "user", text: "checked" }] }`
+
+  const spinning = (cells: ReadonlyArray<string>, calls?: ReadonlyArray<ScriptedEngine.CallStep>) =>
+    run({
+      // The read-only cap is disarmed so the only intervention under test is
+      // the repeat demand: a spinning run is read-only too, and the two
+      // controls must be legible apart.
+      state: state({ maxFrames: cells.length, envelope: ["fs:read:**", "fs:write:**", "proc:spawn:*"] }),
+      flows: [shell, editor],
+      script: cells.map(emits),
+      calls: calls ?? Array.from({ length: cells.length }, () => ({ _tag: "Success", value: null }) as const),
+      tree: "a.py=fixed"
+    })
+
+  it("names the repetition and redirects a run that only re-confirms what it knows", async () => {
+    const { events, model } = await spinning([
+      running("git diff"),
+      running("git diff"),
+      running("git diff"),
+      running("git diff"),
+      running("git diff"),
+      running("git diff")
+    ])
+
+    // Frame 0 asks something new; frames 1 to 4 ask nothing new and change
+    // nothing, which is the armed threshold, so frame 5 carries the notice.
+    expect(of(events, "repeat-demanded")).toEqual([
+      expect.objectContaining({ frames: CellTurn.defaultRepeatFrames, cap: CellTurn.defaultRepeatFrames, nextFrame: 5 })
+    ])
+    const demanded = JSON.stringify(model.recorder.requests[5]?.messages)
+    expect(demanded).toContain("Repeated observation")
+    expect(demanded).toContain("re-confirming what you already know")
+    expect(demanded).toContain("the failing check itself")
+    expect(demanded).toContain("git blame")
+    expect(JSON.stringify(model.recorder.requests[4]?.messages)).not.toContain("Repeated observation")
+  })
+
+  it("says nothing while the run keeps asking something new", async () => {
+    const { events } = await spinning([
+      running("git diff"),
+      running("git status"),
+      running("git log -1"),
+      running("git blame a.py"),
+      running("git diff"),
+      running("git status")
+    ])
+
+    // The last two frames repeat, but every frame before them asked something
+    // the run had not asked, so no streak ever forms. A demand here would fire
+    // on ordinary work.
+    expect(of(events, "repeat-demanded")).toEqual([])
+  })
+
+  it("says nothing while the frames that repeat are changing the workspace", async () => {
+    const { events } = await spinning(
+      [
+        running("make fix"),
+        running("make fix"),
+        running("make fix"),
+        running("make fix"),
+        running("make fix"),
+        running("make fix")
+      ],
+      [
+        { _tag: "Success", value: null, tree: "a.py=1" },
+        { _tag: "Success", value: null, tree: "a.py=2" },
+        { _tag: "Success", value: null, tree: "a.py=3" },
+        { _tag: "Success", value: null, tree: "a.py=4" },
+        { _tag: "Success", value: null, tree: "a.py=5" },
+        { _tag: "Success", value: null, tree: "a.py=6" }
+      ]
+    )
+
+    // A command repeated verbatim that moves the tree every time is a run
+    // making progress with one tool, not a run confirming itself. Only frames
+    // that observe and change nothing count.
+    expect(of(events, "mutation-observed").every((event) => event.mutated)).toBe(true)
+    expect(of(events, "repeat-demanded")).toEqual([])
+  })
+
+  it("carries the count across a frame that called nothing at all", async () => {
+    const { events } = await spinning([
+      running("git diff"),
+      running("git diff"),
+      running("git diff"),
+      `return { intent: "continue", state: {}, context: [{ role: "user", text: "thinking" }] }`,
+      running("git diff"),
+      running("git diff"),
+      running("git diff")
+    ])
+
+    // A frame that issued no call made no observation, so it neither repeats
+    // one nor breaks a run of them. Clearing the count there would let one
+    // silent frame launder a spin; counting it would punish a frame spent
+    // planning.
+    expect(of(events, "repeat-demanded")).toEqual([
+      expect.objectContaining({ frames: CellTurn.defaultRepeatFrames, nextFrame: 6 })
+    ])
+  })
+
+  it("returns after another full threshold rather than every frame", async () => {
+    const { events } = await spinning(
+      Array.from({ length: 11 }, () => running("git diff"))
+    )
+
+    // Issuing the demand restarts the count, so a run that keeps repeating is
+    // told once per threshold instead of once per frame.
+    expect(of(events, "repeat-demanded").map((event) => event.nextFrame)).toEqual([5, 9])
+  })
+
+  it("leaves a run whose repeat demand is disarmed alone", async () => {
+    const disarmed = CellTurn.make({
+      session: "session-1",
+      seat: "anthropic:test-model",
+      modelParams: ModelRequest.GenerationParams.make(),
+      layers: ["layer-a"],
+      capabilityEnvelope: [new Capability.CapabilityPattern({ action: "proc:spawn", resource: "*" })],
+      placement: Option.none(),
+      contextWindow: window,
+      maxFrames: 6,
+      repeatCap: 0
+    })
+    const { events, model } = await run({
+      state: disarmed,
+      flows: [shell],
+      script: Array.from({ length: 6 }, () => emits(running("git diff"))),
+      tree: "a.py=fixed"
+    })
+
+    expect(of(events, "repeat-demanded")).toEqual([])
+    expect(JSON.stringify(model.recorder.requests)).not.toContain("Repeated observation")
   })
 })
 

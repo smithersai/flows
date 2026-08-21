@@ -84,6 +84,7 @@ describe("trace", () => {
           maxFrames: 100,
           approvalChannel: false,
           modelCallMs: 300_000,
+          repeatCap: 4,
           calls: 64,
           memoryBytes: 134_217_728,
           steps: 1_000,
@@ -106,6 +107,10 @@ describe("trace", () => {
             // per call, so a report can grade every call against the ceiling
             // the run armed without re-instrumenting anything.
             modelCallMs: 300_000,
+            // The convergence threshold, journaled for the same reason the
+            // read cap is: a wave that records no repeat demand can then say
+            // whether the control was armed and never needed, or never armed.
+            repeatCap: 4,
             calls: 64,
             memoryBytes: 134_217_728,
             steps: 1_000,
@@ -127,6 +132,22 @@ describe("trace", () => {
         {
           eventType: "control.agent.read-only-demanded",
           payload: { streak: 12, cap: 12, nextFrame: 13, nextAction: "write" }
+        }
+      ],
+      [
+        "repeat-demanded",
+        new AgentEvent.RepeatDemanded({
+          eventType: "flows.harness.repeat-demanded.v1",
+          frames: 4,
+          cap: 4,
+          nextFrame: 15
+        }),
+        {
+          eventType: "control.agent.repeat-demanded",
+          // Written when the demand is issued rather than when it is answered:
+          // the answer is the shape of frame 15's calls, and those are already
+          // journaled one at a time.
+          payload: { frames: 4, cap: 4, nextFrame: 15 }
         }
       ],
       [

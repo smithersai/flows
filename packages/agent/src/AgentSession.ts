@@ -185,6 +185,10 @@ export const trace = (
           // journals `durationMillis` per call, so the pair says both what the
           // run promised and what every call it made actually spent.
           modelCallMs: event.modelCallMs,
+          // Armed for the same reason and journaled the same way: a wave that
+          // records no repeat demand must be able to say whether the control
+          // was armed and never needed, or never armed at all.
+          repeatCap: event.repeatCap,
           calls: event.calls,
           memoryBytes: event.memoryBytes,
           steps: event.steps,
@@ -258,6 +262,14 @@ export const trace = (
           nextFrame: event.nextFrame,
           nextAction: event.nextAction
         }
+      }
+    case "repeat-demanded":
+      // Journaled at issuance, not at its answer: what answers this demand is
+      // the shape of the next frame's calls, and `cell-call-started` already
+      // writes those one at a time.
+      return {
+        eventType: "control.agent.repeat-demanded",
+        payload: { frames: event.frames, cap: event.cap, nextFrame: event.nextFrame }
       }
     case "suspended":
       return { eventType: "control.agent.suspended", payload: { reason: event.reason } }

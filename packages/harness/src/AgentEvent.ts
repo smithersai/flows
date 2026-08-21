@@ -49,6 +49,14 @@ export class DisciplineArmed extends Schema.TaggedClass<DisciplineArmed>(
    * which was the only unbounded thing the loop did.
    */
   modelCallMs: Schema.Number,
+  /**
+   * Consecutive repeat-observation frames allowed; zero disarms the demand.
+   *
+   * Armed here for the same reason the read-only cap is: a run that never
+   * reaches a control proves nothing about whether the control was armed, and
+   * a grader must be able to tell "armed and never needed" from "never armed".
+   */
+  repeatCap: Schema.Number,
   /** Maximum calls per cell, when this binding can enforce one. */
   calls: Schema.optional(Schema.Number),
   /** Maximum sandbox heap, when this binding can enforce one. */
@@ -242,6 +250,31 @@ export class ReadOnlyDemanded extends Schema.TaggedClass<ReadOnlyDemanded>(
 }) {}
 
 /**
+ * The controller telling a run it has stopped learning anything.
+ *
+ * Written when a run reaches its repeat-observation threshold: consecutive
+ * frames that issued calls, issued none the run had not already issued, and
+ * changed nothing. The read-cap event above is written when its demand is
+ * *answered*, because the answer is a field on a transition; this one is
+ * written when the demand is *issued*, because what answers it is the shape of
+ * the next frame's calls and the journal already writes those one by one.
+ *
+ * @category events
+ * @since 0.1.0
+ */
+export class RepeatDemanded extends Schema.TaggedClass<RepeatDemanded>(
+  "flows/harness/AgentEvent/RepeatDemanded"
+)("repeat-demanded", {
+  eventType: Schema.Literal("flows.harness.repeat-demanded.v1"),
+  /** Consecutive repeat-observation frames the run had spent. */
+  frames: Schema.Int,
+  /** The armed threshold that streak reached. */
+  cap: Schema.Int,
+  /** The frame the demand was attached to, which is the one that must answer it. */
+  nextFrame: Schema.Int
+}) {}
+
+/**
  * What one frame did to the workspace, and how the controller knows.
  *
  * Emitted once per frame that ran a cell. It is the frame's own answer to the
@@ -260,10 +293,16 @@ export class ReadOnlyDemanded extends Schema.TaggedClass<ReadOnlyDemanded>(
  * themselves — which is exactly the signal that missed a shell redirect over a
  * tracked source file.
  *
- * `mutated` is the union of the two signals and never the measurement alone: a
- * declared write stands even where the measurement cannot see the path it
- * touched, because the alternative is failing a run that has been editing all
- * along on the strength of a walk that never looked at its files.
+ * `mutated` is the union of the two signals, with one exception. A declaration
+ * by a call that *succeeded* stands even where the measurement cannot see the
+ * path it touched, because the alternative is failing a run that has been
+ * editing all along on the strength of a walk that never looked at its files.
+ * A declaration by a call that *failed* is a claim about what it would have
+ * written, and where `basis` is `observed` and the digest did not move, the
+ * tree has answered that claim: nothing was written, and the frame is not
+ * counted as a write. So `declaredWrites: 1` beside `mutated: false` under
+ * `observed` is a declaration the measurement vetoed, and both numbers stay in
+ * the record.
  *
  * @category events
  * @since 0.1.0
@@ -281,12 +320,14 @@ export class MutationObserved extends Schema.TaggedClass<MutationObserved>(
   /** Paths the closing measurement covered; zero when unobserved. */
   paths: Schema.Int,
   /**
-   * Calls this frame made that DECLARED a write.
+   * Calls this frame made that DECLARED a write, whether or not they landed.
    *
    * Journaled beside the observed answer rather than instead of it, because
    * the gap between the two numbers is the accounting defect itself: a frame
    * with `declaredWrites: 0` and `mutated: true` is a shell mutation nothing
-   * else in the run can see.
+   * else in the run can see, and a frame with `declaredWrites: 1` and
+   * `mutated: false` under `observed` is a failed call whose declaration the
+   * measurement contradicted.
    */
   declaredWrites: Schema.Int
 }) {}
@@ -411,6 +452,7 @@ export const AgentEvent = Schema.Union([
   TransitionApplied,
   MutationObserved,
   ReadOnlyDemanded,
+  RepeatDemanded,
   Suspended,
   CompactionSettled,
   SteeringDrained,

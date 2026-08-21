@@ -16,6 +16,7 @@
  * @since 0.1.0
  */
 import { Effects, type KeyMaterial, Placement } from "@smthrs/core"
+import * as Digest from "@smthrs/core/Digest"
 import { Capability, CapabilitySet, Permission } from "@smthrs/kernel"
 import { CanonicalJson, type Model, ModelEvent, ModelRequest } from "@smthrs/model"
 import { Descriptor } from "@smthrs/registry"
@@ -91,6 +92,31 @@ export const defaultReadOnlyFrames = 12
  */
 export const defaultModelCallMs = 300_000
 
+/**
+ * Default number of consecutive repeat-observation frames a run may spend.
+ *
+ * A repeat-observation frame is one that issued at least one call, issued no
+ * call this run had not already issued, and changed nothing. Such a frame buys
+ * a model step and a flow call and is handed back what the run was already
+ * holding.
+ *
+ * The number is read off wave 7 of the SWE-bench harness. Its one unresolved
+ * instance made a real, surviving edit at frame 14 and then spent frames 15
+ * through 24 re-reading that edit and re-running the same two check files —
+ * ten frames that never revisited the mechanism, and the run died on its
+ * process budget still confirming itself. Four is the smallest threshold an
+ * ordinary re-check cannot reach: reading a file, editing it and reading it
+ * back is one repeat frame, and running a check, reading the failure and
+ * running it again is two. Four consecutive frames that learn nothing new is a
+ * run that has stopped looking, not one double-checking its work.
+ *
+ * Zero disarms the demand.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const defaultRepeatFrames = 4
+
 const MaxFrames = NonNegativeSafeInt.pipe(
   Schema.withConstructorDefault(Effect.succeed(defaultMaxFrames)),
   Schema.withDecodingDefaultKey(Effect.succeed(defaultMaxFrames))
@@ -115,6 +141,7 @@ const eventType = {
   compactionSettled: "flows.harness.compaction-settled.v1",
   modelRetried: "flows.harness.model-retried.v1",
   readOnlyDemanded: "flows.harness.read-only-demanded.v1",
+  repeatDemanded: "flows.harness.repeat-demanded.v1",
   modelDelta: "flows.harness.model-delta.v1",
   modelSettled: "flows.harness.model-settled.v1",
   mutationObserved: "flows.harness.mutation-observed.v1",
@@ -221,6 +248,48 @@ export class State extends Schema.Class<State>("flows/harness/CellTurn/State")({
     cap: NonNegativeSafeInt
   })),
   /**
+   * Consecutive repeat-observation frames this run may spend before the
+   * controller redirects it. Zero disarms the demand.
+   *
+   * Armed separately from {@link State.readOnlyCap} because the two answer
+   * different stalls. The read-only cap watches a run that has written
+   * nothing; this watches a run that has written something and keeps
+   * confirming it. A run can be in both states at once, and telling one that
+   * has already edited to "land an edit" sends it back to the file it is
+   * already staring at.
+   */
+  repeatCap: NonNegativeSafeInt.pipe(
+    Schema.withConstructorDefault(Effect.succeed(defaultRepeatFrames)),
+    Schema.withDecodingDefaultKey(Effect.succeed(defaultRepeatFrames))
+  ),
+  /**
+   * Consecutive frames that observed only what this run had already observed.
+   *
+   * A frame counts when it issued at least one call, issued no call whose
+   * signature this run had not already issued, and changed nothing. A frame
+   * that issued no call is neither a repeat nor a break: it made no
+   * observation, so the counter is carried across it rather than advanced or
+   * cleared — a run that thinks for a frame between two identical commands has
+   * not stopped repeating itself, and a run planning its next move has not
+   * started.
+   */
+  repeatFrames: NonNegativeSafeInt.pipe(
+    Schema.withConstructorDefault(Effect.succeed(0)),
+    Schema.withDecodingDefaultKey(Effect.succeed(0))
+  ),
+  /**
+   * Signatures of the calls this run has issued, oldest first.
+   *
+   * State rather than a per-frame detail because repetition is a property of
+   * the run: the frame that re-runs a check is usually nowhere near the frame
+   * that first ran it. It carries digests and no inputs; see
+   * {@link signatureOf}.
+   */
+  callSignatures: Schema.Array(Schema.String).pipe(
+    Schema.withConstructorDefault(Effect.succeed<ReadonlyArray<string>>([])),
+    Schema.withDecodingDefaultKey(Effect.succeed<ReadonlyArray<string>>([]))
+  ),
+  /**
    * Whether a human can answer this run, which is what makes a park honorable.
    *
    * A park is durable waiting, and waiting only ends when somebody answers. A
@@ -316,6 +385,12 @@ export const make = (options: {
    */
   readonly modelCallMs?: number | undefined
   /**
+   * Caps consecutive repeat-observation frames: at the cap the controller
+   * names the repetition and redirects the run at evidence it does not hold.
+   * Omitted takes {@link defaultRepeatFrames}; zero disarms it.
+   */
+  readonly repeatCap?: number | undefined
+  /**
    * Whether a human can answer this run. Omitted or false refuses a `park`
    * transition and answers it in-frame; only a host that has wired somewhere
    * for an answer to come from may claim true.
@@ -339,6 +414,9 @@ export const make = (options: {
     readOnlyFrames: 0,
     readOnlyGrace: 0,
     pendingReadOnlyDemand: undefined,
+    repeatCap: options.repeatCap ?? defaultRepeatFrames,
+    repeatFrames: 0,
+    callSignatures: [],
     approvalChannel: options.approvalChannel ?? false,
     workspace: undefined,
     truncatedOutputs: []
@@ -588,6 +666,75 @@ const readOnlyDemand = (cap: number, frames: number): string =>
   } consecutive read-only frames the run stops as a failure, so ${
     cap * 2 - frames
   } frames remain in which to commit to a change.`
+
+/**
+ * How many distinct call signatures one run carries forward.
+ *
+ * The ledger is durable controller state, so it is bounded. Sixty-four covers a
+ * whole run at the rate a graded wave actually calls flows — its longest run
+ * issued 43 calls across 24 frames — so a call is recognised as a repeat
+ * however early the run first made it. A run that outlives the bound forgets
+ * its oldest distinct calls first, which can cost a demand and can never
+ * invent one.
+ */
+const retainedSignatures = 64
+
+/**
+ * The identity of one invocation: the flow it named and the input it passed.
+ *
+ * Digested rather than kept verbatim because an input is the whole of a shell
+ * command and this list is journaled state. Two invocations share a signature
+ * exactly when the cell asked for the same thing twice, which is the only
+ * question the repeat demand asks. `Forensics` derives the same identity from
+ * the journal after the fact; this is the loop's own view of it, available
+ * while the run can still act on it.
+ */
+const signatureOf = (flow: string, input: Schema.Json): string => Digest.digest(CanonicalJson.stringify([flow, input]))
+
+/**
+ * Folds one frame's signatures into the run's ledger, newest last and bounded.
+ *
+ * A repeated signature moves to the newest position rather than taking a
+ * second slot, so a run looping on one command cannot push everything it
+ * learned earlier out of the ledger.
+ */
+const remember = (
+  known: ReadonlyArray<string>,
+  made: ReadonlyArray<string>
+): ReadonlyArray<string> => {
+  const newest = new Set(known)
+  for (const digest of made) {
+    newest.delete(digest)
+    newest.add(digest)
+  }
+  const distinct = [...newest]
+  return distinct.slice(Math.max(0, distinct.length - retainedSignatures))
+}
+
+/**
+ * The intervention that names a run's own repetition back to it.
+ *
+ * Separate text from the read-only demand because it is a different diagnosis
+ * with a different way out. The read-only cap says nothing has been written and
+ * asks for a change; this says the run keeps asking questions it has already
+ * answered, and a run in this state has usually already written something. On
+ * the SWE-bench pytest instance of wave 7 the run made a real, surviving edit
+ * and then spent ten frames re-reading it — the diff, then the diff and the
+ * status, then the status and the names, then the diff of the one file — and
+ * re-running the same two check files, until the process budget ended it. The
+ * text therefore does not ask for another edit. It states that the change is
+ * real, that the failure is in the mechanism, and names the three places
+ * evidence it does not hold actually lives.
+ */
+const repeatDemand = (frames: number, cap: number): string =>
+  `Repeated observation — the last ${frames} frames issued only calls this run had already issued, byte for byte, and none of them changed the workspace. You are re-confirming what you already know: a call repeated over an unchanged tree returns what it returned the first time. If you have already made a change, it is real and it is recorded, and looking at it again cannot tell you whether it is the right change — what is left to establish is the mechanism, not the presence.
+
+Spend the next frame on evidence you do not have. Three places hold some, and none of them is the diff:
+- the failing check itself — what it asserts, the values it asserts about, and the setup that produces them;
+- the history of the symbol you changed — \`git log -L <start>,<end>:<file>\` over its line range, or \`git blame\` on the line — which says why it is written the way it is and what it was written to handle;
+- a different site — the callers of the symbol rather than its definition, which is where a wrong mechanism shows first.
+
+If no call you can name would tell you something you do not already know, say which mechanism you now believe is wrong and change that instead. This notice returns after another ${cap} repeated frames.`
 
 /**
  * The answer a park gets when nothing is listening for it.
@@ -1049,6 +1196,8 @@ const frame = (
        * declared a write and performed none.
        */
       readonly mutates: boolean
+      /** What this invocation asked for, as {@link signatureOf} names it. */
+      readonly signature: string
       /** What the flow said about its own failure, when it said it ran nothing. */
       readonly invalidProbe: { readonly reason: string; readonly message: string } | undefined
     }> = []
@@ -1068,6 +1217,10 @@ const frame = (
               summary: clip(rendered, 400),
               mutates: performed.has(invocation.ordinal) && descriptor !== undefined &&
                 mutating(descriptor, invocation.input),
+              // Every invocation the cell issued, refused ones included: a
+              // refusal is still a question the run has already asked, and
+              // asking it again learns nothing either.
+              signature: signatureOf(invocation.flow, invocation.input),
               invalidProbe: result.outcome === "success" ? invalidProbeOf(result.value) : undefined
             })
           })
@@ -1093,19 +1246,29 @@ const frame = (
     // carried out through every exit.
     //
     // `declaredWrites` is what the frame's calls said about themselves and the
-    // measurement is what the workspace says. The frame changed something when
-    // *either* says so, and never only when the measurement does: a
-    // measurement can add a mutation nothing declared — the shell redirect
-    // this exists for — but it may not take a declared one away. It does not
-    // cover the whole world. It stops at a bound, it prunes directories, and
-    // it is rooted at one path; a declared write outside what it covers would
-    // otherwise read as an idle frame, and twice the cap later the run fails
-    // as `read_only_cap` having edited files the whole time. Killing a working
-    // run on the absence of evidence is the worse error of the two.
+    // measurement is what the workspace says. A measurement adds a mutation
+    // nothing declared — the shell redirect this exists for — and it does not
+    // take away a declaration made by a call that *succeeded*, because it does
+    // not cover the whole world: it stops at a bound, it prunes directories,
+    // and it is rooted at one path, so a real edit outside what it covers
+    // would read as an idle frame and twice the cap later the run would fail
+    // as `read_only_cap` having edited files the whole time.
+    //
+    // A declaration made by a call that *failed* is a different claim. It says
+    // what the call would have written, and a complete measurement that saw
+    // the workspace hold still contradicts it directly rather than merely
+    // failing to confirm it: nothing was written, so nothing was written
+    // outside the bound either. Wave 7 recorded two such frames on one
+    // instance — an anchor miss reporting `Failed to find expected lines`, and
+    // an edit reporting `oldString does not occur` — each of which cleared a
+    // read-only streak the run had not broken. Where the measurement is
+    // partial or absent the old rule stands, because then the digest holding
+    // still is not evidence of anything.
     const declaredWrites = observedCalls.filter((call) => call.mutates).length
     const measured = Option.isSome(opened) && Option.isSome(closed)
     const covered = measured && opened.value.complete && closed.value.complete
-    const mutated = declaredWrites > 0 || (covered && opened.value.digest !== closed.value.digest)
+    const standingWrites = observedCalls.filter((call) => call.mutates && (call.ok || !covered)).length
+    const mutated = standingWrites > 0 || (covered && opened.value.digest !== closed.value.digest)
     yield* emit(
       new AgentEvent.MutationObserved({
         eventType: eventType.mutationObserved,
@@ -1122,17 +1285,53 @@ const frame = (
     // forward with nothing to contradict it.
     const probeNotice = invalidProbeNotice(observedCalls)
 
+    // The frame's own repetition, measured the same way and carried the same
+    // way: a frame repeats when it issued calls, issued none this run had not
+    // already issued, and changed nothing. A signature the ledger has
+    // forgotten reads as new, which delays a demand and never fabricates one.
+    const signatures = observedCalls.map((call) => call.signature)
+    const asked = new Set(state.callSignatures)
+    const novel = signatures.some((signature) => !asked.has(signature))
+    const callSignatures = remember(state.callSignatures, signatures)
+    const repeatFrames = signatures.length === 0
+      ? state.repeatFrames
+      : novel || mutated
+      ? 0
+      : state.repeatFrames + 1
+
+    // Read-only discipline is armed for the whole frame, not for one exit: a
+    // raise, a refused park and a settled transition all continue the run, and
+    // each of them judges the frame by this cap.
+    const cap = state.readOnlyCap
+
     if (outcome._tag !== "settled") {
-      if (state.pendingReadOnlyDemand !== undefined) {
+      // The frame settled no transition, but it either changed the workspace
+      // or it did not, and that is the whole of what the streak counts.
+      // Freezing the counter here is how a stall hid from the cap: a run that
+      // alternates a raise with a read advances the streak once every two
+      // frames, so a cap of twelve took twenty-four frames to reach and a run
+      // that raised more often than it read never reached it at all. Wave 7's
+      // own report reads the drift the other way round — the journal's
+      // mutation streak and this counter disagreed by one per raise — and the
+      // instance that spent its whole budget raised twice.
+      const raisedFrames = mutated ? 0 : state.readOnlyFrames + 1
+      // A demand is answered by a write or by a justification, and a frame
+      // that settled no transition produced neither. So a raise leaves the
+      // demand pending — its text is still in the transcript this exit appends
+      // to — and the journal names the frame that finally answers it.
+      if (state.pendingReadOnlyDemand !== undefined && mutated) {
         yield* emit(
           new AgentEvent.ReadOnlyDemanded({
             eventType: eventType.readOnlyDemanded,
             streak: state.pendingReadOnlyDemand.streak,
             cap: state.pendingReadOnlyDemand.cap,
             nextFrame: state.frame,
-            nextAction: mutated ? "write" : "read-only"
+            nextAction: "write"
           })
         )
+      }
+      if (cap > 0 && raisedFrames >= cap * 2) {
+        return yield* readOnlyCapFailure(cap, raisedFrames)
       }
       const salvage = observedCalls.length === 0
         ? ""
@@ -1143,13 +1342,12 @@ const frame = (
       const note = outcome._tag === "raised"
         ? `The cell threw ${outcome.name}: ${outcome.message}. Emit a corrected cell.${salvage}${alert}`
         : `${outcome.message}${salvage}${alert}`
-      // A frame that never settled a transition does not advance the
-      // read-only counter — it produced no decision to judge — but an edit it
-      // did land before throwing still clears it.
       const step = observe(note, {
-        pendingReadOnlyDemand: undefined,
         workspace: closed,
-        ...(mutated ? { readOnlyFrames: 0, readOnlyGrace: 0 } : {})
+        readOnlyFrames: raisedFrames,
+        repeatFrames,
+        callSignatures,
+        ...(mutated ? { readOnlyGrace: 0, pendingReadOnlyDemand: undefined } : {})
       })
       yield* emit(
         new AgentEvent.TurnClosed({
@@ -1199,10 +1397,9 @@ const frame = (
         // waiting here: a cell that parks every frame changes nothing, and
         // without this it would be the one shape a stalled run can take that
         // the read-only cap never sees.
-        const parkCap = state.readOnlyCap
         const parkFrames = mutated ? 0 : state.readOnlyFrames + 1
-        if (parkCap > 0 && parkFrames >= parkCap * 2) {
-          return yield* readOnlyCapFailure(parkCap, parkFrames)
+        if (cap > 0 && parkFrames >= cap * 2) {
+          return yield* readOnlyCapFailure(cap, parkFrames)
         }
         const limits = Sandbox.withDefaults(sandbox.capabilities, input.limits)
         const step = observe(
@@ -1216,6 +1413,8 @@ const frame = (
             pendingReadOnlyDemand: undefined,
             workspace: closed,
             readOnlyFrames: parkFrames,
+            repeatFrames,
+            callSignatures,
             ...(mutated ? { readOnlyGrace: 0 } : {})
           }
         )
@@ -1256,7 +1455,6 @@ const frame = (
     // An honored park is exempt: waiting is not evasion, and a parked run is
     // not reporting anything as done. A refused park is not exempt — it
     // continues the run — and the branch above applies the same rule to it.
-    const cap = state.readOnlyCap
     const readOnly = !mutated
     const readOnlyFrames = readOnly ? state.readOnlyFrames + 1 : 0
     if (state.pendingReadOnlyDemand !== undefined) {
@@ -1364,8 +1562,33 @@ const frame = (
     const demand = demanded && !justified
       ? [ModelRequest.Message.user(readOnlyDemand(cap, readOnlyFrames))]
       : []
+    // The convergence intervention. It is journaled when it is *issued* rather
+    // than when the next frame answers it, because what answers it is the
+    // shape of that frame's calls — which the journal already writes one by
+    // one — and not a field on a transition the controller has to wait for.
+    // Issuing it restarts the count, so a run that keeps repeating is told
+    // once every `repeatCap` frames instead of every frame.
+    const repeatDemanded = state.repeatCap > 0 && repeatFrames >= state.repeatCap
+    if (repeatDemanded) {
+      yield* emit(
+        new AgentEvent.RepeatDemanded({
+          eventType: eventType.repeatDemanded,
+          frames: repeatFrames,
+          cap: state.repeatCap,
+          nextFrame: state.frame + 1
+        })
+      )
+    }
+    const repeated = repeatDemanded
+      ? [ModelRequest.Message.user(repeatDemand(repeatFrames, state.repeatCap))]
+      : []
     const alerts = probeNotice === undefined ? [] : [ModelRequest.Message.user(probeNotice)]
-    const context = projected(state, transition.context, [...drained.inserts, ...alerts, ...demand])
+    const context = projected(state, transition.context, [
+      ...drained.inserts,
+      ...alerts,
+      ...demand,
+      ...repeated
+    ])
     return {
       _tag: "Continue",
       state: advance(state, {
@@ -1383,6 +1606,8 @@ const frame = (
         workspace: closed,
         readOnlyFrames,
         readOnlyGrace,
+        repeatFrames: repeatDemanded ? 0 : repeatFrames,
+        callSignatures,
         pendingReadOnlyDemand: demanded && !justified ? { streak: readOnlyFrames, cap } : undefined
       })
     }
@@ -1430,6 +1655,7 @@ export const run = (
             maxFrames: current.maxFrames,
             approvalChannel: current.approvalChannel,
             modelCallMs: current.modelCallMs,
+            repeatCap: current.repeatCap,
             ...limits
           })
         )
