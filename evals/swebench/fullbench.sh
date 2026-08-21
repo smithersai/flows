@@ -13,12 +13,15 @@
 #
 # Detached launch, exactly. Copy this line:
 #
-#   cd evals/swebench && nohup ./fullbench.sh --resume >> fullbench/launch.log 2>&1 < /dev/null &
+#   cd evals/swebench && mkdir -p fullbench \
+#     && nohup ./fullbench.sh --resume >> fullbench/launch.log 2>&1 < /dev/null &
 #
-# `nohup` detaches it from the terminal, and this script then double-forks
-# itself — `( worker & )` runs the worker in a subshell that exits immediately,
-# so the worker is reparented to launchd — which is what makes it survive the
-# session that launched it, not just the terminal. The launcher prints the
+# The `mkdir` is not optional on a rig that has never run one: the shell opens
+# the redirect before it runs anything, so without the directory the line fails
+# and no driver starts. `nohup` detaches it from the terminal, and this script
+# then double-forks itself — `( worker & )` runs the worker in a subshell that
+# exits immediately, so the worker is reparented to launchd — which is what
+# makes it survive the session that launched it, not just the terminal. The launcher prints the
 # worker's pid and exits; everything after that is in `fullbench/driver.log`.
 #
 # What it does, per instance, two at a time:
@@ -136,7 +139,7 @@ for ARG in "$@"; do
       echo "fullbench.sh: aggregating $(printf '%s' "$AGGREGATE_IDS" | wc -w | tr -d ' ') graded instances into $MODEL_NAME.$RUN_ID.json"
       SWB_PATCHES="$REL_PATCHES" SWB_MODEL_NAME="$MODEL_NAME" SWB_CACHE_LEVEL=instance \
         exec "$S/evaluate.sh" "$RUN_ID" $AGGREGATE_IDS ;;
-    --help|-h) sed -n '2,41p' "$0"; exit 0 ;;
+    --help|-h) sed -n '2,44p' "$0"; exit 0 ;;
     *) echo "fullbench.sh: unknown argument '$ARG'"; exit 2 ;;
   esac
 done

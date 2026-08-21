@@ -700,6 +700,7 @@ once: **one flows attempt per instance, over the whole of SWE-bench Verified.**
 
 ```sh
 cd evals/swebench
+mkdir -p fullbench
 nohup ./fullbench.sh --resume >> fullbench/launch.log 2>&1 < /dev/null &
 ```
 
