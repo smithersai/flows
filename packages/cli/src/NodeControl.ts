@@ -184,9 +184,15 @@ export const layerHostPlatform = Layer.provideMerge(AtomicFileSystem.layer, Node
  * operation resolved, authorized, re-resolved, and executed relative to a
  * pinned root descriptor.
  *
- * The grant store is the allow-all one because the local CLI is the operator's
- * own process; a hosted composition supplies a real `GrantStore`. The
- * confinement the kernel still enforces here is structural — canonical
+ * `grants` is the store the kernel asks before it authorizes an operation, and
+ * it is a parameter rather than a constant so that one composition cannot end
+ * up asking two different stores. The default is the allow-all one because the
+ * local CLI is the operator's own process; a hosted composition supplies a real
+ * `GrantStore`, and must supply the same one it gives
+ * `KernelChildProcessSpawner` — a filesystem pinned to the allow-all store
+ * beside a shell pinned to a real one is a fail-open the types would not catch.
+ *
+ * The confinement the kernel still enforces here is structural — canonical
  * resolution, the hard-link refusal, and descriptor-relative execution from a
  * pinned root — and that is what costs: on Node one authorized operation is one
  * helper process, so a caller that performs one operation per file in a
@@ -198,9 +204,12 @@ export const layerHostPlatform = Layer.provideMerge(AtomicFileSystem.layer, Node
  * @since 0.1.0
  * @slop
  */
-export const layerGuardedPlatform = (root: string) =>
+export const layerGuardedPlatform = (
+  root: string,
+  grants: Layer.Layer<GrantStore.GrantStore> = GrantStore.layerNoop
+) =>
   Layer.orDie(KernelFileSystem.layer).pipe(
-    Layer.provide([Workspace.layer(root), GrantStore.layerNoop]),
+    Layer.provide([Workspace.layer(root), grants]),
     Layer.provideMerge(layerHostPlatform)
   )
 
@@ -510,8 +519,10 @@ export const layerExecutor = (
   const grants = GrantStore.layerNoop
   // The same guarded platform the registry discovers under: kernel FileSystem
   // over descriptor-relative atomic access, with the Node service bundle
-  // (Path, raw spawner, crypto) merged through.
-  const platform = layerGuardedPlatform(root)
+  // (Path, raw spawner, crypto) merged through. `grants` is passed rather than
+  // defaulted so the filesystem and the shell below it can never end up asking
+  // two different stores.
+  const platform = layerGuardedPlatform(root, grants)
   const guarded = KernelChildProcessSpawner.layer.pipe(
     Layer.provide(grants),
     Layer.provideMerge(platform)

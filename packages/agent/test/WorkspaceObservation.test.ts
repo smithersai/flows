@@ -215,6 +215,38 @@ describe("WorkspaceObservation", () => {
     rmSync(outside, { recursive: true, force: true })
   })
 
+  it("refuses a link at any depth, by any spelling, to anywhere", async () => {
+    const root = workspace()
+    const outside = workspace()
+    write(root, "keep.py", "one")
+    write(root, "a/b/keep.py", "two")
+    write(outside, "secret.py", "not this run's tree")
+    write(outside, "deep/nested/other.py", "nor this")
+
+    // The check is per entry, wherever the entry is, so the escapes worth
+    // pinning are the ones a top-level-only check would miss: a link nested
+    // two directories down, a relative one that climbs out with `..`, one that
+    // points at nothing, one that points at itself, and one that points at the
+    // filesystem root. `stat` follows every one of them.
+    symlinkSync(outside, join(root, "a/b/deep-link"))
+    symlinkSync(join("..", "..", "..", outside.split("/").at(-1)!, "secret.py"), join(root, "a/b/relative.py"))
+    symlinkSync(join(outside, "gone.py"), join(root, "dangling.py"))
+    symlinkSync(join(root, "itself"), join(root, "itself"))
+    symlinkSync("/", join(root, "everything"))
+
+    const measurement = await measured(root)
+    expect(measurement.paths).toBe(2)
+    expect(measurement.complete).toBe(true)
+
+    // A walk that followed `everything` would still be running, or would have
+    // stopped at `maxPaths` with `complete: false`. Both halves are the claim.
+    write(outside, "deep/nested/other.py", "changed, outside the tree")
+    expect((await measured(root)).digest).toBe(measurement.digest)
+
+    rmSync(root, { recursive: true, force: true })
+    rmSync(outside, { recursive: true, force: true })
+  })
+
   it("reads metadata under the root and does nothing else to the tree", async () => {
     const root = workspace()
     write(root, "src/a.py", "one")

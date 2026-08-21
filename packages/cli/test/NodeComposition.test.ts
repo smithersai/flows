@@ -8,6 +8,8 @@ import { NodeServices } from "@effect/platform-node"
 import * as WorkspaceObservation from "@smthrs/agent/WorkspaceObservation"
 import { Control as ControlService } from "@smthrs/control"
 import * as TestControl from "@smthrs/control/test/TestControl"
+import * as GrantStore from "@smthrs/kernel/GrantStore"
+import * as Workspace from "@smthrs/kernel/Workspace"
 import { Registry } from "@smthrs/registry"
 import { Cause, Effect, Exit, FileSystem, Layer } from "effect"
 import { HttpServer } from "effect/unstable/http"
@@ -216,6 +218,70 @@ describe("NodeControl.layerObserver", () => {
       )
 
       expect(Exit.isFailure(refused)).toBe(true)
+    } finally {
+      await rm(observed, { recursive: true, force: true })
+    }
+  })
+
+  it("leaves the guarded filesystem in place for everything composed beside it", async () => {
+    const observed = await mkdtemp(join(tmpdir(), "flows-cli-observer-beside-"))
+    try {
+      await writeFile(join(observed, "a.py"), "one")
+      await link(join(observed, "a.py"), join(observed, "b.py"))
+
+      // `layerExecutor` provides the observer in the same array as the guarded
+      // platform, and `StandardFlows.filesystem` then reads `FileSystem` out of
+      // that context. The observer runs on the host platform, so this is the
+      // question the seam turns on: does the host `FileSystem` it was built
+      // from escape into the context the agent-reachable flows resolve from?
+      // It must not — that would unguard every tool that opens a file. The hard
+      // link is the discriminator again, in the opposite direction.
+      const beside = Layer.mergeAll(
+        NodeControl.layerGuardedPlatform(observed),
+        NodeControl.layerObserver(observed)
+      )
+      const [measurement, stat] = await Effect.runPromise(
+        Effect.all([
+          Effect.flatMap(WorkspaceObservation.Observer, (observer) => observer.observe).pipe(Effect.orDie),
+          Effect.exit(Effect.flatMap(FileSystem.FileSystem, (fileSystem) => fileSystem.stat(join(observed, "a.py"))))
+        ]).pipe(Effect.provide(beside), Effect.scoped)
+      )
+
+      expect(measurement.paths).toBe(2)
+      expect(Exit.isFailure(stat)).toBe(true)
+    } finally {
+      await rm(observed, { recursive: true, force: true })
+    }
+  })
+
+  it("asks the grant store the caller supplied, not a default one", async () => {
+    const observed = await mkdtemp(join(tmpdir(), "flows-cli-observer-grants-"))
+    try {
+      await writeFile(join(observed, "a.py"), "one")
+
+      // `layerExecutor` builds one grant store and hands it to both the kernel
+      // filesystem and the kernel spawner. A `layerGuardedPlatform` that pinned
+      // its own store would leave a composition whose shell is authorized and
+      // whose filesystem is not, which no type would catch. A real store with
+      // no rules and nobody to ask authorizes nothing, so the same read that
+      // the default allow-all store permits is refused when this one is passed
+      // instead.
+      const read = (grants?: Layer.Layer<GrantStore.GrantStore>) =>
+        Effect.runPromise(
+          Effect.exit(
+            Effect.flatMap(FileSystem.FileSystem, (fileSystem) => fileSystem.readFileString(join(observed, "a.py")))
+              .pipe(
+                Effect.provide(NodeControl.layerGuardedPlatform(observed, grants)),
+                Effect.scoped
+              )
+          )
+        )
+      const ruleless = Layer.orDie(GrantStore.layer({ attended: false, rules: [] })).pipe(
+        Layer.provide(Workspace.layer(observed))
+      )
+
+      expect(Exit.isSuccess(await read())).toBe(true)
+      expect(Exit.isFailure(await read(ruleless))).toBe(true)
     } finally {
       await rm(observed, { recursive: true, force: true })
     }
