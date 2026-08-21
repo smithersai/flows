@@ -21,7 +21,15 @@
 # So is the full benchmark's half that does not need processes: the manifest's
 # fold, the resume boundary, and the scoreboard. The half that does —
 # pull, extract, delete, kill, resume — is `./fullbench-dryrun.sh`, which needs
-# docker and is not run here.
+# docker and is not run here. The codex backfill splits the same way:
+# `./codex-backfill-dryrun.sh` is its process half.
+#
+# The analysis bundle is checked here in full, and the check that matters most is
+# what it refuses to print: the gold patch, the graded test file, the
+# FAIL_TO_PASS and PASS_TO_PASS identifiers and the maintainer hints are each a
+# sentinel in the fixture's dataset row and none may appear in the output. An
+# analyst who is handed the answer is not designing a trace a real run could
+# follow.
 #
 # The lock every lane in the rig shares is checked here too — mutual exclusion,
 # recovery from a holder killed with -9, and the ownership rule that stops one
@@ -99,3 +107,6 @@ echo "== the lock every lane shares"
 
 echo "== the full benchmark's ledger, queue and report"
 node "$S/fixtures/check-fullbench.mjs"
+
+echo "== the analysis bundle, and what it withholds"
+node "$S/fixtures/check-trace-bundle.mjs"

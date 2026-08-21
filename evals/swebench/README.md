@@ -38,13 +38,16 @@ CLI wrapper, and the evaluator environment with it.
 | `fullbench-status.sh`      | One screen of a running (or stopped) full benchmark                  |
 | `fullbench-report.mjs`     | The full benchmark's scoreboard and its checkpoint log               |
 | `fullbench-dryrun.sh`      | Proves that driver against real docker, with no model spend          |
+| `codex-backfill.sh`        | One codex attempt on every instance the full benchmark graded        |
+| `codex-backfill-dryrun.sh` | Proves the backfill against real docker, with no model spend         |
+| `lib/trace-bundle.mjs`     | One instance's two traces and two bills, as the brief for an analyst |
 | `regen-patch.sh`           | Re-derives one patch from a surviving workspace                      |
 | `scorecard.ts`             | Quality + speed + cost, per instance and in aggregate                |
 | `prices.ts`                | The committed USD price table, with its sources                      |
 | `verify.sh`                | Offline check that the rig still computes what it claims             |
 | `baseline/`                | The committed codex numbers and patches to compare against           |
 | `fixtures/`                | The recorded numbers `verify.sh` replays                             |
-| `lib/`                     | Sampler, prompt writers, prediction builder, patch capture, subject fingerprint, per-run naming, the lock every lane shares, journal reader, full-benchmark ledger and pipeline |
+| `lib/`                     | Sampler, prompt writers, prediction builder, patch capture, subject fingerprint, per-run naming, the lock every lane shares, journal reader, full-benchmark ledger and pipeline, codex-backfill queue and token footer, analysis bundle |
 
 Everything else the rig writes — `swb-verified.json`, `sample.json`,
 `.venv-swb/`, `.subject.json`, `work/`, `work-liveness/`, `patches/`,
@@ -458,6 +461,13 @@ and every wave report that quotes a path keep working. A run still *has* an
 index — `r1` when none was given — because the matrix manifest and every log
 line are keyed by `<id>-<index>` and a nameless run could be recorded in
 neither.
+
+An index is `r<digits>` with an optional lowercase tag. Digits alone are a matrix
+round; a tag names a **lane** over the same instances, which is what the full
+benchmark's `r90` and the codex backfill's `r90c` are. Everything that reads a
+round — `select-candidate.mjs`, `fixtures/rehydrate-journals.mjs` — keeps its own
+stricter `r<digits>` rule, so a tagged lane's artifacts are never mistaken for an
+attempt in a best-of-n draw.
 
 The journal archive carries the **patch's** suffix rather than the run index, so
 the journal and the patch a selection is made from always come from one run. Key
@@ -1051,6 +1061,180 @@ images the matrix needs kept warm.
 
 `SWB_DRYRUN_KEEP=1` leaves the temp directory, with every manifest, report and
 driver log in it, for reading after a failure.
+
+## The codex backfill
+
+The full benchmark measures one harness. A resolved rate on its own is a number
+about a benchmark; it becomes a claim only when a second harness runs the same
+instances under the same conditions. `codex-backfill.sh` is that second harness.
+
+```sh
+./codex-backfill.sh --status        # counts, spends nothing
+./codex-backfill.sh --list          # the ids still owed an attempt
+./codex-backfill.sh --one <id>      # exactly one instance
+./codex-backfill.sh                 # everything left, in order
+```
+
+Its population is **whatever `fullbench/manifest.jsonl` says was graded**, read
+by the same `isDone` rule the flows driver resumes on. Nothing else is eligible:
+an instance our side never finished has no flows attempt to compare against. The
+ids come out in the order the ledger first saw them, which is the seeded draw
+order, so a partial backfill is a prefix of the same uniform sample.
+
+**The instances our own grading errored on are included, and flagged.** An
+`eval error` verdict is a fact about our evaluator invocation and not about the
+patch, and dropping those instances from the codex side would leave the two
+harnesses measured over different populations — which is exactly what makes two
+rates incomparable. Every ledger row carries `flowsVerdict` and
+`flowsEvalError`, `--flagged` lists them, and `--table` marks them.
+
+Per instance, in one process, the same shape `lib/fullbench-instance.sh` uses:
+
+```
+claim -> slot -> disk gate -> pull -> codex run -> archive -> grade -> delete
+```
+
+Grading happens per instance, while the image is still local, for the reason the
+full benchmark grades that way: collecting the patches and grading them
+afterwards needs every image a second time.
+
+### Two slots, and why not `flock`
+
+`--one` is the unit, and a pipeline runs many of them at once. They share one
+docker daemon, one disk and one evaluator, so each instance's docker-heavy span —
+pull, run, grade, delete — is held inside a **two-slot semaphore** at
+`fullbench/.codex-slots`. Two is what the full benchmark already proved this
+machine sustains inside the 8 GiB disk gate.
+
+The semaphore is two `lib/lock.sh` locks rather than `flock`, for two reasons.
+`flock(1)` is a util-linux program and is not on macOS, which is the host this
+rig runs on. And a slot has to survive its holder being killed with `-9`: a
+`lib/lock.sh` slot records the holder's pid, so the next waiter takes a dead
+holder's slot on its next poll, while a lock released only by descriptor closure
+tells a waiter nothing about who is gone. It is the protocol `.extract-lock` and
+`.grade-lock` already use.
+
+One instance is also claimed by pid. Two invocations naming one id would be two
+paid agents writing one patch path, so the second refuses with exit 3 before it
+takes a slot.
+
+### Resume, and the run index
+
+`fullbench/codex-manifest.jsonl` is append-only and fsynced, and **an id with a
+verdict there is a no-op** — the script exits 0 without touching docker. A
+`started` row (a kill mid-instance) and a `failed` row both carry no verdict, so
+both are retried from the top, and the retry purges the dead attempt's artifacts
+*and its evaluator report* first. The official evaluator skips an instance that
+already has a report under the run id, so a retry that kept one would file the
+dead attempt's verdict against a patch it never saw.
+
+Each attempt carries the run index `r90c`: `r90` is the full benchmark's flows
+lane and `r90c` is the codex lane over the same instances, so the two sit side by
+side in the shared codex roots under one readable rule.  `lib/run-paths.sh`
+accepts `r<digits><lowercase tag>` for exactly this; everything that reads a
+matrix *round* keeps its own stricter `r<digits>` rule and ignores a tagged lane.
+
+Auth is checked once, up front, against the rig's own `.codex-home`. A backfill
+that discovered a logged-out home per instance would burn a claim, a pull and an
+extraction on each one first.
+
+| path | what it holds |
+| --- | --- |
+| `fullbench/codex-manifest.jsonl` | the ledger: `{id, verdict, wallSeconds, tokens, patchBytes, timestamps}` and the flags |
+| `fullbench/codex/patches/<id>.patch` | the captured patch, as graded |
+| `fullbench/codex/logs/<id>.*` | the transcript, last message, prompt, pull and grade logs |
+| `fullbench/codex/timings/<id>.json` | the agent's own wall clock |
+| `fullbench/codex/reports/<id>.json` | the official evaluator's report for that instance |
+| `fullbench/.codex-slots/` | the two-slot semaphore |
+
+`tokens` is the CLI's own footer total. It is **one number with no input/output
+split**, so nothing prices it: a USD figure for codex would be inventing that
+split, and the bundle says so instead of printing one.
+
+| variable | default | what it changes |
+| --- | --- | --- |
+| `SWB_CODEX_BACKFILL_SLOTS` | 2 | instances doing docker work at once |
+| `SWB_CODEX_BACKFILL_BUDGET` | 1200 | the per-instance timeout, matching what the flows side got |
+| `SWB_CODEX_BACKFILL_RUN_ID` | `fullbench-codex` | the evaluator run id every instance accumulates into |
+| `SWB_CODEX_BACKFILL_INDEX` | `r90c` | the run index every artifact carries |
+| `SWB_CODEX_BACKFILL_MIN_FREE_MIB` | 8192 | the disk gate |
+| `SWB_CODEX_BACKFILL_SLOT_TIMEOUT` | 21600 | how long an invocation waits for a slot |
+| `SWB_CODEX_MODEL` | `gpt-5.6-sol` | the model, which must be the one the flows side ran |
+
+### The analysis bundle
+
+```sh
+node lib/trace-bundle.mjs <instance_id>
+```
+
+Writes `fullbench/analysis/<id>/bundle.md` — the task as the agent saw it, our
+run's metrics and its frame-by-frame trace, codex's trace and its metrics — and
+`fullbench/analysis/PROMPT.md`, the brief every analyst answers. One brief for
+all of them, so two analyses of two instances are answers to the same question.
+
+The brief asks for **the optimal trace**: a way of solving that instance using
+only what a live agent could see, minimal in wall clock, model turns and dollars,
+written as concrete flows cells. Then a diagnosis of where our trace spent what
+the optimal one does not, classified (tool gap / teaching gap /
+context-visibility gap / model choice gap / pure waste), what codex did that the
+optimal trace adopts or rejects, the three traces' frames, tokens and dollars in
+one table, and at most three **general** harness changes — never
+instance-specific, and never an added review or audit step.
+
+**A bundle withholds hindsight, and that is checked rather than remembered.**
+
+| withheld | why |
+| --- | --- |
+| the gold patch | the answer |
+| the graded test file | the answer, spelled as a test |
+| `FAIL_TO_PASS`, `PASS_TO_PASS` | knowing which tests are graded makes every search trivial and every conclusion untransferable |
+| `hints_text` | maintainer commentary from the PR, which no agent had |
+| the evaluator's own report | it names every graded test |
+
+Enforcement is at the source: the dataset row is projected through `visible()`
+before anything is rendered and that projection is asserted to carry none of
+those keys, and verdicts are read from the two ledgers rather than from
+`fullbench/reports/<id>.json`. `fixtures/check-trace-bundle.mjs`, in
+`verify.sh`, makes each withheld column a sentinel string and fails if one
+reaches the output.
+
+Scanning the finished bundle for graded test names would be the wrong check and
+would fail on honest traces: an agent that found the right test by reading the
+repository put it in its own transcript, and that is the trace working. What is
+checked is that the bundle never *adds* it.
+
+Every clip says what it dropped — `[+2912 chars]` — so a 40 KB test log reads as
+40 KB rather than as its first 200 characters. Defaults: 200 characters per call
+input, call result, codex command and codex output; 400 per codex assistant turn;
+3000 per cell. All four are flags.
+
+### Proving the backfill without spending a token
+
+```sh
+./verify.sh                    # offline; includes fixtures/check-trace-bundle.mjs
+./codex-backfill-dryrun.sh     # real docker, real kill, ~10 MB of pulls, no model
+```
+
+The dry run runs the real script over five instances that are in no dataset, with
+the agent, the evaluator and the auth check stubbed and everything between them
+real:
+
+| phase | what it proves |
+| --- | --- |
+| A | a logged-out rig fails loudly and claims, pulls and writes nothing |
+| B | three `--one` invocations at once run two, the third waits for a slot and says so, and the ledger never shows three in flight |
+| C | `kill -9` mid-instance leaves a `started` row with no verdict, and a second invocation naming a live instance refuses with exit 3 |
+| D | the killed instance runs again from the top; an instance with a verdict is a no-op that touches no docker |
+| E | a disk gate that cannot be satisfied logs its wait and fails the instance rather than pulling |
+| F | the failed instance is retried, and the report its dead attempt left behind is deleted rather than read |
+| G | an id the full benchmark never graded is refused; a bare `./codex-backfill.sh` works through the one instance no `--one` ever named; and a backfill with nothing left says so and exits 0 |
+
+The first two instances meet at a rendezvous inside the stub, so "two at once" is
+proved by construction rather than by two stubs happening to overlap; the third
+is launched only once both are known to be inside their instances, so "the third
+waits" is a fact about the semaphore rather than about which invocation won a
+race. `busybox` and `hello-world` are pulled and deleted; `alpine` stands in for a
+pinned instance's image and is still present at the end.
 
 ## Score
 

@@ -50,13 +50,20 @@ if ! printf '%s' "$INSTANCE" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._-]*__[A-Za-z0-9
   echo "run-paths.sh: instance id must use only ASCII letters, digits, '.', '_' and '-'" >&2; exit 2
 fi
 
-# An absent index keeps today's names; a present one must be `r` and digits.
+# An absent index keeps today's names; a present one must be `r`, digits, and an
+# optional lowercase tag. The tag names a lane rather than a round: the full
+# benchmark's flows attempt is `r90`, and the codex attempt the backfill runs
+# over the same instances is `r90c`, so the two lanes' artifacts sit side by side
+# in the shared roots under one obvious rule instead of a second numbering nobody
+# can read. Digits alone still mean a matrix round, and everything that reads a
+# round — `select-candidate.mjs`, `fixtures/rehydrate-journals.mjs` — keeps its
+# own stricter `r<digits>` rule and ignores a tagged lane.
 if [ -z "$INDEX" ]; then
   RUN_INDEX="r1"
   SUFFIX=""
 else
-  if ! printf '%s' "$INDEX" | grep -Eq '^r[0-9]+$'; then
-    echo "run-paths.sh: run index must match r<digits>, got '${INDEX}'" >&2; exit 2
+  if ! printf '%s' "$INDEX" | grep -Eq '^r[0-9]+[a-z]*$'; then
+    echo "run-paths.sh: run index must match r<digits>[<lowercase tag>], got '${INDEX}'" >&2; exit 2
   fi
   RUN_INDEX="$INDEX"
   SUFFIX="-$INDEX"

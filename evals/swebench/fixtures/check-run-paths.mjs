@@ -113,6 +113,22 @@ for (const round of ["r1", "r2", "r3", "r4", "r5"]) {
 }
 
 // ---------------------------------------------------------------------------
+// A tagged lane: `r90` is the full benchmark's flows attempt and `r90c` is the
+// codex attempt the backfill runs over the same instances. They are two lanes,
+// not two rounds, and every artifact of one must sit beside — never on top of —
+// the artifact of the other.
+// ---------------------------------------------------------------------------
+const flowsLane = paths("flows", instance, "r90")
+const codexLane = paths("codex", instance, "r90c")
+assert.equal(codexLane.RUN_INDEX, "r90c")
+assert.equal(codexLane.RUN_ID, `${instance}-r90c`)
+assert.equal(codexLane.PATCH, join(root, "patches-codex", `${instance}-r90c.patch`))
+assert.equal(codexLane.LOG_PREFIX, join(root, "logs-codex", `${instance}-r90c`))
+assert.equal(codexLane.CONTAINER, "codexbench-django--django-16612-r90c")
+assert.notEqual(codexLane.WORK, paths("codex", instance, "r90").WORK)
+assert.notEqual(flowsLane.PATCH, paths("flows", instance, "r90c").PATCH)
+
+// ---------------------------------------------------------------------------
 // What it refuses, before any of it reaches a path or a container name
 // ---------------------------------------------------------------------------
 assert.match(refuses(["mystery", instance]), /harness must be flows or codex/u)
@@ -120,6 +136,8 @@ assert.match(refuses(["flows", "../escape"]), /instance id must match/u)
 assert.match(refuses(["flows", "a__b/c"]), /instance id/u)
 assert.match(refuses(["flows", instance, "3"]), /run index must match/u)
 assert.match(refuses(["flows", instance, "r3/../.."]), /run index must match/u)
+assert.match(refuses(["flows", instance, "r90C"]), /run index must match/u)
+assert.match(refuses(["flows", instance, "rc"]), /run index must match/u)
 
 // ---------------------------------------------------------------------------
 // The run scripts derive their names from it rather than spelling them again
