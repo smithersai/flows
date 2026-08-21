@@ -171,8 +171,18 @@ export interface Sufficient {
 /**
  * Finds a failing-before, passing-after pair this frame has completed.
  *
- * Three conditions, each read off the run's own record:
+ * Four conditions, each read off the run's own record:
  *
+ * 0. no check of this frame reported a *failing* exit status. The sentence says
+ *    the evidence the contract asks for exists, and a frame that is looking at
+ *    a red check right now is a frame for which that reading is at best half
+ *    the record — a narrow probe going green while the broad check beside it
+ *    stays red is the exact shape that has lost one graded instance for six
+ *    consecutive waves. The harness will not pick the good half out of a frame
+ *    that holds both; it says nothing and lets the run finish reading. This
+ *    only ever suppresses the observation and can never manufacture one, and it
+ *    changes neither of the two frames that fire across the ten journals two
+ *    graded waves recorded;
  * 1. some check of this frame reported a *passing* exit status — silence is not
  *    a pass, so a read or a search can never be one half of this;
  * 2. some remembered failure is the same call, or one that check is broader
@@ -200,6 +210,7 @@ export const find = (options: {
   /** Frames that have changed the workspace, this one included. */
   readonly epoch: number
 }): Sufficient | undefined => {
+  if (options.frame.some((check) => check.failing)) return undefined
   let found: Sufficient | undefined = undefined
   for (const passed of options.frame) {
     if (!passed.passing) continue

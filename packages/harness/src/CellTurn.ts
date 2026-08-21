@@ -483,8 +483,12 @@ export class State extends Schema.Class<State>("flows/harness/CellTurn/State")({
    * every `continue` — a projection is a statement about the frame being
    * opened, not a standing subscription, so a cell that names nothing is shown
    * the roster. An exit that settles no `continue` carries the standing
-   * projection forward, because it also left `agentState` where it was. See
-   * `Cell.Continue` `render`.
+   * projection forward: a raise and a refused park leave `agentState` where it
+   * was, and a bounced completion moves it to the state that completion carried
+   * while naming no projection of its own, so the last list a cell asked for is
+   * the only one there is. A key the new state no longer holds is named as
+   * missing rather than dropped, which is the same calm notice any wrong name
+   * gets. See `Cell.Continue` `render`.
    */
   renderKeys: Schema.Array(Schema.String).pipe(
     Schema.withConstructorDefault(Effect.succeed<ReadonlyArray<string>>([])),
@@ -790,7 +794,7 @@ const projectionEdge = projectionBytes / 2
 const projectionKeys = 8
 
 const projection = (value: unknown): string => {
-  const rendered = CanonicalJson.stringify(value as Schema.Json)
+  const rendered = CanonicalJson.stringify(value)
   if (rendered.length <= projectionBytes) return rendered
   return `${rendered.slice(0, projectionEdge)}\n… ${
     rendered.length - projectionBytes
@@ -827,10 +831,15 @@ const stateTeaching = (agentState: Schema.Json, keys: ReadonlyArray<string>): st
       ? Object.entries(agentState)
       : []
   )
-  const named = keys.filter((key) => members.has(key))
+  // De-duplicated first, because the list is model-written and a repeated name
+  // would otherwise spend a slot of the projection budget on rendering one
+  // value twice — `render: ["a", "a", "a"]` printed the same key three times
+  // and left five slots for the seven keys the frame actually needed.
+  const asked = [...new Set(keys)]
+  const named = asked.filter((key) => members.has(key))
   const shown = named.slice(0, projectionKeys)
   const overflow = named.slice(projectionKeys)
-  const missing = keys.filter((key) => !members.has(key))
+  const missing = asked.filter((key) => !members.has(key))
   const roster = members.size === 0
     ? `(${rendered.length} bytes)`
     : [...members]
@@ -1821,10 +1830,17 @@ const frame = (
       if (cap > 0 && raisedFrames >= cap * 2) {
         return yield* readOnlyCapFailure(cap, raisedFrames)
       }
+      // The flow name is clipped for the same reason `CallLedger` clips it: a
+      // call names whatever string the cell passed to `ctx.call`, a name that
+      // matches no descriptor still settles as a failure saying so, and an
+      // unbounded name here is an unbounded line in the notice.
       const salvage = observedCalls.length === 0
         ? ""
         : `\nCalls this cell already completed (their results are durable; use them instead of redoing the work):\n${
-          observedCalls.map((call) => `- ${call.flow} -> ${call.ok ? "ok" : "FAILED"}: ${call.summary}`).join("\n")
+          observedCalls.map((call) =>
+            `- ${clip(call.flow, CallLedger.width)} -> ${call.ok ? "ok" : "FAILED"}: ${call.summary}`
+          )
+            .join("\n")
         }`
       const alert = probeNotice === undefined ? "" : `\n\n${probeNotice}`
       // A multi-block reply is concatenated into one program, so the most

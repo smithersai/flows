@@ -18,6 +18,7 @@ import * as ContextWindow from "../src/ContextWindow.ts"
 import * as QuickJSSandbox from "../src/QuickJSSandbox.ts"
 import * as Sandbox from "../src/Sandbox.ts"
 import * as Steering from "../src/Steering.ts"
+import { batchedReply } from "./fixtures/batchedReplies.ts"
 import * as ScriptedEngine from "./fixtures/scriptedEngine.ts"
 import * as ScriptedModel from "./fixtures/scriptedModel.ts"
 
@@ -3117,6 +3118,61 @@ return { intent: "complete", state: s, output: "echoed " + s.plan }`
       ModelRequest.TextPart.make({ text: "echoed read" })
     ])
   })
+
+  it("ends the frame at the first block that throws, leaving the later blocks unrun", async () => {
+    // The other half of "one program": a throw ends the function exactly as a
+    // return does, so the blocks after it never run. What the frame did before
+    // the throw survives — in the salvage note and in the run's call ledger —
+    // which is the whole reason a raise no longer costs the frame's work.
+    const { engine, events, model } = await run({
+      script: [
+        emitsBlocks(
+          `const first = await ctx.call("fs/list", { path: "one" })`,
+          `throw new Error("boom in block two")`,
+          `await ctx.call("fs/list", { path: "three" })
+           return { intent: "complete", state: {}, output: "never " + first.n }`
+        ),
+        emits(`return { intent: "complete", state: {}, output: "recovered" }`)
+      ],
+      calls: [{ _tag: "Success", value: { n: 1 } }, { _tag: "Success", value: { n: 3 } }]
+    })
+
+    expect(engine.recorder.calls.map((call) => call.input)).toEqual([{ path: "one" }])
+    expect(of(events, "cell-settled")[0]?.outcome).toMatchObject({
+      _tag: "raised",
+      message: "boom in block two"
+    })
+    expect(observationsOf(model, 1)).toContain("- fs/list -> ok: {\"n\":1}")
+    expect(stateSection(model.recorder.requests[1])).toContain("1. fs/list {\"path\":\"one\"} — ok: n=1")
+  })
+
+  it("bounces wave-10 django's seven-block reply instead of running its imagined completion", async () => {
+    // The recorded reply, verbatim. Under the rule this replaced, the harness
+    // ran block seven — a completion citing a probe and a suite nothing had
+    // executed — against a tree where blocks one through six had never run:
+    // `mutated: false`, zero declared writes, empty patch, run over in two
+    // frames. As one program it redeclares `st`, so the frame issues no call at
+    // all and the model is told what shape its reply was in.
+    const cells = [...batchedReply("django-16612-seq12").matchAll(/```cell\n([\s\S]*?)\n```/g)]
+      .map((match) => match[1]!)
+    const { engine, events, model } = await run({
+      script: [
+        emitsBlocks(...cells),
+        emits(`return { intent: "complete", state: {}, output: "recovered" }`)
+      ],
+      flows: [descriptor("read", { capabilities: ["fs:read:**"] })]
+    })
+
+    expect(cells).toHaveLength(7)
+    expect(of(events, "cell-produced")[0]?.blocks).toBe(7)
+    expect(engine.recorder.calls).toEqual([])
+    expect(of(events, "cell-settled")[0]?.outcome).toMatchObject({
+      _tag: "rejected",
+      code: "compile_failed",
+      message: "The cell did not compile: Identifier 'st' has already been declared"
+    })
+    expect(observationsOf(model, 1)).toContain("This reply carried 7 cell blocks.")
+  })
 })
 
 describe("CellTurn call ledger", () => {
@@ -3169,6 +3225,41 @@ describe("CellTurn call ledger", () => {
     })
 
     expect(stateSection(model.recorder.requests[1])).toContain("1. fs/list src/a.ts — ok: totalLines=3")
+  })
+
+  it("bounds the line a call that named no flow at all contributes", async () => {
+    // The flow name is whatever the cell passed to `ctx.call`, and a name that
+    // matches no descriptor still settles — as a failure saying so. The ledger
+    // is durable controller state re-rendered every remaining frame, so an
+    // unbounded name there is fifty kilobytes of model-written padding in the
+    // state, in the journal, and in every prompt after it.
+    const { model } = await run({
+      script: [
+        emits(
+          `try { await ctx.call("Z".repeat(50000), {}) } catch {}
+           return { intent: "continue", state: {}, context: [] }`
+        ),
+        emits(`return { intent: "complete", state: {}, output: "done" }`)
+      ]
+    })
+
+    const section = stateSection(model.recorder.requests[1])
+    expect(section).toContain("Calls this run has settled (1), oldest first")
+    expect(section).toContain(`1. ${"Z".repeat(119)}…`)
+    expect(section.length).toBeLessThan(1_000)
+  })
+
+  it("bounds the same name in the salvage note a raised frame writes", async () => {
+    const { model } = await run({
+      script: [
+        emits(`try { await ctx.call("Z".repeat(50000), {}) } catch {}\nthrow new Error("boom")`),
+        emits(`return { intent: "complete", state: {}, output: "done" }`)
+      ]
+    })
+
+    const observed = observationsOf(model, 1)
+    expect(observed).toContain(`- ${"Z".repeat(119)}… -> FAILED:`)
+    expect(observed.length).toBeLessThan(2_000)
   })
 })
 

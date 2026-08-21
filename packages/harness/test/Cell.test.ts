@@ -3,6 +3,7 @@ import { Option, Result } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Cell from "../src/Cell.ts"
 import * as FlowBinding from "../src/FlowBinding.ts"
+import { batchedReply } from "./fixtures/batchedReplies.ts"
 import { rejectedCell, rejectedCellNames } from "./fixtures/rejectedCells.ts"
 
 const fenced = (info: string, body: string): string => "```" + info + "\n" + body + "\n```"
@@ -172,6 +173,36 @@ describe("Cell.extract on the frames one benchmark wave rejected", () => {
       expect(Result.getOrThrow(extracted).source.text).toContain("ctx.call")
     })
   }
+})
+
+describe("Cell.extract on the two multi-block replies one benchmark wave produced", () => {
+  it("reads django's seven-block near-par program as one program of seven blocks", () => {
+    const extracted = Result.getOrThrow(Cell.extract(batchedReply("django-16612-seq12")))
+
+    expect(extracted.blocks).toBe(7)
+    // Block one is the recon cell and it is now in the program; under the old
+    // rule the program was block seven alone, an imagined completion over a
+    // tree where nothing before it had run.
+    expect(extracted.source.text.startsWith("const site = await ctx.call(\"read\"")).toBe(true)
+    expect(extracted.source.text).toContain("force_append_slash=True")
+    // Five of the seven blocks open `const st = ctx.state`, so one program
+    // declares `st` five times. The compiler names it, which is a durable
+    // observation the next frame can act on — unlike silently running one
+    // block of seven, which is not observable at all.
+    expect(() => new Function(`return (async () => {${extracted.source.text}})()`)).toThrow(
+      /Identifier 'st' has already been declared/
+    )
+  })
+
+  it("reads astropy's duplicated block as the one program it restates", () => {
+    const extracted = Result.getOrThrow(Cell.extract(batchedReply("astropy-8707-seq77")))
+
+    expect(extracted.blocks).toBe(2)
+    // De-duplication is what keeps this a frame that runs: joining the repeat
+    // would declare `s` twice and turn it into a compile failure.
+    expect(extracted.source.text.match(/const s = ctx\.state/g)).toHaveLength(1)
+    expect(() => new Function(`return (async () => {${extracted.source.text}})()`)).not.toThrow()
+  })
 })
 
 describe("Cell.source", () => {

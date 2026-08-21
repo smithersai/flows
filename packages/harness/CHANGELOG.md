@@ -34,6 +34,12 @@
 
 ### Fixed
 
+- Bounded the flow name a `CallLedger` line carries, and the same name in the salvage note a raised frame writes. A call names whatever string the cell passed to `ctx.call`, and a name matching no descriptor still settles — as a failure saying so — so `ctx.call("Z".repeat(50000), {})`, one short line of JavaScript, put fifty kilobytes into durable controller state, into the journal, and into every remaining frame's prompt, thirty times over at the ledger's own bound. Every rendered field of a ledger line is now clipped to `CallLedger.width`, which is what the module already claimed. A real flow name is far under it, so nothing callable renders differently.
+
+- Stopped `Sufficiency` writing its observation in a frame that also watched a check report a failing exit status. The pair it names is real, and in such a frame it is at best half of what the run is holding: a narrow probe going green beside a broad check that stayed red is the shape one graded instance has lost to for six consecutive waves, and a harness that picks the good half out of that frame and hands it back as "evidence held" is doing the opposite of what the counterweight is for. The condition only ever suppresses the sentence and can never manufacture one; replayed over the ten runs wave 9 and wave 10 recorded, it changes neither of the two frames that fire.
+
+- De-duplicated the key list a `continue` transition names in `render`. The list is model-written, so it can repeat, and a repeat rendered the same value again and took a second of the eight projection slots with it — `render: ["a", "a", "a"]` printed one key three times and left five slots for the seven keys the frame actually needed. A key the state does not carry is likewise named once however often it was asked for.
+
 - Bounded each host flow call independently of the cell's 15-minute backstop.
   An over-budget call now returns a catchable, typed
   `FlowCallTimeoutError` with a model-facing narrowing instruction, while the

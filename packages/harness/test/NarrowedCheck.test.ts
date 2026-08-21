@@ -266,6 +266,22 @@ describe("NarrowedCheck.findOnly", () => {
     expect(found([single], [read, single])).toBeUndefined()
     expect(found([single], [single])).toBeUndefined()
   })
+
+  it("does name a check that carries no condition at all, and that is the price", () => {
+    // The other side of the floor, stated so a reader is not surprised by it.
+    // The harness cannot read a flag, so it cannot tell this unfiltered run of
+    // one file from the filtered run of one file above; what it can see is that
+    // the run has never read the interpreter and the file together. The demand
+    // costs such a run one frame, it is capped at one, and the second answer —
+    // "it carries no condition and the reading is already whole" — is accepted
+    // exactly as written. Every weaker condition tried against three graded
+    // waves fired on one or both of the two best rounds this harness scored.
+    const probe = ran("bash", command("/bin/python -c import a"), "tree-1")
+    const read = ran("read", { path: "a/b.py" }, "tree-1")
+    const whole = ran("bash", command("/bin/python -m check a/b.py"), "tree-2")
+
+    expect(found([whole], [probe, read, whole])?.targets).toEqual(["/bin/python", "a/b.py"])
+  })
 })
 
 describe("NarrowedCheck.demandOnly", () => {

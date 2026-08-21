@@ -12,6 +12,11 @@ import { Effect, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import * as NarrowedCheck from "../src/NarrowedCheck.ts"
 import * as Sufficiency from "../src/Sufficiency.ts"
+import * as UnresolvedFailure from "../src/UnresolvedFailure.ts"
+import waveNine from "./fixtures/completionJournals.json" with { type: "json" }
+import waveTen from "./fixtures/wave10Journals.json" with { type: "json" }
+
+type Journal = typeof waveNine.journals[number]
 
 const command = (text: string): Schema.Json => ({ mode: "unhermetic", command: text })
 
@@ -162,6 +167,21 @@ describe("Sufficiency.find", () => {
     expect(Sufficiency.find({ ledger, frame: [ran("check a/b.py", { passing: true })], epoch: 1 })?.failed.label)
       .toContain("-k two")
   })
+
+  it("says nothing in a frame that also watched a check fail", () => {
+    // The shape one graded instance has lost to for six consecutive waves: the
+    // narrow probe goes green and the broad check beside it stays red. The pair
+    // is real, and it is at best half of what the frame is holding — so the
+    // harness does not pick the good half out and hand it back as "evidence
+    // held". It says nothing and lets the run finish reading.
+    const ledger = failedAt("check a/b.py -k one", 0)
+    const passed = ran("check a/b.py -k one", { passing: true })
+    const suite = ran("check a/", { failing: true })
+
+    expect(Sufficiency.find({ ledger, frame: [passed], epoch: 1 })).toBeDefined()
+    expect(Sufficiency.find({ ledger, frame: [passed, suite], epoch: 1 })).toBeUndefined()
+    expect(Sufficiency.find({ ledger, frame: [suite, passed], epoch: 1 })).toBeUndefined()
+  })
 })
 
 describe("Sufficiency.observation", () => {
@@ -191,4 +211,81 @@ describe("Sufficiency.Ledger", () => {
 
     expect(Effect.runSync(Schema.decodeUnknownEffect(Holder)({}))).toEqual({ failures: [] })
   })
+})
+
+/**
+ * The signal, replayed over the ten runs two graded waves recorded.
+ *
+ * The fixtures are the same two `narrowing-journals.mjs` distillations the
+ * completion demands replay, and the driver is the controller's own ordering:
+ * a frame's checks are its successful non-writing calls, the epoch is the run's
+ * count of frames that changed the workspace, and the observation is only ever
+ * consulted on a frame that settled a `continue` — a run at its `complete`
+ * transition has already decided, and that branch returns before this one.
+ *
+ * It says something to two of the ten, once each, and nothing to the other
+ * eight. Wave 10's pytest instance is the one to watch: it closed its pair and
+ * completed in the same frame, so the signal never reaches it and
+ * `NarrowedCheck.findOnly` is what that completion hears.
+ */
+describe("Sufficiency over the recorded waves", () => {
+  const replay = (journal: Journal): ReadonlyArray<{ readonly frame: number; readonly passed: string }> => {
+    let failures: Sufficiency.Ledger = []
+    let mutations = 0
+    let stated = false
+    const fired: Array<{ readonly frame: number; readonly passed: string }> = []
+    let index = 0
+    for (const frame of journal.frames) {
+      index = index + 1
+      const digest = frame.basis === "observed" ? frame.digest : ""
+      const checks = frame.calls.flatMap((call) => {
+        if (!call.ok || call.mutates) return []
+        const result = ("exit" in call ? { exitCode: call.exit } : {}) as Schema.Json
+        const probe = "probe" in call
+        const recorded = NarrowedCheck.check({
+          flow: call.flow,
+          signature: `${call.flow}:${JSON.stringify(call.input)}`,
+          input: call.input as Schema.Json,
+          digest,
+          failing: !probe && UnresolvedFailure.failed(result),
+          passing: !probe && UnresolvedFailure.passed(result),
+          stable: !frame.mutated
+        })
+        return recorded === undefined ? [] : [recorded]
+      })
+      const epoch = mutations + (frame.mutated ? 1 : 0)
+      const remembered = Sufficiency.remember(failures, { frame: checks, epoch: mutations })
+      if (!stated && frame.transition === "continue") {
+        const found = Sufficiency.find({ ledger: remembered, frame: checks, epoch })
+        if (found !== undefined) {
+          stated = true
+          fired.push({ frame: index, passed: found.passed.label })
+        }
+      }
+      failures = remembered
+      mutations = epoch
+    }
+    return fired
+  }
+
+  const fires = [
+    ["wave 9", waveNine.journals, "pytest-dev__pytest-6197", 11],
+    ["wave 10", waveTen.journals, "astropy__astropy-8707", 8]
+  ] as const
+
+  for (const [wave, runs, instance, frame] of fires) {
+    it(`says so once to ${wave}'s ${instance}, on frame ${frame}`, () => {
+      const journal = runs.find((entry) => entry.instance === instance)
+      if (journal === undefined) throw new Error(`the ${wave} fixture is missing ${instance}`)
+
+      expect(replay(journal as Journal).map((found) => found.frame)).toEqual([frame])
+    })
+
+    it(`says nothing to the rest of ${wave}`, () => {
+      for (const journal of runs) {
+        if (journal.instance === instance) continue
+        expect(replay(journal as Journal), journal.instance).toEqual([])
+      }
+    })
+  }
 })

@@ -495,6 +495,32 @@ describe("CellTurn state projection", () => {
     expect(section).toContain("## h\n")
   })
 
+  it("spends one projection slot on a key the transition named twice", async () => {
+    // The list is model-written, so it can repeat. A repeat used to render the
+    // same value again and take a second of the eight slots with it.
+    const { model } = await run({
+      script: [
+        projecting(`["probe", "probe", "excerpt", "probe"]`),
+        emits(`return { intent: "complete", output: "done" }`)
+      ]
+    })
+
+    const section = stateSection(model, 1)
+    expect(section.match(/^## probe$/gm)).toHaveLength(1)
+    expect(section).toContain("## excerpt\n")
+  })
+
+  it("names a key the state does not carry once, however often it was named", async () => {
+    const { model } = await run({
+      script: [
+        projecting(`["guard", "guard"]`),
+        emits(`return { intent: "complete", output: "done" }`)
+      ]
+    })
+
+    expect(stateSection(model, 1)).toContain("No such key in state: guard.")
+  })
+
   it("names a projected key the state does not carry instead of rendering nothing", async () => {
     const { model } = await run({
       script: [

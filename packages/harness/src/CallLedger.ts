@@ -180,6 +180,15 @@ export interface Settlement {
  * text — an anchor near-miss, a missing path — is the whole content of the
  * result and is otherwise seen only by a cell that thought to catch it.
  *
+ * Every one of the four rendered fields is bounded, the flow name included. A
+ * name that matches no descriptor still settles — as a failure saying so — and
+ * the name is whatever the cell passed to `ctx.call`, which is a value the model
+ * writes. `ctx.call("Z".repeat(50000), {})` is one short line of JavaScript, and
+ * without this bound it put fifty kilobytes into durable controller state and
+ * into every remaining frame's prompt, thirty times over at the ledger's bound.
+ * A real flow name is far under {@link width}, so the clip is invisible to every
+ * call that names something callable.
+ *
  * @category constructors
  * @since 0.1.0
  * @slop
@@ -187,7 +196,7 @@ export interface Settlement {
 export const entry = (ordinal: number, call: Settlement): Entry =>
   new Entry({
     ordinal,
-    flow: call.flow,
+    flow: clip(call.flow, width),
     subject: subject(call.input),
     ok: call.ok,
     digest: call.ok ? digest(call.value) : clip(call.message ?? "failed", width)
